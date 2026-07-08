@@ -2,18 +2,21 @@
 (Arditi et al., 2024) on a small open-weight model.
 
 Pipeline:
-  1. Load harmful (AdvBench) / harmless (Alpaca) instruction pairs.
+  1. Load harmful (AdvBench) / harmless (Alpaca) instruction pairs, split
+     into train (direction estimation) / calib (layer selection) / val
+     (held-out causal validation -- never used for any tuning decision).
   2. Extract last-token residual-stream activations at every layer.
-  3. Compute per-layer difference-of-means direction, pick candidate layers
-     via a cheap separation-score proxy.
-  4. Causally validate the top candidate: directional ablation should
-     suppress refusal on harmful prompts; activation addition should induce
-     refusal on harmless prompts.
-  5. Save refusal-rate results to results/phase1_reproduction.json.
+  3. Compute per-layer difference-of-means direction, pick the best layer
+     via a cheap separation-score proxy computed on the calib split.
+  4. Causally validate on the held-out val split: directional ablation
+     should suppress refusal on harmful prompts; activation addition
+     should induce refusal on harmless prompts.
+  5. Save refusal-rate results to results/phase1_reproduction_<model>.json.
 """
 
 from __future__ import annotations
 
+import argparse
 import json
 import sys
 from pathlib import Path
@@ -37,8 +40,19 @@ DEFAULT_MODEL = "Qwen/Qwen2.5-1.5B-Instruct"
 RESULTS_DIR = Path(__file__).resolve().parents[1] / "results"
 
 
+def parse_args() -> argparse.Namespace:
+    p = argparse.ArgumentParser()
+    p.add_argument("model", nargs="?", default=DEFAULT_MODEL)
+    p.add_argument("--alpha", type=float, default=1.0, help="Addition coefficient, as a multiplier on the raw (unnormalized) mean-difference direction.")
+    p.add_argument("--n-train", type=int, default=200)
+    p.add_argument("--n-calib", type=int, default=30)
+    p.add_argument("--n-val", type=int, default=30)
+    return p.parse_args()
+
+
 def main() -> None:
-    model_name = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_MODEL
+    args = parse_args()
+    model_name = args.model
     model_slug = model_name.split("/")[-1]
     results_path = RESULTS_DIR / f"phase1_reproduction_{model_slug}.json"
 
@@ -46,7 +60,7 @@ def main() -> None:
     model = load_model(model_name)
 
     print("Loading harmful/harmless prompt split")
-    split = load_harmful_harmless_split(n_train=200, n_val=30)
+    split = load_harmful_harmless_split(n_train=args.n_train, n_calib=args.n_calib, n_val=args.n_val)
 
     print("Extracting activations (train split)")
     harmful_train_acts = get_last_token_resid_acts(model, split["harmful_train"])
@@ -56,15 +70,15 @@ def main() -> None:
     directions = compute_directions(harmful_train_acts, harmless_train_acts)
     raw_directions = compute_raw_directions(harmful_train_acts, harmless_train_acts)
 
-    print("Extracting activations (val split) for layer selection")
-    harmful_val_acts = get_last_token_resid_acts(model, split["harmful_val"])
-    harmless_val_acts = get_last_token_resid_acts(model, split["harmless_val"])
-    all_val_acts = torch.cat([harmful_val_acts, harmless_val_acts], dim=1)
+    print("Extracting activations (calib split) for layer selection")
+    harmful_calib_acts = get_last_token_resid_acts(model, split["harmful_calib"])
+    harmless_calib_acts = get_last_token_resid_acts(model, split["harmless_calib"])
+    all_calib_acts = torch.cat([harmful_calib_acts, harmless_calib_acts], dim=1)
     labels = torch.cat([
-        torch.ones(len(split["harmful_val"]), dtype=torch.bool),
-        torch.zeros(len(split["harmless_val"]), dtype=torch.bool),
+        torch.ones(len(split["harmful_calib"]), dtype=torch.bool),
+        torch.zeros(len(split["harmless_calib"]), dtype=torch.bool),
     ])
-    scores = separation_score(all_val_acts, directions, labels)
+    scores = separation_score(all_calib_acts, directions, labels)
     candidates = select_candidate_layers(scores, k=3)
     print(f"Top candidate layers by separation score: {candidates}")
     print(f"Scores: {[round(scores[i].item(), 3) for i in candidates]}")
@@ -73,8 +87,9 @@ def main() -> None:
     direction = directions[best_layer]
     raw_direction = raw_directions[best_layer]
     print(f"Raw direction norm at layer {best_layer}: {raw_direction.norm().item():.3f}")
+    print(f"Addition alpha: {args.alpha}")
 
-    print(f"\n== Causal validation at layer {best_layer} ==")
+    print(f"\n== Causal validation at layer {best_layer} (held-out val split) ==")
 
     print("Baseline completions on harmful val prompts")
     baseline_harmful = [generate_baseline(model, p) for p in split["harmful_val"]]
@@ -85,14 +100,17 @@ def main() -> None:
     baseline_harmless = [generate_baseline(model, p) for p in split["harmless_val"]]
     print("Direction-added completions on harmless val prompts")
     added_harmless = [
-        generate_with_addition(model, p, raw_direction, layer_idx=best_layer) for p in split["harmless_val"]
+        generate_with_addition(model, p, raw_direction, layer_idx=best_layer, alpha=args.alpha)
+        for p in split["harmless_val"]
     ]
 
     results = {
         "model": model_name,
+        "alpha": args.alpha,
         "best_layer": best_layer,
         "candidate_layers": candidates,
         "separation_scores": {i: round(scores[i].item(), 4) for i in candidates},
+        "raw_direction_norm": round(raw_direction.norm().item(), 4),
         "refusal_rate": {
             "harmful_baseline": refusal_stats(baseline_harmful),
             "harmful_ablated": refusal_stats(ablated_harmful),

@@ -73,14 +73,22 @@ def load_harmless(n: int = 32, seed: int = 0) -> list[str]:
 
 
 def load_harmful_harmless_split(
-    n_train: int = 24, n_val: int = 8, seed: int = 0
+    n_train: int = 24, n_val: int = 8, n_calib: int = 0, seed: int = 0
 ) -> dict[str, list[str]]:
-    """Train/val split for direction extraction (train) and layer selection (val)."""
-    harmful = load_harmful(n=n_train + n_val, seed=seed)
-    harmless = load_harmless(n=n_train + n_val, seed=seed)
-    return {
+    """Train/(calib)/val split. Train: direction estimation. Calib (optional):
+    hyperparameter tuning (e.g. addition alpha, layer selection) -- kept
+    disjoint from val so tuning doesn't leak into the numbers we report.
+    Val: held-out causal validation only."""
+    total = n_train + n_calib + n_val
+    harmful = load_harmful(n=total, seed=seed)
+    harmless = load_harmless(n=total, seed=seed)
+    split = {
         "harmful_train": harmful[:n_train],
-        "harmful_val": harmful[n_train:],
         "harmless_train": harmless[:n_train],
-        "harmless_val": harmless[n_train:],
+        "harmful_val": harmful[n_train + n_calib :],
+        "harmless_val": harmless[n_train + n_calib :],
     }
+    if n_calib:
+        split["harmful_calib"] = harmful[n_train : n_train + n_calib]
+        split["harmless_calib"] = harmless[n_train : n_train + n_calib]
+    return split
