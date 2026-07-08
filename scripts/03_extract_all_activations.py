@@ -16,6 +16,7 @@ Usage: python scripts/03_extract_all_activations.py <model_name>
 
 from __future__ import annotations
 
+import argparse
 import sys
 from collections import Counter
 from pathlib import Path
@@ -54,11 +55,19 @@ def get_split_records() -> dict[str, list[dict]]:
     return split
 
 
-def main() -> None:
-    model_name = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_MODEL
+def parse_args() -> argparse.Namespace:
+    p = argparse.ArgumentParser()
+    p.add_argument("model", nargs="?", default=DEFAULT_MODEL)
+    p.add_argument("--4bit", dest="load_in_4bit", action="store_true", help="Load model in 4-bit (bitsandbytes) -- needed for 7-9B models on a 6GB GPU.")
+    return p.parse_args()
 
-    print(f"Loading model: {model_name}")
-    model = load_model(model_name)
+
+def main() -> None:
+    args = parse_args()
+    model_name = args.model
+
+    print(f"Loading model: {model_name}" + (" (4-bit)" if args.load_in_4bit else ""))
+    model = load_model(model_name, load_in_4bit=args.load_in_4bit)
 
     split = get_split_records()
     all_records = []

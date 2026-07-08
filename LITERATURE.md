@@ -1,10 +1,11 @@
 # Related work
 
-Note on scope: this is an abstract-level survey (read via search results and
-arXiv abstracts, not full close reading of every paper) intended to situate
-this project's contribution and confirm it isn't duplicating existing work.
-A deeper close-reading pass belongs in a later phase once the SAE-detector
-work starts drawing directly on these papers' methods.
+Note on scope: most entries below are an abstract-level survey (read via
+search results and arXiv abstracts, not full close reading), intended to
+situate this project's contribution and confirm it isn't duplicating
+existing work. The two papers Phase 3 draws its methodology from
+("Understanding Refusal..." and "Steering Language Model Refusal...") have
+been close-read in full -- see their entries below.
 
 ## Foundational finding
 
@@ -68,16 +69,51 @@ filter" alone.
   set (Phase 4).
 - **"Understanding Refusal in Language Models with Sparse Autoencoders"**
   ([arXiv:2505.23556](https://arxiv.org/abs/2505.23556), ACL Findings
-  EMNLP 2025): harm and refusal are encoded as *separate* SAE feature sets,
-  with harmful features causally affecting refusal features; adversarial
-  jailbreaks work by suppressing specific refusal-related features. This is
-  close to the planned SAE-feature detector's core premise and should be
-  read closely (not just at abstract level) before finalizing that phase's
-  design.
+  EMNLP 2025) -- **close-read in full; Phase 3's methodology is adapted from
+  this paper.** Models: Gemma-2-2B and Llama-3.1-8B, using GemmaScope
+  (expansion 32) and LlamaScope (expansion 8), both **base-model SAEs
+  applied to the instruct/chat model's activations** -- the same
+  methodological choice this project makes with Qwen-Scope (see
+  [DECISIONS.md](DECISIONS.md)), which the paper itself flags as a
+  limitation rather than treating as disqualifying.
+  Method: (1) compute a difference-in-means refusal direction exactly like
+  Phase 1's `compute_directions()`; (2) restrict the SAE's full feature
+  space to the top K0=10 features per layer by cosine similarity to that
+  direction; (3) rank those by causal effect via Attribution Patching
+  (integrated gradients, N=10 steps), keep the top K*=20; (4) split into
+  refusal features F_R (common across all harmful categories) vs harm
+  features F_H (category-specific). Causal validation: scale the selected
+  feature's activation by a coefficient (c=-3 Gemma, c=-1/-3 Llama) and
+  measure suppression via HarmBench's classifier, not string-matching.
+  **Results worth replicating**: suppressing F_H gave 48% (Gemma) / 51%
+  (Llama) refusal suppression vs a 5-6% random-feature baseline. Most
+  relevant to this project's motivation: **sparse SAE-feature probes were
+  far more robust to adversarial paraphrasing than dense single-direction
+  probes** -- accuracy gap between vanilla and adversarial prompts was only
+  0.03-0.17 for sparse features vs 0.52-0.93 for the dense direction probe.
+  Stated limitations: small K* may omit relevant features; the
+  restrict-to-refusal-direction step inherits whatever bias the direction
+  itself has; cross-model transfer was not systematically tested (explicitly
+  left open -- this project's differentiator).
 - **"Steering Language Model Refusal with Sparse Autoencoders"**
-  ([arXiv:2411.11296](https://arxiv.org/abs/2411.11296)): SAE-based
-  steering, precedent for using pretrained SAE features (rather than the
-  raw single direction) for refusal control.
+  ([arXiv:2411.11296](https://arxiv.org/abs/2411.11296)) -- **close-read in
+  full; cautionary methodology, not directly adapted.** Model: Phi-3 Mini,
+  a Top-k SAE (k=32, expansion 8, 24,576 features) trained on layer 6.
+  Feature selection was manual/ad hoc: one archetypal refusal completion,
+  grid search over ~100 candidate features on 250 samples, picked a single
+  best feature by hand. At their strongest steering coefficient (clamp=12):
+  Wild Guard unsafe-prompt refusal rose 58%->96% and jailbreak success fell
+  55.9%->32.6%, but **capability collapsed** -- MMLU 68.8%->36.0%, GSM8K
+  82.5%->35.6% -- with no corresponding over-refusal increase, meaning the
+  damage was general capability loss, not a safety/helpfulness tradeoff.
+  Their own conclusion: amplifying a single feature causes broad collateral
+  damage because SAE features aren't as modular/independent as assumed.
+  **Why this project won't repeat their approach**: single hand-picked
+  feature + no capability check is exactly the failure mode. Phase 3 uses
+  the systematic top-K* causal-ranking approach from the paper above
+  instead, and any activation-addition experiment must report a capability/
+  coherence check alongside the induced-refusal rate, not refusal rate
+  alone.
 - **"Graph-Regularized Sparse Autoencoders for Robust LLM Safety Steering"
   (GSAE)** ([arXiv:2512.06655](https://arxiv.org/abs/2512.06655)):
   graph-regularization for more robust SAE-based safety steering --
