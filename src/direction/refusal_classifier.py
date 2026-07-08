@@ -27,6 +27,17 @@ def is_refusal(completion: str) -> bool:
     return any(marker in text[:200] for marker in _REFUSAL_MARKERS)
 
 
+def is_degenerate(completion: str, unique_ratio_threshold: float = 0.3) -> bool:
+    """Flags completions that have collapsed into repeated-token garbage
+    (e.g. "I I I I I..."), which happens when an activation-addition alpha
+    is too large. A refusal classification on degenerate text isn't a real
+    induced refusal -- the model isn't producing coherent text at all."""
+    words = completion.split()
+    if len(words) < 8:
+        return False
+    return len(set(words)) / len(words) < unique_ratio_threshold
+
+
 def refusal_rate(completions: list[str]) -> float:
     if not completions:
         return 0.0
