@@ -33,16 +33,20 @@ from src.direction.compute import (
 from src.direction.interventions import generate_baseline, generate_with_ablation, generate_with_addition
 from src.direction.refusal_classifier import refusal_stats
 
-MODEL_NAME = "Qwen/Qwen2.5-1.5B-Instruct"
-RESULTS_PATH = Path(__file__).resolve().parents[1] / "results" / "phase1_reproduction.json"
+DEFAULT_MODEL = "Qwen/Qwen2.5-1.5B-Instruct"
+RESULTS_DIR = Path(__file__).resolve().parents[1] / "results"
 
 
 def main() -> None:
-    print(f"Loading model: {MODEL_NAME}")
-    model = load_model(MODEL_NAME)
+    model_name = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_MODEL
+    model_slug = model_name.split("/")[-1]
+    results_path = RESULTS_DIR / f"phase1_reproduction_{model_slug}.json"
+
+    print(f"Loading model: {model_name}")
+    model = load_model(model_name)
 
     print("Loading harmful/harmless prompt split")
-    split = load_harmful_harmless_split(n_train=120, n_val=20)
+    split = load_harmful_harmless_split(n_train=200, n_val=30)
 
     print("Extracting activations (train split)")
     harmful_train_acts = get_last_token_resid_acts(model, split["harmful_train"])
@@ -85,7 +89,7 @@ def main() -> None:
     ]
 
     results = {
-        "model": MODEL_NAME,
+        "model": model_name,
         "best_layer": best_layer,
         "candidate_layers": candidates,
         "separation_scores": {i: round(scores[i].item(), 4) for i in candidates},
@@ -103,12 +107,12 @@ def main() -> None:
         },
     }
 
-    RESULTS_PATH.parent.mkdir(exist_ok=True)
-    RESULTS_PATH.write_text(json.dumps(results, indent=2))
+    RESULTS_DIR.mkdir(exist_ok=True)
+    results_path.write_text(json.dumps(results, indent=2))
 
     print("\n== Results ==")
     print(json.dumps(results["refusal_rate"], indent=2))
-    print(f"\nFull results saved to {RESULTS_PATH}")
+    print(f"\nFull results saved to {results_path}")
 
     rr = results["refusal_rate"]
     reproduced = (
