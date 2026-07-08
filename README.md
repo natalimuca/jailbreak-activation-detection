@@ -1,7 +1,6 @@
 # Jailbreak Detection via Internal Activations
 
-MSc thesis (AI, cybersecurity profile). Detecting jailbreak/harmful-intent prompts
-using LLM internal activations instead of surface-level (keyword/perplexity) filtering.
+
 
 ## Core idea
 
@@ -58,33 +57,3 @@ results/         metrics, figures (gitignored for large artifacts)
 tests/
 ```
 
-## Status
-
-Phase 1 (setup + baseline reproduction) milestone reached: the causal
-refusal-direction finding reproduces on two small open-weight models
-(`Qwen2.5-1.5B-Instruct`, `HuggingFaceTB/SmolLM2-1.7B-Instruct`) via
-`scripts/01_reproduce_refusal_direction.py <model_name>`.
-
-Directional ablation (necessity) reproduces cleanly and dramatically on
-both models (refusal rate collapses to ~3% on harmful prompts, 95% Wilson
-CIs non-overlapping with baseline in both cases). Activation addition
-(sufficiency), scaled to the layer's natural raw direction norm, is strong
-on Qwen (3%→97% induced refusal) but much weaker on SmolLM2 (3%→23%) —
-SmolLM2's raw direction norm at its best layer is ~4x Qwen's, suggesting a
-fixed addition coefficient doesn't transfer cleanly across architectures.
-Worth digging into properly once cross-model generalization work starts in
-Phase 6, rather than hand-tuning per model now.
-
-Next: either push further on Phase 1 (a third model, or a dedicated
-calibration sweep for the addition coefficient) or move into Phase 2
-(activation-extraction pipeline across all four datasets).
-
-## 5-month plan
-
-1. Setup + lit review, reproduce baseline refusal-direction finding *(current)*
-2. Harmful/harmless prompt pipeline across the four datasets, extract activations
-3. SAE-feature detector
-4. Baselines (keyword filter, perplexity detector, LLM-as-judge) + adversarial paraphrase test set
-5. Head-to-head evaluation with significance testing
-6. Cross-model generalization and/or calibration extension (cut first if short on time)
-7. Write-up, demo, buffer, defense prep
