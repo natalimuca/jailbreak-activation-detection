@@ -1,6 +1,7 @@
 # Jailbreak Detection via Internal Activations
 
-
+Detects jailbreak / harmful-intent prompts using an LLM's internal activations
+instead of surface-level (keyword or perplexity) filtering.
 
 ## Core idea
 
@@ -11,23 +12,21 @@ across open chat models. Surface-level detectors can be fooled by disguising a
 harmful request as fiction/roleplay; an activation-based detector reads intent
 rather than wording and should be more robust to that disguise.
 
-Since "activation-based jailbreak detector" alone is now a busy 2025-2026 research
-area (SAE-feature detectors beating the single-direction baseline under adversarial
-paraphrase), this thesis's contribution is one or both of:
+This project extends that finding in two directions:
 
 1. **Cross-model generalization** — does a detector trained on one model's
    internals transfer to a different model family/size, or does it need
    per-model retraining?
-2. **The engineering-rigor layer papers skip** — calibration, decision-curve /
-   operating-point tuning, false-positive cost analysis, latency benchmarking,
-   honest head-to-head comparison against baselines on a held-out adversarial set.
+2. **Engineering rigor** — calibration, decision-curve / operating-point
+   tuning, false-positive cost analysis, latency benchmarking, and an honest
+   head-to-head comparison against baselines on a held-out adversarial set.
 
 ## Tooling
 
 - **nnsight** for activation extraction (chosen over TransformerLens: traces
   native HF models directly, so 4-bit quantization and multi-architecture
-  support work without a model-conversion step — important given local GPU is
-  a 6GB RTX 4050 and the plan requires 3 different 7-9B model families).
+  support work without a model-conversion step — important given a 6GB local
+  GPU and multiple model families in scope).
 - PyTorch, HF Transformers/Accelerate/bitsandbytes, HF Datasets.
 
 ## Datasets
@@ -39,21 +38,20 @@ paraphrase), this thesis's contribution is one or both of:
 
 ## Models
 
-Open-weight, via Hugging Face. Small model for pipeline sanity checks:
-`Qwen2.5-1.5B-Instruct`. Main cross-model set (later phases):
-`Llama-3-8B-Instruct`, `Gemma-2-9B-it`, `Qwen2.5-7B-Instruct` (4-bit quantized
-to fit local VRAM; larger runs via nnsight remote execution if needed).
+Open-weight, via Hugging Face: `Qwen2.5-1.5B-Instruct`, `SmolLM2-1.7B-Instruct`
+for fast iteration, plus a larger cross-model set (`Llama-3-8B-Instruct`,
+`Gemma-2-9B-it`, `Qwen2.5-7B-Instruct`) run 4-bit quantized to fit local VRAM,
+or via nnsight remote execution for larger runs.
 
 ## Repo layout
 
 ```
 src/
   data/          dataset loading + harmful/harmless prompt pairing
-  activations/   activation extraction via nnsight
+  activations/   activation extraction and caching via nnsight
   direction/     refusal-direction computation, ablation, activation addition
 scripts/         standalone runnable pipeline stages
 notebooks/       exploratory analysis
-results/         metrics, figures (gitignored for large artifacts)
+results/         metrics, figures, activation caches (gitignored)
 tests/
 ```
-
