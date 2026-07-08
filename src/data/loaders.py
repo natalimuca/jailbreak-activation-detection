@@ -22,9 +22,14 @@ _ADVBENCH_CSV_URL = (
 )
 
 # walledai/HarmBench on HF is gated; pull straight from the original repo.
-# Restricted to FunctionalCategory=="standard" -- pure text behaviors with
-# no required ContextString and no multimodal component, so they're directly
-# comparable single-turn instructions like the rest of this loader's output.
+# Uses "standard" (pure text, no context needed) and "contextual" behaviors
+# (ContextString + Behavior concatenated into one prompt -- a real, distinct
+# threat category: context-injection, where the harmful ask only makes sense
+# given preceding material). Excludes "multimodal" (needs an image) and
+# "copyright" (lyrics/text reproduction requests -- a different phenomenon
+# from safety refusal; per arXiv:2602.02132, different refusal categories can
+# correspond to different geometric directions, so mixing IP-policy refusals
+# into a safety-refusal direction estimate would muddy what's being measured).
 _HARMBENCH_CSV_URL = (
     "https://raw.githubusercontent.com/centerforaisafety/HarmBench/main/"
     "data/behavior_datasets/harmbench_behaviors_text_all.csv"
@@ -81,13 +86,21 @@ def load_harmless(n: int = 32, seed: int = 0) -> list[str]:
     return prompts[:n]
 
 
-def load_harmbench(n: int = 200, seed: int = 0) -> list[str]:
-    """HarmBench standard (text-only, no context needed) harmful behaviors."""
+def load_harmbench(n: int = 300, seed: int = 0) -> list[str]:
+    """HarmBench "standard" and "contextual" harmful behaviors (see module
+    docstring for why "copyright" and "multimodal" are excluded). Contextual
+    behaviors get their required ContextString prepended so each prompt is
+    still a single self-contained string."""
     try:
         resp = requests.get(_HARMBENCH_CSV_URL, timeout=15)
         resp.raise_for_status()
         reader = csv.DictReader(io.StringIO(resp.text))
-        prompts = [row["Behavior"] for row in reader if row["FunctionalCategory"] == "standard"]
+        prompts = []
+        for row in reader:
+            if row["FunctionalCategory"] == "standard":
+                prompts.append(row["Behavior"])
+            elif row["FunctionalCategory"] == "contextual" and row["ContextString"]:
+                prompts.append(f"{row['ContextString']}\n\n{row['Behavior']}")
         if not prompts:
             raise ValueError("empty HarmBench CSV")
     except Exception:
@@ -158,7 +171,7 @@ def load_all_labeled_prompts(seed: int = 0) -> list[dict]:
     should NOT flag these) and its contrast prompts "harmful"."""
     sources: list[tuple[str, str, list[str]]] = [
         ("advbench", "harmful", load_harmful(n=520, seed=seed)),
-        ("harmbench", "harmful", load_harmbench(n=200, seed=seed)),
+        ("harmbench", "harmful", load_harmbench(n=300, seed=seed)),
         ("jbb", "harmful", load_jbb_harmful(n=100, seed=seed)),
         ("xstest", "harmful", load_xstest_unsafe(n=200, seed=seed)),
         ("alpaca", "harmless", load_harmless(n=520, seed=seed)),

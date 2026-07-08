@@ -1,4 +1,5 @@
 import json
+import random
 
 from src.data.splits import apply_manifest, content_hash, save_manifest, stratified_split
 
@@ -47,6 +48,43 @@ def test_manifest_round_trip(tmp_path):
     assert len(reapplied["unassigned"]) == 0
     for name in ("train", "val", "test"):
         assert sorted(r["text"] for r in reapplied[name]) == sorted(r["text"] for r in split[name])
+
+
+def test_manifest_round_trip_preserves_exact_order():
+    # Regression test: stratified_split() shuffles records within each
+    # stratum, so the manifest captures that shuffled order. A real bug had
+    # apply_manifest() silently fall back to *input* order instead of the
+    # manifest's own order -- same set of records per split, but different
+    # order, which breaks any code assuming matching indices across two
+    # separately generated caches (see assert_caches_consistent).
+    records = _fake_corpus()
+    split = stratified_split(records, seed=0)
+    manifest = {name: [content_hash(r["text"]) for r in group] for name, group in split.items()}
+
+    reapplied = apply_manifest(records, manifest)
+    for name in ("train", "val", "test"):
+        assert [r["text"] for r in reapplied[name]] == [r["text"] for r in split[name]]
+
+
+def test_manifest_reapplication_is_order_independent_of_input_order():
+    # The whole point of the fix: even if a second process presents
+    # `records` in a completely different order (e.g. unshuffled dedup
+    # output vs. the originally-shuffled split), applying the same manifest
+    # must produce the exact same per-split order both times.
+    records = _fake_corpus()
+    split = stratified_split(records, seed=0)
+    manifest = {name: [content_hash(r["text"]) for r in group] for name, group in split.items()}
+
+    shuffled_records = records[:]
+    random.Random(123).shuffle(shuffled_records)
+
+    reapplied_original_order = apply_manifest(records, manifest)
+    reapplied_shuffled_order = apply_manifest(shuffled_records, manifest)
+
+    for name in ("train", "val", "test"):
+        assert [r["text"] for r in reapplied_original_order[name]] == [
+            r["text"] for r in reapplied_shuffled_order[name]
+        ]
 
 
 def test_manifest_flags_unknown_records_instead_of_dropping_silently():

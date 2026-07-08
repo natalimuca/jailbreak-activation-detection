@@ -50,3 +50,28 @@ def load_cache(model_name: str) -> dict:
     if not path.exists():
         raise FileNotFoundError(f"No activation cache for {model_name} at {path}. Run scripts/03_extract_all_activations.py first.")
     return torch.load(path, weights_only=False)
+
+
+def assert_caches_consistent(model_names: list[str]) -> None:
+    """Cross-model comparisons (e.g. does a direction trained on one model's
+    activations transfer to another) only make sense if every model's cache
+    covers the exact same prompts, in the exact same order, with the exact
+    same labels/sources/splits -- otherwise index i in one cache doesn't
+    correspond to index i in another. Raises AssertionError with a specific
+    mismatch description rather than failing silently downstream."""
+    if len(model_names) < 2:
+        return
+    reference = load_cache(model_names[0])
+    for name in model_names[1:]:
+        other = load_cache(name)
+        for key in ("texts", "labels", "sources"):
+            if reference[key] != other[key]:
+                raise AssertionError(
+                    f"Cache mismatch between {model_names[0]!r} and {name!r} on {key!r}: "
+                    f"caches don't cover the same prompts in the same order."
+                )
+        if "splits" in reference or "splits" in other:
+            if reference.get("splits") != other.get("splits"):
+                raise AssertionError(
+                    f"Cache mismatch between {model_names[0]!r} and {name!r} on split assignment."
+                )

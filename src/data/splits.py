@@ -64,15 +64,31 @@ def load_manifest(path: Path = MANIFEST_PATH) -> dict[str, list[str]]:
 
 def apply_manifest(records: list[dict], manifest: dict[str, list[str]]) -> dict[str, list[dict]]:
     """Assigns records to splits by looking up each record's content hash in
-    the manifest. Records whose hash isn't in the manifest (e.g. upstream
-    dataset changed) are collected separately rather than silently dropped."""
-    hash_to_split: dict[str, str] = {}
-    for split_name, hashes in manifest.items():
-        for h in hashes:
-            hash_to_split[h] = split_name
+    the manifest.
 
-    result: dict[str, list[dict]] = {"train": [], "val": [], "test": [], "unassigned": []}
-    for r in records:
-        h = content_hash(r["text"])
-        result[hash_to_split.get(h, "unassigned")].append(r)
+    Output order follows the manifest's own stored hash order for each
+    split, NOT the order `records` happens to be in. This matters:
+    `stratified_split()` shuffles records within each stratum before
+    slicing, so the first time a manifest is saved it captures that shuffled
+    order. If `apply_manifest` just preserved input order instead, a second
+    call (e.g. extracting activations for a second model, in a fresh
+    process where `records` naturally comes out in unshuffled dedup order)
+    would silently produce train/val/test lists containing the *same set*
+    of prompts but in a *different order* than the first call -- which
+    breaks any code that assumes matching indices across two separately
+    generated caches (exactly what `assert_caches_consistent` checks for).
+    """
+    hash_to_record: dict[str, dict] = {content_hash(r["text"]): r for r in records}
+
+    result: dict[str, list[dict]] = {}
+    accounted: set[str] = set()
+    for split_name, hashes in manifest.items():
+        result[split_name] = []
+        for h in hashes:
+            if h in hash_to_record:
+                result[split_name].append(hash_to_record[h])
+                accounted.add(h)
+    # Records present now but not in the manifest at all (e.g. upstream
+    # dataset changed) -- collected separately rather than silently dropped.
+    result["unassigned"] = [r for r in records if content_hash(r["text"]) not in accounted]
     return result
