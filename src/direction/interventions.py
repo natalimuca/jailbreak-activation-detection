@@ -46,19 +46,22 @@ def generate_with_ablation(
 def generate_with_addition(
     model: LanguageModel,
     instruction: str,
-    direction: torch.Tensor,
+    raw_direction: torch.Tensor,
     layer_idx: int,
-    alpha: float = 8.0,
+    alpha: float = 1.0,
     max_new_tokens: int = 40,
 ) -> str:
+    """raw_direction should be the *unnormalized* mean-difference vector
+    (see compute.compute_raw_directions) -- its own norm already reflects
+    the natural harmful/harmless separation scale at this layer, so `alpha`
+    is a small multiplier on top of that (not a raw activation magnitude)."""
     prompt = format_prompt(model, instruction)
-    direction = direction / direction.norm()
     with model.generate(
         prompt, min_new_tokens=max_new_tokens, max_new_tokens=max_new_tokens
     ) as tracer:
         for step in tracer.iter[:max_new_tokens]:
             out = model.model.layers[layer_idx].output
-            out[:] = out + alpha * direction.to(out.dtype).to(out.device)
+            out[:] = out + alpha * raw_direction.to(out.dtype).to(out.device)
         out_ids = model.generator.output.save()
     return model.tokenizer.decode(out_ids[0][-max_new_tokens:], skip_special_tokens=True)
 

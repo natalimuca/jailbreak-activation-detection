@@ -24,9 +24,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from src.activations.extract import get_last_token_resid_acts, load_model
 from src.data.loaders import load_harmful_harmless_split
-from src.direction.compute import compute_directions, select_candidate_layers, separation_score
+from src.direction.compute import (
+    compute_directions,
+    compute_raw_directions,
+    select_candidate_layers,
+    separation_score,
+)
 from src.direction.interventions import generate_baseline, generate_with_ablation, generate_with_addition
-from src.direction.refusal_classifier import refusal_rate
+from src.direction.refusal_classifier import refusal_stats
 
 MODEL_NAME = "Qwen/Qwen2.5-1.5B-Instruct"
 RESULTS_PATH = Path(__file__).resolve().parents[1] / "results" / "phase1_reproduction.json"
@@ -37,7 +42,7 @@ def main() -> None:
     model = load_model(MODEL_NAME)
 
     print("Loading harmful/harmless prompt split")
-    split = load_harmful_harmless_split(n_train=24, n_val=8)
+    split = load_harmful_harmless_split(n_train=120, n_val=20)
 
     print("Extracting activations (train split)")
     harmful_train_acts = get_last_token_resid_acts(model, split["harmful_train"])
@@ -45,6 +50,7 @@ def main() -> None:
 
     print("Computing per-layer directions")
     directions = compute_directions(harmful_train_acts, harmless_train_acts)
+    raw_directions = compute_raw_directions(harmful_train_acts, harmless_train_acts)
 
     print("Extracting activations (val split) for layer selection")
     harmful_val_acts = get_last_token_resid_acts(model, split["harmful_val"])
@@ -61,6 +67,8 @@ def main() -> None:
 
     best_layer = candidates[0]
     direction = directions[best_layer]
+    raw_direction = raw_directions[best_layer]
+    print(f"Raw direction norm at layer {best_layer}: {raw_direction.norm().item():.3f}")
 
     print(f"\n== Causal validation at layer {best_layer} ==")
 
@@ -73,7 +81,7 @@ def main() -> None:
     baseline_harmless = [generate_baseline(model, p) for p in split["harmless_val"]]
     print("Direction-added completions on harmless val prompts")
     added_harmless = [
-        generate_with_addition(model, p, direction, layer_idx=best_layer) for p in split["harmless_val"]
+        generate_with_addition(model, p, raw_direction, layer_idx=best_layer) for p in split["harmless_val"]
     ]
 
     results = {
@@ -82,10 +90,10 @@ def main() -> None:
         "candidate_layers": candidates,
         "separation_scores": {i: round(scores[i].item(), 4) for i in candidates},
         "refusal_rate": {
-            "harmful_baseline": refusal_rate(baseline_harmful),
-            "harmful_ablated": refusal_rate(ablated_harmful),
-            "harmless_baseline": refusal_rate(baseline_harmless),
-            "harmless_direction_added": refusal_rate(added_harmless),
+            "harmful_baseline": refusal_stats(baseline_harmful),
+            "harmful_ablated": refusal_stats(ablated_harmful),
+            "harmless_baseline": refusal_stats(baseline_harmless),
+            "harmless_direction_added": refusal_stats(added_harmless),
         },
         "samples": {
             "harmful_baseline": list(zip(split["harmful_val"], baseline_harmful)),
@@ -103,7 +111,10 @@ def main() -> None:
     print(f"\nFull results saved to {RESULTS_PATH}")
 
     rr = results["refusal_rate"]
-    reproduced = rr["harmful_baseline"] > rr["harmful_ablated"] and rr["harmless_direction_added"] > rr["harmless_baseline"]
+    reproduced = (
+        rr["harmful_baseline"]["rate"] > rr["harmful_ablated"]["rate"]
+        and rr["harmless_direction_added"]["rate"] > rr["harmless_baseline"]["rate"]
+    )
     print(f"\nFinding reproduced: {reproduced}")
 
 
