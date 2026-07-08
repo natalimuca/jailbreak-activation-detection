@@ -22,24 +22,26 @@ def cache_path(model_name: str) -> Path:
 
 
 def extract_and_cache(model: LanguageModel, model_name: str, records: list[dict]) -> Path:
-    """records: list of {"text": str, "label": str, "source": str}.
+    """records: list of {"text": str, "label": str, "source": str, "split": str}
+    ("split" is optional -- train/val/test tag from src.data.splits, if present).
     Saves a dict with activations [n_layers, n_prompts, d_model] aligned
-    1:1 with records' order, plus the labels/sources/texts for slicing."""
+    1:1 with records' order, plus the labels/sources/texts/splits for slicing."""
     texts = [r["text"] for r in records]
     acts = get_last_token_resid_acts(model, texts)
 
+    payload = {
+        "model": model_name,
+        "activations": acts,
+        "labels": [r["label"] for r in records],
+        "sources": [r["source"] for r in records],
+        "texts": texts,
+    }
+    if all("split" in r for r in records):
+        payload["splits"] = [r["split"] for r in records]
+
     path = cache_path(model_name)
     path.parent.mkdir(parents=True, exist_ok=True)
-    torch.save(
-        {
-            "model": model_name,
-            "activations": acts,
-            "labels": [r["label"] for r in records],
-            "sources": [r["source"] for r in records],
-            "texts": texts,
-        },
-        path,
-    )
+    torch.save(payload, path)
     return path
 
 
