@@ -7,9 +7,19 @@ rows only, so both sets are single-turn instructions with no extra context).
 
 from __future__ import annotations
 
+import csv
+import io
 import random
 
+import requests
 from datasets import load_dataset
+
+# The walledai/AdvBench mirror on HF is gated; pull straight from the
+# original AdvBench (Zou et al. 2023) source repo instead -- no auth needed.
+_ADVBENCH_CSV_URL = (
+    "https://raw.githubusercontent.com/llm-attacks/llm-attacks/main/"
+    "data/advbench/harmful_behaviors.csv"
+)
 
 # Small embedded fallback so the pipeline still runs without network access.
 _FALLBACK_HARMFUL = [
@@ -36,10 +46,14 @@ _FALLBACK_HARMLESS = [
 
 
 def load_harmful(n: int = 32, seed: int = 0) -> list[str]:
-    """AdvBench harmful behaviors."""
+    """AdvBench harmful behaviors, fetched directly from the original repo."""
     try:
-        ds = load_dataset("walledai/AdvBench", split="train")
-        prompts = list(ds["prompt"])
+        resp = requests.get(_ADVBENCH_CSV_URL, timeout=15)
+        resp.raise_for_status()
+        reader = csv.DictReader(io.StringIO(resp.text))
+        prompts = [row["goal"] for row in reader]
+        if not prompts:
+            raise ValueError("empty AdvBench CSV")
     except Exception:
         prompts = _FALLBACK_HARMFUL
     random.Random(seed).shuffle(prompts)

@@ -31,10 +31,12 @@ def generate_with_ablation(
 ) -> str:
     prompt = format_prompt(model, instruction)
     L = n_layers(model)
-    with model.generate(prompt, max_new_tokens=max_new_tokens) as tracer:
-        for layer_idx in range(L):
-            with model.model.layers[layer_idx].all():
-                out = model.model.layers[layer_idx].output[0]
+    with model.generate(
+        prompt, min_new_tokens=max_new_tokens, max_new_tokens=max_new_tokens
+    ) as tracer:
+        for step in tracer.iter[:max_new_tokens]:
+            for layer_idx in range(L):
+                out = model.model.layers[layer_idx].output
                 out[:] = _project_out(out, direction)
         out_ids = model.generator.output.save()
     return model.tokenizer.decode(out_ids[0][-max_new_tokens:], skip_special_tokens=True)
@@ -51,9 +53,11 @@ def generate_with_addition(
 ) -> str:
     prompt = format_prompt(model, instruction)
     direction = direction / direction.norm()
-    with model.generate(prompt, max_new_tokens=max_new_tokens) as tracer:
-        with model.model.layers[layer_idx].all():
-            out = model.model.layers[layer_idx].output[0]
+    with model.generate(
+        prompt, min_new_tokens=max_new_tokens, max_new_tokens=max_new_tokens
+    ) as tracer:
+        for step in tracer.iter[:max_new_tokens]:
+            out = model.model.layers[layer_idx].output
             out[:] = out + alpha * direction.to(out.dtype).to(out.device)
         out_ids = model.generator.output.save()
     return model.tokenizer.decode(out_ids[0][-max_new_tokens:], skip_special_tokens=True)
@@ -62,6 +66,8 @@ def generate_with_addition(
 @torch.no_grad()
 def generate_baseline(model: LanguageModel, instruction: str, max_new_tokens: int = 40) -> str:
     prompt = format_prompt(model, instruction)
-    with model.generate(prompt, max_new_tokens=max_new_tokens) as tracer:
+    with model.generate(
+        prompt, min_new_tokens=max_new_tokens, max_new_tokens=max_new_tokens
+    ) as tracer:
         out_ids = model.generator.output.save()
     return model.tokenizer.decode(out_ids[0][-max_new_tokens:], skip_special_tokens=True)

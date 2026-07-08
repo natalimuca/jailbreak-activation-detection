@@ -42,10 +42,12 @@ def get_last_token_resid_acts(
 
     for instr in tqdm(instructions, desc="extracting activations"):
         prompt = format_prompt(model, instr)
+        saved = []
         with model.trace(prompt) as tracer:
-            saved = []
             for layer_idx in range(L):
-                out = model.model.layers[layer_idx].output[0][:, -1, :].save()
+                # NOTE: current transformers decoder layers return the hidden-state
+                # tensor directly (not a tuple), so .output is already [batch, seq, d_model].
+                out = model.model.layers[layer_idx].output[:, -1, :].save()
                 saved.append(out)
         for layer_idx in range(L):
             per_layer_acts[layer_idx].append(saved[layer_idx].detach().cpu().float())

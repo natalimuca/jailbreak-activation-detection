@@ -9,10 +9,10 @@ models/
 *.bin
 *.pt
 
-# large intermediate artifacts
+# large intermediate artifacts, and anything containing raw model
+# completions on harmful prompts -- never put that in git history
 data/cache/
-results/*.npz
-results/*.pt
+results/
 activations_cache/
 
 # secrets
