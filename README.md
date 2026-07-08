@@ -60,9 +60,24 @@ tests/
 
 ## Status
 
-Phase 1 (setup + baseline reproduction) in progress. See
-`scripts/01_reproduce_refusal_direction.py` for the first milestone: reproducing
-the causal refusal-direction finding on a small open-weight model.
+Phase 1 (setup + baseline reproduction) milestone reached: the causal
+refusal-direction finding reproduces on two small open-weight models
+(`Qwen2.5-1.5B-Instruct`, `HuggingFaceTB/SmolLM2-1.7B-Instruct`) via
+`scripts/01_reproduce_refusal_direction.py <model_name>`.
+
+Directional ablation (necessity) reproduces cleanly and dramatically on
+both models (refusal rate collapses to ~3% on harmful prompts, 95% Wilson
+CIs non-overlapping with baseline in both cases). Activation addition
+(sufficiency), scaled to the layer's natural raw direction norm, is strong
+on Qwen (3%→97% induced refusal) but much weaker on SmolLM2 (3%→23%) —
+SmolLM2's raw direction norm at its best layer is ~4x Qwen's, suggesting a
+fixed addition coefficient doesn't transfer cleanly across architectures.
+Worth digging into properly once cross-model generalization work starts in
+Phase 6, rather than hand-tuning per model now.
+
+Next: either push further on Phase 1 (a third model, or a dedicated
+calibration sweep for the addition coefficient) or move into Phase 2
+(activation-extraction pipeline across all four datasets).
 
 ## 5-month plan
 
