@@ -133,6 +133,34 @@ Whether to also add Gemma-2-9B / Llama-3.1-8B later (once/if HF gating is
 resolved) for the full three-family cross-model set is still open --
 doesn't block starting Phase 3 on Qwen3-8B alone.
 
+## Causal-ranking evaluation set: 8 prompts, length-capped (2026-07-09)
+
+Calibrated the real per-call cost of `feature_ig_attribution` on Qwen3-8B:
+steady-state ~28.5s per (feature, prompt) call (n_steps=10, batched into one
+forward+backward pass), after a one-time ~35s CUDA warmup on the very first
+call. At 30 pooled candidates, a full sweep over the corpus (or even just
+20 prompts) would take 3-11 hours -- not practical for one run.
+
+**Decided to use 8 evaluation prompts** for this step specifically (~2hrs
+total). This is defensible, not just expedient: step 3 (attribution
+patching) is a *screening* pass whose only job is trimming 30 pooled
+candidates down to 20 -- the rigorous part, causal validation via
+suppression measured with the real refusal classifier, is a separate later
+step (mirrors the source paper's own two-stage design: cheap ranking, then
+expensive validation).
+
+**Also capped prompt length for this step** (excluded from the random
+sample entirely, not just deprioritized): a backward pass needs to retain
+the full computational graph across all 36 layers, far more memory than
+the no-grad forward-only extraction -- and forward-only was already at the
+edge of the 6GB card for the corpus's ~1000-token outliers (relying on
+Windows' shared-memory spillover, see the "Qwen3-8B 4-bit loading" entry
+above). A backward pass on one of those outliers would very likely OOM
+outright. Restricted the evaluation sample to harmful TRAIN prompts under
+150 characters (comfortably above the corpus's own p90 of 107 chars, so
+still representative of the bulk of the corpus, just excluding the long
+tail).
+
 ## Phase 3 methodology (adapted from arXiv:2505.23556)
 
 Following "Understanding Refusal in Language Models with Sparse
