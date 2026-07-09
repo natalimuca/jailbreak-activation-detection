@@ -38,6 +38,79 @@ checkpoint.** Rationale:
   proceed, document it, don't pretend it's not a compromise.
 
 This replaces the original plan's Qwen2.5-7B-Instruct for the Qwen leg.
+
+## Qwen3-8B 4-bit loading on a 6GB GPU (2026-07-09)
+
+Getting `load_model("Qwen/Qwen3-8B", load_in_4bit=True)` to actually run
+required three fixes, in `src/activations/extract.py`:
+
+1. **`transformers>=5` removed the `load_in_4bit=True` shorthand kwarg.**
+   Quantization must go through `quantization_config=BitsAndBytesConfig(...)`
+   instead -- the old shorthand raises `TypeError: ...__init__() got an
+   unexpected keyword argument 'load_in_4bit'`.
+2. **`device_map="auto"` refuses to fit the model at all**, even though it
+   does fit: accelerate's memory estimator decides a few modules need
+   CPU/disk offload, and bnb then refuses that combination unless
+   `llm_int8_enable_fp32_cpu_offload=True` is also set. Tested that path --
+   bnb's CPU-backend int4 ops are extremely slow (confirmed via a stalled
+   probe run), not viable. **Fix: force everything onto the single GPU with
+   `device_map={"": 0}`, bypassing accelerate's conservative auto-balancer
+   entirely.**
+3. **Peak GPU memory for the corpus's longest prompts (~1000 tokens, from
+   HarmBench's contextual behaviors) exceeds the card's 6GB** even with
+   4-bit weights (`bnb_4bit_compute_dtype=torch.float16` +
+   `bnb_4bit_use_double_quant=True` to trim overhead, `use_cache=False`
+   since only one forward pass per prompt is needed, no generation).
+   Measured peak: ~6.7-6.9GB allocated on the worst-case (1001-token) prompt.
+   This only works via Windows' CUDA shared-memory spillover into system
+   RAM (confirmed via `nvidia-smi` showing less physical VRAM used than
+   PyTorch reports allocated) -- slow (~45-55s) for that one prompt, but
+   **only ~60-94 of the corpus's 1990 prompts exceed 1000 characters**
+   (median prompt is 63 chars); the rest run in well under a second. Total
+   extraction time estimated at 1.5-2 hours, acceptable for a one-off batch
+   job. Also set `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True` and added
+   a periodic `torch.cuda.empty_cache()` every 50 prompts to reduce
+   allocator fragmentation risk from alternating short/long prompts so close
+   to the memory ceiling.
+   **Known fragility, accepted rather than engineered around further:**
+   this relies on driver-level spillover, so running another GPU-heavy
+   process concurrently during the ~2hr extraction could cause an OOM that
+   a purely in-VRAM setup wouldn't hit. Documented rather than silently
+   risked.
+
+## Top-K0 SAE feature selection: signed, not absolute, cosine similarity
+
+`src/sae/feature_selection.py`'s `top_k0_by_cosine_similarity()` ranks SAE
+features by **signed** cosine similarity between each feature's decoder
+direction and the harmful-minus-harmless direction, not absolute value.
+Rationale: we want features that write *along* the harmful direction
+(candidate refusal/harm features), not features whose axis merely
+correlates with it regardless of sign (a strongly anti-aligned feature is
+evidence *against* refusal, not a refusal-feature candidate). LITERATURE.md's
+source paper (arXiv:2505.23556) doesn't spell out signed-vs-absolute
+explicitly; this is our resolution of that ambiguity, made explicit here
+rather than silently picking one.
+
+## SAE layer selection: layer 22 (2026-07-09)
+
+Ran the full Qwen3-8B activation extraction (1922-prompt corpus) and computed
+per-layer separation scores (difference-of-means direction from train,
+measured on held-out val -- same method as Phase 1). Top-5:
+
+| layer | score |
+|-------|-------|
+| 22    | 1.742 |
+| 21    | 1.739 |
+| 20    | 1.738 |
+| 23    | 1.720 |
+| 19    | 1.717 |
+
+Scores are tightly clustered (19-23), consistent with Phase 1's finding that
+refusal-relevant layers sit in the middle-to-late range, not concentrated in
+one standout layer. **Selected layer 22** (highest score, within the
+recommended middle-to-late window). Next step: download only
+`layer22.sae.pt` from `Qwen/SAE-Res-Qwen3-8B-Base-W64K-L0_50` (not the full
+36-layer set -- each file is ~2GB).
 Whether to also add Gemma-2-9B / Llama-3.1-8B later (once/if HF gating is
 resolved) for the full three-family cross-model set is still open --
 doesn't block starting Phase 3 on Qwen3-8B alone.
