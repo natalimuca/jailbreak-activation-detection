@@ -6,6 +6,8 @@
 - activation addition: add the direction (scaled) at a single layer, at every
   generated token, on prompts the model would normally comply with -- this
   tests whether the direction is *sufficient* to induce refusal.
+- SAE feature suppression: the SAE-feature analog of directional ablation,
+  for Phase 3's causal validation of causal-ranked candidates.
 """
 
 from __future__ import annotations
@@ -14,6 +16,7 @@ import torch
 from nnsight import LanguageModel
 
 from src.activations.extract import format_prompt, n_layers
+from src.sae.qwen_scope import TopKSAE
 
 
 def _project_out(act: torch.Tensor, direction: torch.Tensor) -> torch.Tensor:
@@ -62,6 +65,44 @@ def generate_with_addition(
         for step in tracer.iter[:max_new_tokens]:
             out = model.model.layers[layer_idx].output
             out[:] = out + alpha * raw_direction.to(out.dtype).to(out.device)
+        out_ids = model.generator.output.save()
+    return model.tokenizer.decode(out_ids[0][-max_new_tokens:], skip_special_tokens=True)
+
+
+@torch.no_grad()
+def generate_with_feature_suppression(
+    model: LanguageModel,
+    instruction: str,
+    features_by_layer: dict[int, list[tuple[TopKSAE, int]]],
+    max_new_tokens: int = 40,
+) -> str:
+    """Ablates one or more SAE features (each a (sae, feature_idx) pair,
+    grouped by the layer they live at) at every generated token -- the
+    SAE-feature analog of generate_with_ablation above, for direct
+    causal-validation comparability with Phase 1's methodology.
+
+    Each feature's natural contribution to the residual stream
+    (val * feature_direction, where val is its pre-activation from the
+    *original*, unmodified residual) is subtracted. When multiple features
+    share a layer, all their corrections are computed from that same
+    original residual and summed in one combined update -- not applied
+    sequentially -- so ablating feature B doesn't shift the baseline that
+    feature A's contribution is measured against."""
+    prompt = format_prompt(model, instruction)
+    with model.generate(
+        prompt, min_new_tokens=max_new_tokens, max_new_tokens=max_new_tokens
+    ) as tracer:
+        for step in tracer.iter[:max_new_tokens]:
+            for layer_idx, feats in features_by_layer.items():
+                out = model.model.layers[layer_idx].output
+                correction = torch.zeros_like(out)
+                for sae, feature_idx in feats:
+                    feature_row = sae.W_enc[feature_idx].to(out.dtype).to(out.device)
+                    bias = sae.b_enc[feature_idx].to(out.dtype).to(out.device)
+                    direction = sae.feature_direction(feature_idx).to(out.dtype).to(out.device)
+                    val = out @ feature_row + bias
+                    correction = correction + val.unsqueeze(-1) * direction
+                out[:] = out - correction
         out_ids = model.generator.output.save()
     return model.tokenizer.decode(out_ids[0][-max_new_tokens:], skip_special_tokens=True)
 

@@ -47,3 +47,24 @@ def test_generate_with_addition_runs_without_error(model):
     )
     assert isinstance(completion, str)
     assert len(completion.strip()) > 0
+
+
+def test_generate_with_feature_suppression_runs_without_error(model):
+    from src.direction.interventions import generate_with_feature_suppression
+    from src.sae.qwen_scope import TopKSAE
+
+    d_model = model.config.hidden_size
+    g = torch.Generator().manual_seed(0)
+    sae = TopKSAE(
+        W_enc=torch.randn(16, d_model, generator=g) * 0.1,
+        W_dec=torch.randn(d_model, 16, generator=g) * 0.1,
+        b_enc=torch.zeros(16),
+        b_dec=torch.zeros(d_model),
+        k=4,
+    )
+    features_by_layer = {5: [(sae, 0), (sae, 3)], 8: [(sae, 1)]}  # multiple features, some sharing a layer
+    completion = generate_with_feature_suppression(
+        model, "Tell me about your favorite hobby", features_by_layer, max_new_tokens=10
+    )
+    assert isinstance(completion, str)
+    assert len(completion.strip()) > 0
