@@ -161,6 +161,20 @@ outright. Restricted the evaluation sample to harmful TRAIN prompts under
 still representative of the bulk of the corpus, just excluding the long
 tail).
 
+**Results (2026-07-09, `results/sae_causal_ranking_Qwen3-8B.json`):** ran
+in ~1h50m as estimated, no errors. Top-20 by IG score spread across all
+three layers (20: 6, 21: 8, 22: 6 features) -- no single layer dominates,
+consistent with how tightly the separation scores were clustered. Top
+feature: layer 20/feature 12092 (score 0.547), a clear standout above the
+rest (next-highest is 0.334). The bottom 2 of the kept 20 have scores near
+zero or slightly negative (-0.008, -0.025) -- expected noise at this
+cutoff with only 8 evaluation prompts backing the ranking pass; matches the
+source paper's own stated limitation ("small K* may omit relevant
+features," cuts both ways -- some low-signal features inevitably survive
+too). These borderline features should be weighted accordingly (or
+excluded) when interpreting results, not treated as equally confident as
+the top-ranked ones.
+
 ## Phase 3 methodology (adapted from arXiv:2505.23556)
 
 Following "Understanding Refusal in Language Models with Sparse
