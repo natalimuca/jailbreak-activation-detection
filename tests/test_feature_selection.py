@@ -1,6 +1,6 @@
 import torch
 
-from src.sae.feature_selection import top_k0_by_cosine_similarity
+from src.sae.feature_selection import pool_top_k0_across_layers, top_k0_by_cosine_similarity
 from src.sae.qwen_scope import TopKSAE
 
 
@@ -54,3 +54,19 @@ def test_k0_larger_than_d_sae_raises():
         assert False, "expected an error when k0 > d_sae"
     except RuntimeError:
         pass
+
+
+def test_pool_across_layers_combines_and_tags_by_layer():
+    sae_a = _toy_sae(seed=0)
+    sae_b = _toy_sae(seed=1)
+    saes = {5: sae_a, 9: sae_b}
+    directions = {5: torch.randn(4), 9: torch.randn(4)}
+
+    pooled = pool_top_k0_across_layers(saes, directions, k0=3)
+
+    assert len(pooled) == 6  # 3 per layer, 2 layers
+    layers_seen = {layer for layer, _ in pooled}
+    assert layers_seen == {5, 9}
+    expected_a = {(5, i) for i in top_k0_by_cosine_similarity(sae_a, directions[5], k0=3)}
+    expected_b = {(9, i) for i in top_k0_by_cosine_similarity(sae_b, directions[9], k0=3)}
+    assert set(pooled) == expected_a | expected_b

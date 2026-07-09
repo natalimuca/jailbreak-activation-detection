@@ -111,6 +111,24 @@ one standout layer. **Selected layer 22** (highest score, within the
 recommended middle-to-late window). Next step: download only
 `layer22.sae.pt` from `Qwen/SAE-Res-Qwen3-8B-Base-W64K-L0_50` (not the full
 36-layer set -- each file is ~2GB).
+
+## Multi-layer K0 pooling: layers 22, 21, 20 (2026-07-09)
+
+LITERATURE.md's close-read of arXiv:2505.23556 says the method takes the
+top K0=10 features **per layer**, then keeps the top K*=20 overall --
+since K* > K0, this only makes sense if multiple layers feed the candidate
+pool (the paper sweeps several SAE layers, not just one). This project's
+Phase 1 convention was single-best-layer selection, which would cap K* at
+10 (all of K0), a real deviation from the paper's numbers.
+
+Given the layer-22 separation score (1.742) is barely ahead of layers 21
+(1.739) and 20 (1.738) -- essentially tied -- **decided to download SAE
+checkpoints for the top 3 layers (22, 21, 20)** and pool their K0=10
+candidates each (up to 30 total) before causal-ranking down to K*=20. This
+more faithfully replicates the source paper's method than forcing a
+single-layer result to fit a multi-layer formula. Extending further (e.g.
+top 5) wasn't judged worth the extra ~4GB/downloads given how little the
+score drops off (1.742 to 1.717 across all 5 top layers).
 Whether to also add Gemma-2-9B / Llama-3.1-8B later (once/if HF gating is
 resolved) for the full three-family cross-model set is still open --
 doesn't block starting Phase 3 on Qwen3-8B alone.

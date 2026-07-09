@@ -28,3 +28,18 @@ def top_k0_by_cosine_similarity(sae: TopKSAE, direction: torch.Tensor, k0: int =
     )
     topk = sims.topk(k0)
     return topk.indices.tolist()
+
+
+def pool_top_k0_across_layers(
+    saes: dict[int, TopKSAE], directions: dict[int, torch.Tensor], k0: int = K0_DEFAULT
+) -> list[tuple[int, int]]:
+    """Runs top_k0_by_cosine_similarity independently per layer and pools the
+    results into a flat (layer_idx, feature_idx) candidate list -- step 2 of
+    the methodology, extended across multiple layers (see DECISIONS.md's
+    "Multi-layer K0 pooling" entry for why: K*=20 > K0=10 only makes sense
+    if candidates are pooled from more than one layer)."""
+    pooled = []
+    for layer_idx, sae in saes.items():
+        for feature_idx in top_k0_by_cosine_similarity(sae, directions[layer_idx], k0):
+            pooled.append((layer_idx, feature_idx))
+    return pooled
