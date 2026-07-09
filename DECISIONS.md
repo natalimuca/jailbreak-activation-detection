@@ -209,3 +209,35 @@ starting the conversation with the advisor/department early rather than
 leaving it for later, even though the actual risk is low (defensive research
 on standard, already-public safety benchmarks, no novel harmful content
 sourced or generated for release).
+
+## Qwen3's default thinking mode was uncontrolled -- fixed and redone (2026-07-10)
+
+Discovered while calibrating the suppression-validation generation step:
+Qwen3-8B reasons inside a `<think>...</think>` block before answering by
+default. `format_prompt()` (used everywhere -- direction extraction,
+causal-ranking's logit-diff metric, and all generation-based validation)
+was not passing `enable_thinking=False`, so:
+
+- The refusal-vs-compliance logit-diff metric (task #4's causal ranking)
+  was reading the logits of the *first token of the reasoning preamble*
+  (typically something like "Okay"), not the first token of the model's
+  actual answer -- likely a large, silent confound on that metric.
+- Any generation-based validation (task #5) would have the same problem:
+  the refusal classifier scans the first 200 characters of the completion,
+  which would land inside `<think>` musing, not the real answer.
+
+**Verified the fix**: `tokenizer.apply_chat_template(..., enable_thinking=False)`
+pre-fills an *empty* `<think>\n\n</think>\n\n` into the prompt itself (not
+generated), so the model's first generated token is genuinely the start of
+its real answer. Confirmed non-thinking models' templates (SmolLM2,
+Qwen2.5) silently ignore this unused kwarg -- safe to set unconditionally
+in `format_prompt()` (src/activations/extract.py).
+
+**Decided (user's call, given the ~3.5hr recompute cost) to redo both
+already-completed steps rather than patch forward only**: re-ran the
+Qwen3-8B activation extraction (task #1) and the SAE causal-ranking sweep
+(task #4) with the fix in place, so every number in this project's Qwen3-8B
+results consistently measures the model's actual answer behavior, not a
+reasoning-preamble artifact. The previously reported layer-22 selection and
+the "layer 20/feature 12092 top" ranking result (from before this fix) are
+superseded -- see below for the corrected numbers once the redo completes.

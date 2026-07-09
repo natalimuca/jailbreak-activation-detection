@@ -43,8 +43,16 @@ def load_model(model_name: str, device_map: str = "auto", load_in_4bit: bool = F
 
 def format_prompt(model: LanguageModel, instruction: str) -> str:
     messages = [{"role": "user", "content": instruction}]
+    # enable_thinking=False: Qwen3 models reason inside a <think>...</think>
+    # block before answering by default. Without this, the "last prompt
+    # token" position (used for direction extraction) sits before the model
+    # has even decided whether to think, and the first *generated* token in
+    # any causal-validation/ranking step would be the start of that
+    # reasoning preamble, not of the actual answer -- silently measuring the
+    # wrong thing for Qwen3-8B (see DECISIONS.md). Non-thinking models'
+    # chat templates (SmolLM2, Qwen2.5) ignore this unused kwarg.
     return model.tokenizer.apply_chat_template(
-        messages, tokenize=False, add_generation_prompt=True
+        messages, tokenize=False, add_generation_prompt=True, enable_thinking=False
     )
 
 
