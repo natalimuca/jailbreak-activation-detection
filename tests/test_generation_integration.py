@@ -62,7 +62,10 @@ def test_generate_with_feature_suppression_runs_without_error(model):
         b_dec=torch.zeros(d_model),
         k=4,
     )
-    features_by_layer = {5: [(sae, 0), (sae, 3)], 8: [(sae, 1)]}  # multiple features, some sharing a layer
+    # Deliberately out of architectural order (8 before 5) -- regression
+    # test for a MissedProviderError caused by accessing a later layer
+    # before an earlier one (nnsight requires forward-pass execution order).
+    features_by_layer = {8: [(sae, 1)], 5: [(sae, 0), (sae, 3)]}
     completion = generate_with_feature_suppression(
         model, "Tell me about your favorite hobby", features_by_layer, max_new_tokens=10
     )

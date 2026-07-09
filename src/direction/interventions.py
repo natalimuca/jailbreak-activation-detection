@@ -89,11 +89,16 @@ def generate_with_feature_suppression(
     sequentially -- so ablating feature B doesn't shift the baseline that
     feature A's contribution is measured against."""
     prompt = format_prompt(model, instruction)
+    # nnsight requires modules to be accessed in the order they actually
+    # execute in the forward pass -- iterating features_by_layer in whatever
+    # order its keys happen to be in (e.g. ranking-score order) can access a
+    # later layer before an earlier one, which raises a MissedProviderError.
+    ordered_layers = sorted(features_by_layer.items())
     with model.generate(
         prompt, min_new_tokens=max_new_tokens, max_new_tokens=max_new_tokens
     ) as tracer:
         for step in tracer.iter[:max_new_tokens]:
-            for layer_idx, feats in features_by_layer.items():
+            for layer_idx, feats in ordered_layers:
                 out = model.model.layers[layer_idx].output
                 correction = torch.zeros_like(out)
                 for sae, feature_idx in feats:
