@@ -39,7 +39,7 @@ LAYERS = [23, 25, 24]
 K0 = 10
 K_STAR = 20
 N_STEPS = 10
-N_EVAL_PROMPTS = 8
+N_EVAL_PROMPTS = 16
 MAX_PROMPT_CHARS = 150  # see DECISIONS.md: backward-pass memory risk on long outliers
 RESULTS_DIR = Path(__file__).resolve().parents[1] / "results"
 

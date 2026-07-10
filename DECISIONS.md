@@ -322,3 +322,26 @@ features are rarely fully causally sufficient on their own (see
 arXiv:2411.11296's cautionary tale in LITERATURE.md, which this project
 explicitly designed around by using a systematic top-K* set rather than a
 single hand-picked feature).
+
+## Tightening the results: bigger samples, more conditions (2026-07-10)
+
+The first-pass results above are directionally solid but statistically
+thin at the edges: n=25 for validation gives CIs ~20-30 points wide, and
+n=8 for the ranking screen means the exact top-20 feature list itself
+carries real sampling noise. Decided to redo both, on user request, rather
+than leave the numbers at their first-pass strength:
+
+- **Ranking pass**: `N_EVAL_PROMPTS` 8 -> 16 (`scripts/04`). Doubles cost
+  (~3.8hrs estimated vs the original ~2hrs) but tightens which exact
+  features land in the top-20, not just the validation's confidence in
+  them.
+- **Validation pass**: `N_VAL_PROMPTS` 25 -> 50, plus two intermediate
+  conditions (`top10`, `top15`) added alongside the existing
+  baseline/top1/top5/top20, for a smoother dose-response curve rather than
+  3 sparse points (`scripts/05`). ~1.75hrs estimated for 6 conditions x 50
+  prompts.
+
+Run sequentially (validation depends on the ranking's output), ~5.5hrs
+total. Not redoing activation extraction or layer selection -- those
+aren't sample-size-limited in the same way (full 1922-prompt corpus,
+already stable across the pre/post-thinking-mode-fix runs' top layers).

@@ -11,6 +11,8 @@ extraction or feature ranking:
   - baseline (no intervention)
   - suppress top-1 feature alone
   - suppress top-5 features (combined)
+  - suppress top-10 features (combined)
+  - suppress top-15 features (combined)
   - suppress top-20 features (combined, the full ranked set)
 
 Per DECISIONS.md's capability-check requirement: also checks completions
@@ -42,7 +44,7 @@ from src.sae.qwen_scope import load_sae
 DEFAULT_MODEL = "Qwen/Qwen3-8B"
 RANKING_PATH = Path(__file__).resolve().parents[1] / "results" / "sae_causal_ranking_Qwen3-8B.json"
 RESULTS_DIR = Path(__file__).resolve().parents[1] / "results"
-N_VAL_PROMPTS = 25
+N_VAL_PROMPTS = 50
 MAX_PROMPT_CHARS = 150  # consistent with scripts/04's ranking-pass cap; see DECISIONS.md
 MAX_NEW_TOKENS = 40
 
@@ -93,6 +95,8 @@ def main() -> None:
         "baseline": None,
         "top1": features_by_layer_for(ranked, saes, 1),
         "top5": features_by_layer_for(ranked, saes, 5),
+        "top10": features_by_layer_for(ranked, saes, 10),
+        "top15": features_by_layer_for(ranked, saes, 15),
         "top20": features_by_layer_for(ranked, saes, 20),
     }
 
