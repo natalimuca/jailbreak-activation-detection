@@ -165,7 +165,7 @@ outright. Restricted the evaluation sample to harmful TRAIN prompts under
 still representative of the bulk of the corpus, just excluding the long
 tail).
 
-**Results (2026-07-09, `results/sae_causal_ranking_Qwen3-8B.json`):** ran
+**Results (2026-07-09, `results/sae_causal_ranking_Qwen3-8B.json`) -- SUPERSEDED, see below.** Ran
 in ~1h50m as estimated, no errors. Top-20 by IG score spread across all
 three layers (20: 6, 21: 8, 22: 6 features) -- no single layer dominates,
 consistent with how tightly the separation scores were clustered. Top
@@ -178,6 +178,22 @@ features," cuts both ways -- some low-signal features inevitably survive
 too). These borderline features should be weighted accordingly (or
 excluded) when interpreting results, not treated as equally confident as
 the top-ranked ones.
+
+**Superseded (2026-07-10)**: this run predates the `enable_thinking=False`
+fix, on layers 22/21/20 (also superseded by the corrected layer selection).
+Kept for history only.
+
+**Corrected results (2026-07-10, same file, re-run on layers 23/25/24):**
+ran cleanly, no errors. Layer distribution in top-20: 25: 7, 23: 7, 24: 6 --
+still no single layer dominant. **Signal is markedly stronger and cleaner
+than the confounded run**: top feature layer 25/feature 65291 (score
+**2.371**) and 2nd layer 23/feature 42331 (score **1.461**) are both far
+above everything else (3rd place is 0.501) -- a much sharper standout than
+the old run's top score of 0.547. No near-zero/negative features anywhere
+in this top-20 (unlike the old run's 2 borderline entries), suggesting the
+thinking-mode fix didn't just shift the ranking but genuinely improved the
+signal-to-noise ratio of the metric itself, consistent with the metric now
+reading the model's real answer instead of reasoning-preamble noise.
 
 ## Phase 3 methodology (adapted from arXiv:2505.23556)
 
