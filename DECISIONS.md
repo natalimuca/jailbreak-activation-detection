@@ -345,3 +345,14 @@ Run sequentially (validation depends on the ranking's output), ~5.5hrs
 total. Not redoing activation extraction or layer selection -- those
 aren't sample-size-limited in the same way (full 1922-prompt corpus,
 already stable across the pre/post-thinking-mode-fix runs' top layers).
+
+**Ranking-pass N=16 result: the top-2 features are stable.** Layer
+25/feature 65291 (score 2.198, was 2.371 at N=8) and layer 23/feature
+42331 (1.430, was 1.461) remain the top two by a wide margin, essentially
+unchanged. Only **1 of 20 features swapped** in the whole ranked list
+(a low-ranked one, rank ~17-20) between the N=8 and N=16 runs; layer
+distribution in the top-20 is identical (25:7, 23:7, 24:6). This is good
+evidence the N=8 screening pass wasn't actually noise-dominated -- doubling
+the sample barely moved the result. Full comparison and the new ranked
+list in `results/sae_causal_ranking_Qwen3-8B.json` (overwritten; N=8 result
+is this file's git history if needed).
