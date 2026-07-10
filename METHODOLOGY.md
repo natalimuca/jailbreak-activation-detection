@@ -1,4 +1,4 @@
-# Methodology: refusal-direction reproduction
+# Methodology: refusal direction and SAE-feature detector
 
 ## Direction estimation
 
@@ -109,9 +109,141 @@ Establishes: the causal refusal-direction finding reproduces on two small,
 architecturally different open-weight models, for both the necessity
 (ablation) and sufficiency (addition) directions of the original claim.
 
-Does not establish: whether this holds at the 7-9B parameter scale used
-elsewhere in this project: whether the SmolLM2 addition-effect ceiling
-reflects safety-training strength, architecture, or something else; or
-anything about the SAE-feature detectors that motivate this project's
-actual contribution (see [DECISIONS.md](DECISIONS.md) and
-[LITERATURE.md](LITERATURE.md)) -- those are separate, later questions.
+Does not establish: whether the SmolLM2 addition-effect ceiling reflects
+safety-training strength, architecture, or something else. The 7-9B-scale,
+SAE-feature question this project actually motivates is addressed
+separately below.
+
+## SAE-feature detector (Qwen3-8B)
+
+Adapted from "Understanding Refusal in Language Models with Sparse
+Autoencoders" (arXiv:2505.23556, close-read in [LITERATURE.md](LITERATURE.md)).
+Where the reproduction above finds one dense direction, this asks a finer
+question: which specific sparse, interpretable internal components (out of
+tens of thousands per layer) are causally responsible for refusal, using a
+larger model (Qwen3-8B, 4-bit quantized) and a pretrained sparse autoencoder
+suite (Qwen-Scope). Full rationale for every design choice below is in
+[DECISIONS.md](DECISIONS.md); this section covers the *how*, not the *why*.
+
+### A methodological pitfall specific to Qwen3: uncontrolled thinking mode
+
+Qwen3 models reason inside a `<think>...</think>` block before answering by
+default. Left uncontrolled, the position used throughout this pipeline (the
+last prompt token, or the first generated token) lands inside that
+reasoning preamble instead of at the model's actual answer -- silently
+measuring "how does the model start reasoning" rather than "does it refuse
+or comply." Fixed by passing `enable_thinking=False` to the chat template
+(`src/activations/extract.py`'s `format_prompt()`), which pre-fills an
+*empty* think block into the prompt so the first generated token is
+genuinely the start of the real answer. This is a Qwen3-specific
+consideration the reproduction above never had to deal with (SmolLM2 and
+Qwen2.5 don't have a thinking mode); every number reported for the
+SAE-feature detector reflects the corrected pipeline.
+
+### Activation extraction and layer selection
+
+Same extraction and separation-score-based layer selection as the
+reproduction above (`src/activations/extract.py`, `src/direction/compute.py`),
+run once on the full corpus (1922 deduplicated prompts across AdvBench,
+HarmBench, JBB-Behaviors, XSTest) rather than a small per-model split, since
+this activation cache is reused across every downstream step (layer
+selection, feature pooling, causal ranking). Unlike the reproduction, which
+causally validates only the single best layer, separation scores here were
+tightly clustered across the top 5 layers -- see "Multi-layer K0 pooling"
+below for why that changes the layer-selection strategy.
+
+### Pretrained SAE loading
+
+`src/sae/qwen_scope.py` loads Qwen-Scope's `Qwen/SAE-Res-Qwen3-8B-Base-W64K-L0_50`
+checkpoints (one ~2GB `layer{n}.sae.pt` per layer, only the specific
+layers actually used are downloaded). Each is a TopK sparse autoencoder
+(65536 features, top-50 kept per forward pass): `encode()` projects a
+residual-stream vector to sparse feature activations, `decode()`
+reconstructs the residual stream from those activations, and
+`feature_direction(i)` returns the residual-stream direction a single
+feature writes to (the corresponding decoder column) -- the quantity
+compared against the refusal direction below.
+
+**Known, accepted limitation**: these SAEs are trained on Qwen3-8B-**Base**
+activations, applied here to the instruct/chat model. Standard, published
+practice in this literature (the source paper does the same with
+GemmaScope/LlamaScope), not a novel compromise -- see DECISIONS.md.
+
+### Multi-layer K0 pooling
+
+The source paper's method takes the top K0=10 SAE features per layer by
+cosine similarity to the difference-in-means direction, then keeps the top
+K*=20 overall by causal effect -- since K* > K0, this implies pooling
+candidates from multiple layers, not just one. Given this project's
+top-5 separation scores were nearly tied, three layers (the top 3 by
+score) were used rather than forcing a single-layer result to fit a
+multi-layer formula: `src/sae/feature_selection.py`'s
+`top_k0_by_cosine_similarity()` (signed cosine similarity between each
+feature's decoder direction and the layer's refusal direction -- signed,
+not absolute, since only features that write *along* the harmful direction
+are refusal-feature candidates) run independently per layer, pooled by
+`pool_top_k0_across_layers()` into a flat `(layer, feature)` candidate list.
+
+### Causal ranking via attribution patching
+
+`src/sae/causal_ranking.py` estimates each pooled candidate's causal effect
+via integrated gradients (N=10 steps), on a differentiable proxy metric
+(`src/direction/refusal_metric.py`: logit(" I") minus logit(" Sure") at the
+first generated token -- the same refusal-vs-compliance first-token
+contrast used in Arditi et al. 2024). For each candidate feature: the
+natural pre-activation value is computed from the unmodified residual
+stream, then integrated gradients estimates the effect of ablating that
+feature (natural value -> 0) by backpropagating through N interpolation
+steps between 0 and the natural value, batched into a single
+forward+backward pass per (feature, prompt) for tractable runtime (verified
+numerically identical to looping one step at a time, at ~1/N the cost).
+
+Scored on a fixed sample of 8 harmful TRAIN prompts, length-capped at 150
+characters (a real memory constraint: backward passes need far more memory
+than the no-grad forward-only extraction, and the corpus's ~1000-token
+outliers would likely OOM even a 4-bit model on a 6GB GPU). This is
+deliberately a *cheap screening pass*, not the rigorous validation --
+see below.
+
+**Implementation note (nnsight-specific)**: modules must be accessed in
+forward-pass execution order. Iterating a `{layer: features}` dict built in
+ranking-score order (not ascending layer order) raises a
+`MissedProviderError` -- fixed by always sorting layers ascending before
+iterating (`src/direction/interventions.py`).
+
+### Causal validation via feature suppression
+
+Mirrors the reproduction's directional-ablation methodology directly, for
+comparability: `generate_with_feature_suppression()`
+(`src/direction/interventions.py`) ablates one or more SAE features (each
+feature's natural contribution -- `value * decoder_direction` -- computed
+from the *original* unmodified residual, so ablating one feature doesn't
+shift the baseline another feature in the same layer is measured against)
+at every generated token, then measures refusal with the real
+`refusal_classifier` (not the differentiable proxy used for ranking --
+that step was only ever a screening pass to narrow 30 candidates to 20).
+
+Four conditions compared on 25 held-out VAL harmful prompts (disjoint from
+every prompt used in direction extraction, layer selection, and ranking):
+baseline, suppress the single top-ranked feature, suppress the top 5, and
+suppress the full top 20. Per DECISIONS.md's capability-check requirement,
+every completion is also checked for degeneracy
+(`refusal_classifier.is_degenerate()`) -- a refusal-rate drop caused by
+incoherent garbage output wouldn't be a real causal finding.
+
+### What the SAE-feature detector does and doesn't establish
+
+Establishes: a systematically-selected set of 20 SAE features (pooled
+across 3 layers, ranked by attribution-patching causal effect) has a real,
+statistically distinguishable causal effect on refusal when suppressed
+(full numbers in `RESULTS.md`) -- and, unlike the single-hand-picked-feature
+approach this project explicitly designed around avoiding
+(arXiv:2411.11296), without collapsing model coherence.
+
+Does not establish: cross-model generalization (does a feature set found
+this way on Qwen3-8B transfer to a different model?) -- this project's
+stated differentiator from the existing literature, and still open;
+whether individual features among the top 20 are independently
+interpretable (this pipeline validates the *set*, not each member); or a
+comparison against the dense single-direction approach on equal footing
+(that comparison is Phase 4's job, per the project's original plan).

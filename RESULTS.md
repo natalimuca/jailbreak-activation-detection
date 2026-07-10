@@ -1,4 +1,4 @@
-# Results: refusal-direction reproduction
+# Results: refusal-direction reproduction and SAE-feature detector
 
 Reproduction of Arditi et al.'s causal refusal-direction finding (a single
 residual-stream direction, estimated as the harmful/harmless mean-activation
@@ -104,3 +104,99 @@ into repeated-token garbage at higher alpha.
 - Only two small models tested (1.5B, 1.7B params). Whether the
   necessity/sufficiency asymmetry holds at the 7-9B scale used later in
   this project is untested.
+
+## SAE-feature detector (Qwen3-8B)
+
+Methodology in [METHODOLOGY.md](METHODOLOGY.md#sae-feature-detector-qwen3-8b),
+full rationale for every design choice in [DECISIONS.md](DECISIONS.md).
+Raw completions are not committed (same policy as above); aggregate stats
+and the selected feature list are in
+`results/sae_causal_ranking_Qwen3-8B.json` and
+`results/sae_suppression_validation_Qwen3-8B.json`.
+
+### Layer selection
+
+Separation scores (difference-in-means direction from TRAIN, measured on
+held-out VAL), full 1922-prompt corpus:
+
+| layer | score |
+|-------|-------|
+| 23    | 1.783 |
+| 25    | 1.783 |
+| 24    | 1.781 |
+| 26    | 1.780 |
+| 28    | 1.778 |
+
+Extremely tightly clustered (spread of 0.005) -- unlike the single-model
+reproduction above, no one layer stands out, which is why the top 3 (23,
+25, 24) were pooled for feature selection rather than causally testing
+only the single best layer.
+
+### Causal ranking (attribution patching)
+
+Top-5 of the 20 selected features, by integrated-gradients attribution
+score on the refusal-vs-compliance logit-diff metric (8 harmful TRAIN
+prompts, length-capped):
+
+| rank | layer | feature | score |
+|---|---|---|---|
+| 1 | 25 | 65291 | 2.371 |
+| 2 | 23 | 42331 | 1.461 |
+| 3 | 23 | 23501 | 0.501 |
+| 4 | 24 | 4711  | 0.474 |
+| 5 | 24 | 5393  | 0.421 |
+
+The top 2 features are a clear standout (2.371 and 1.461) above the rest
+of the top-20 (all <= 0.501) -- a much sharper signal than an earlier,
+since-superseded run of this same pipeline that hadn't yet disabled
+Qwen3's default thinking mode (that run's top score was only 0.547, with
+2 near-zero/negative features surviving into the top-20; see DECISIONS.md
+for the full account). Full list of all 20 selected features (layer,
+feature index, score) is in the JSON results file.
+
+### Causal validation (feature suppression)
+
+Baseline vs. suppressing the top-1/top-5/top-20 ranked features, on 25
+held-out VAL harmful prompts (disjoint from every prompt used upstream),
+40 tokens generated per completion, real `refusal_classifier`. 95% CIs are
+Wilson score intervals.
+
+| condition | n | refusal rate | 95% CI | degenerate |
+|---|---|---|---|---|
+| baseline | 25 | 72.0% | [52.4%, 85.7%] | 0/25 |
+| suppress top-1 | 25 | 84.0% | [65.4%, 93.6%] | 0/25 |
+| suppress top-5 | 25 | 44.0% | [26.7%, 62.9%] | 0/25 |
+| **suppress top-20** | 25 | **20.0%** | **[8.9%, 39.1%]** | 0/25 |
+
+The top-20 condition's CI does not overlap baseline's -- suppressing this
+systematically-selected feature set causes a real, large drop in refusal
+(72% -> 20%), with **zero completions degenerating into incoherent
+output** across all 100 generations in this run. Unlike the single
+hand-picked feature in arXiv:2411.11296 (which achieved a refusal-rate
+shift only by destroying general capability -- MMLU 68.8% -> 36.0%), this
+project's systematic top-K* selection produces a real behavioral effect
+without a coherence collapse.
+
+**Honest finding, not smoothed over**: suppressing the single top-ranked
+feature alone (top-1) did *not* reduce refusal -- it rose slightly (84% vs
+72% baseline), though the CIs overlap heavily enough that this likely
+isn't a real reversal, just noise at n=25. The refusal-suppressing effect
+is **distributed across the feature set**: it only becomes distinguishable
+from baseline once enough of the top-20 are suppressed together (5 is not
+enough on its own; the CI at top-5 still marginally overlaps baseline's).
+
+### Known limitations (SAE-feature detector)
+
+- n=25 for the suppression validation and n=8 for the ranking pass are
+  enough to show the top-20 effect is real, not enough for fine-grained
+  per-feature confidence -- the bottom few of the 20 ranked features carry
+  more uncertainty than the top 2.
+- Single model (Qwen3-8B). Cross-model generalization -- whether a feature
+  set selected this way transfers to a different model family -- is this
+  project's explicit differentiator from the existing literature and
+  remains untested.
+- The SAEs are trained on the base model's activations, applied here to
+  the instruct/chat model -- a documented, accepted limitation shared with
+  the source paper (see DECISIONS.md), not unique to this reproduction.
+- No comparison yet against the single-dense-direction approach (Phase 1
+  above) on equal footing -- that head-to-head is separate, later work.
