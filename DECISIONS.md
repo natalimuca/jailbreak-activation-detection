@@ -91,7 +91,11 @@ source paper (arXiv:2505.23556) doesn't spell out signed-vs-absolute
 explicitly; this is our resolution of that ambiguity, made explicit here
 rather than silently picking one.
 
-## SAE layer selection: layer 22 (2026-07-09)
+## SAE layer selection: layer 22 (2026-07-09) -- SUPERSEDED, see below
+
+**Superseded (2026-07-10)**: this run predates the `enable_thinking=False`
+fix (see "Qwen3's default thinking mode was uncontrolled" below). Kept for
+history, not for use.
 
 Ran the full Qwen3-8B activation extraction (1922-prompt corpus) and computed
 per-layer separation scores (difference-of-means direction from train,
@@ -241,3 +245,25 @@ results consistently measures the model's actual answer behavior, not a
 reasoning-preamble artifact. The previously reported layer-22 selection and
 the "layer 20/feature 12092 top" ranking result (from before this fix) are
 superseded -- see below for the corrected numbers once the redo completes.
+
+**Corrected extraction results (2026-07-10):** re-ran successfully (~92
+min). New top-5 layers by separation score:
+
+| layer | score |
+|-------|-------|
+| 23    | 1.783 |
+| 25    | 1.783 |
+| 24    | 1.781 |
+| 26    | 1.780 |
+| 28    | 1.778 |
+
+The selection genuinely shifted (23/25/24/26/28 vs the old run's
+22/21/20/23/19) -- confirms the fix mattered, not just a cosmetic change.
+Scores are even more tightly clustered than before (spread of 0.005 vs
+0.025) and each score is slightly higher overall (~1.78 vs ~1.74),
+consistent with this being a cleaner signal now that the measured position
+aligns with the model's actual answer rather than a reasoning-preamble
+artifact. **New selected top-3 for SAE pooling: layers 23, 25, 24**
+(highest three by score). This requires downloading 3 fresh SAE
+checkpoints -- none of 23/24/25 were among the previously-downloaded
+20/21/22.
