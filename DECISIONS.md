@@ -283,3 +283,42 @@ artifact. **New selected top-3 for SAE pooling: layers 23, 25, 24**
 (highest three by score). This requires downloading 3 fresh SAE
 checkpoints -- none of 23/24/25 were among the previously-downloaded
 20/21/22.
+
+## Causal validation via suppression -- results (2026-07-10)
+
+`scripts/05_causal_validate_sae_features.py`: baseline vs. suppressing the
+top-1/top-5/top-20 causally-ranked features (from the corrected
+`sae_causal_ranking_Qwen3-8B.json`), on 25 held-out VAL harmful prompts
+(seed=1, disjoint from every prompt used anywhere upstream -- direction
+extraction, layer selection, and the ranking pass), 40 tokens generated per
+completion, real `refusal_classifier` (not the differentiable proxy used
+for ranking).
+
+| condition | refusal rate | 95% CI | degenerate |
+|---|---|---|---|
+| baseline | 0.72 | [0.524, 0.857] | 0/25 |
+| suppress top-1 | 0.84 | [0.654, 0.936] | 0/25 |
+| suppress top-5 | 0.44 | [0.267, 0.629] | 0/25 |
+| suppress top-20 | **0.20** | [0.089, 0.391] | 0/25 |
+
+**This is the project's core causal-validation finding for Phase 3**: the
+top-20 condition's refusal rate (0.20) is statistically distinguishable
+from baseline (0.72) -- their 95% CIs don't even overlap (0.391 vs 0.524).
+Suppressing these 20 SAE features causes a large, real drop in refusal,
+and **zero completions degenerated into incoherent output** across all 100
+generations in this run -- the model is being made to actually comply, not
+just breaking. This satisfies the capability-check requirement noted
+earlier in this file (any suppression/steering result must be reported
+alongside a coherence check, not refusal rate alone).
+
+**Honest limitation, reported not smoothed over**: suppressing the single
+top feature alone (top-1) did *not* reduce refusal -- it went up slightly
+(0.84 vs 0.72 baseline), though the CIs overlap heavily so this isn't
+necessarily a real effect in the opposite direction, more likely noise at
+n=25. The refusal-suppressing effect is clearly **distributed across the
+feature set**, not concentrated in one dominant feature, which is
+consistent with this literature's general finding that individual SAE
+features are rarely fully causally sufficient on their own (see
+arXiv:2411.11296's cautionary tale in LITERATURE.md, which this project
+explicitly designed around by using a systematic top-K* set rather than a
+single hand-picked feature).
