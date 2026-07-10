@@ -3,7 +3,7 @@
 Pipeline (see DECISIONS.md for the layer/prompt-count/length-cap rationale):
   1. Load the cached Qwen3-8B activations, compute per-layer difference-in-
      means directions on TRAIN.
-  2. Load the top-3-by-separation-score layers' SAE checkpoints (22, 21, 20).
+  2. Load the top-3-by-separation-score layers' SAE checkpoints (23, 25, 24).
   3. Restrict each layer's SAE to its top K0=10 features by cosine
      similarity to that layer's direction, pool into ~30 candidates.
   4. Rank the pooled candidates by attribution-patching causal effect
@@ -35,7 +35,7 @@ from src.sae.feature_selection import pool_top_k0_across_layers
 from src.sae.qwen_scope import load_sae
 
 DEFAULT_MODEL = "Qwen/Qwen3-8B"
-LAYERS = [22, 21, 20]
+LAYERS = [23, 25, 24]
 K0 = 10
 K_STAR = 20
 N_STEPS = 10
