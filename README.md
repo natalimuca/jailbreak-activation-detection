@@ -24,14 +24,16 @@ This project extends that finding in three directions:
 2. **Cross-model generalization** — does a detector trained on one model's
    internals transfer to a different model family/size, or does it need
    per-model retraining?
-3. **Engineering rigor** — calibration, decision-curve / operating-point
-   tuning, false-positive cost analysis, latency benchmarking, and an honest
-   head-to-head comparison against baselines on a held-out adversarial set.
+3. **Engineering rigor** — calibration, an honest head-to-head comparison
+   against baselines (keyword filter, GPT-2 perplexity filter) on a held-out
+   adversarial paraphrase set built from real, published JailbreakBench
+   attack artifacts, and false-positive ("safety tax") measurement on
+   XSTest's safe-but-scary-looking prompts.
 
-Methodology and results for both the single-direction reproduction and the
-SAE-feature detector are in [METHODOLOGY.md](METHODOLOGY.md) and
-[RESULTS.md](RESULTS.md); design decisions and open questions in
-[DECISIONS.md](DECISIONS.md).
+Methodology and results for the single-direction reproduction, the
+SAE-feature detector, and the baseline/adversarial detector comparison are
+in [METHODOLOGY.md](METHODOLOGY.md) and [RESULTS.md](RESULTS.md); design
+decisions and open questions in [DECISIONS.md](DECISIONS.md).
 
 ## Tooling
 
@@ -67,6 +69,9 @@ src/
   direction/     refusal-direction computation, ablation, activation addition,
                  SAE feature-suppression generation, refusal metric
   sae/           pretrained SAE loading, feature selection, causal ranking
+  baselines/     keyword-filter and perplexity-filter prompt classifiers
+  detectors/     dense-direction and SAE-feature prompt classifiers
+  eval/          shared detector metrics, adversarial paraphrase set
 scripts/         standalone runnable pipeline stages
 notebooks/       exploratory analysis
 results/         metrics, figures, activation caches (gitignored)

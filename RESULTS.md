@@ -297,3 +297,120 @@ the hardest case for any binary classifier, not a specific weakness here.
   produces more actual harmful content than method B": either a
   moralize-vs-comply classifier or an LLM-judge, since the existing
   keyword classifier was never designed to make that distinction.
+
+## Baseline detectors and adversarial evaluation
+
+Four prompt classifiers, compared under one protocol on Qwen3-8B: two
+baselines (keyword filter, GPT-2 perplexity filter) and two reframed
+activation-based detectors (dense-direction projection at layer 23,
+sum of Phase 3's top-15 ranked SAE features across layers 23/24/25).
+Methodology, split discipline, and the adversarial paraphrase set's real
+JailbreakBench provenance are in
+[METHODOLOGY.md](METHODOLOGY.md#baseline-detectors-and-adversarial-evaluation).
+Thresholds calibrated on VAL (`results/detector_thresholds_Qwen3-8B.json`),
+never touched by the numbers below; full results in
+`results/detector_head_to_head_Qwen3-8B.json`.
+
+### TEST split overall (n=288: 158 harmful, 130 harmless)
+
+| detector | accuracy | 95% CI | F1 | AUROC |
+|---|---|---|---|---|
+| keyword filter | 56.6% | [50.8%, 62.2%] | 0.359 | 0.603 |
+| perplexity filter | 53.1% | [47.4%, 58.8%] | 0.668 | 0.451 |
+| **dense-direction** | **88.9%** | **[84.7%, 92.0%]** | **0.890** | **0.983** |
+| **SAE-feature (top-15)** | **87.8%** | **[83.6%, 91.1%]** | **0.878** | **0.975** |
+
+On clean, in-distribution prompts the two activation-based detectors
+clearly beat both baselines -- an AUROC of 0.98/0.975 vs. 0.60/0.45.
+**Perplexity's AUROC is below 0.5** (worse than a coin flip at ranking
+harmful vs. harmless prompts) -- expected, since perplexity says nothing
+about semantic harmfulness, only textual naturalness, and most of this
+corpus's prompts (harmful and harmless alike) are ordinary fluent English.
+
+### XSTest-safe subset of TEST (n=37, all harmless -- false-positive check)
+
+Reported as the "correctly not flagged" rate (1 minus the false-positive
+rate) -- these are harmless-but-scary-*looking* prompts (e.g. "how do I
+kill a Python process"), so a good detector should score high here.
+
+| detector | correctly-not-flagged rate | 95% CI |
+|---|---|---|
+| keyword filter | 97.3% | [86.2%, 99.5%] |
+| **perplexity filter** | **13.5%** | **[5.9%, 28.0%]** |
+| dense-direction | 94.6% | [82.3%, 98.5%] |
+| SAE-feature (top-15) | 97.3% | [86.2%, 99.5%] |
+
+**Perplexity filter fails badly here** -- it flags 86.5% of safe-but-
+scary-looking prompts as harmful. XSTest's prompts are deliberately
+constructed with unusual phrasing (homonyms, figurative language) to probe
+over-refusal, and that same unusualness drives their perplexity up under
+GPT-2 regardless of actual harmfulness. Both activation-based detectors and
+the keyword filter hold up well on this "safety tax" axis; perplexity does
+not.
+
+### Adversarial paraphrase set (n=35 real JailbreakBench artifacts, all harmful -- detection rate)
+
+Precision/AUROC aren't meaningful with no negatives in this set (reported
+as N/A); the relevant number is flag/detection rate. **Pooling PAIR
+(fluent paraphrase) and GCG (gibberish suffix) hides which attack style is
+actually driving each number**, so both the pooled and per-method
+breakdowns are reported -- same "don't trust the aggregate, check the
+breakdown" discipline as the moralize-vs-comply finding above.
+
+| detector | pooled (n=35) | GCG suffix (n=14) | PAIR paraphrase (n=21) |
+|---|---|---|---|
+| keyword filter | 17.1% [8.1%, 32.7%] | 7.1% [1.3%, 31.5%] | 23.8% [10.6%, 45.1%] |
+| perplexity filter | 62.9% [46.3%, 76.8%] | **100.0%** [78.5%, 100%] | 38.1% [20.7%, 59.1%] |
+| dense-direction | 62.9% [46.3%, 76.8%] | 92.9% [68.5%, 98.7%] | 42.9% [24.5%, 63.4%] |
+| SAE-feature (top-15) | 57.1% [40.9%, 72.0%] | 92.9% [68.5%, 98.7%] | 33.3% [17.2%, 54.6%] |
+
+**Honest findings, not smoothed over:**
+
+1. **The pooled number is misleading on its own.** Perplexity looks
+   competitive with the activation detectors pooled (62.9% vs. 62.9%/57.1%),
+   but that's entirely GCG-driven: perplexity hits a perfect 100% on GCG's
+   gibberish suffixes (textbook case -- Alon & Kamfonas 2023's whole point)
+   while catching well under half of PAIR's fluent paraphrases (38.1%).
+2. **On GCG, all three of perplexity/dense-direction/SAE-feature perform
+   similarly well** (92.9-100%, heavily overlapping CIs) -- unsurprising,
+   since a suffix that breaks fluency is exactly what all three are
+   differently sensitive to. Keyword filter is the outlier here (7.1%): the
+   JBB-sourced harmful goals in this project's TEST split mostly aren't
+   from the weapon/malware/drug categories the lexicon covers, so it misses
+   even the unparaphrased goal text.
+3. **On PAIR -- the case this evaluation is actually named for -- all four
+   detectors degrade sharply relative to their TEST-split performance**
+   (dense-direction: 88.9% to 42.9%; SAE-feature: 87.8% to 33.3%; keyword:
+   56.6% to 23.8%; perplexity: 53.1% to 38.1%). Fluent paraphrase is a hard
+   case across the board, including for the activation-based methods.
+4. **This does not replicate arXiv:2505.23556's finding that SAE features
+   are more robust to adversarial paraphrase than a dense direction** -- on
+   PAIR, dense-direction (42.9%) numerically edges out SAE-feature (33.3%),
+   the opposite direction. At n=21 per method the CIs overlap heavily
+   ([24.5%, 63.4%] vs. [17.2%, 54.6%]), so this is **not** a statistically
+   distinguishable difference either way -- reported honestly as "no
+   replication of that specific claim at this sample size," not as a
+   reversal of it.
+
+### Known limitations (baseline detectors and adversarial evaluation)
+
+- **Adversarial set is small** (n=35, spanning only 11 of TEST's JBB-sourced
+  goals) -- large enough to show all four detectors degrade under PAIR
+  paraphrase, not large enough to statistically distinguish dense-direction
+  from SAE-feature on that degradation (point 4 above). A larger set (more
+  JBB goals landing in TEST, or matching against AdvBench/HarmBench-sourced
+  artifacts if JailbreakBench publishes them) would sharpen this.
+- **Keyword lexicon coverage is corpus-dependent.** Its poor GCG/PAIR
+  numbers partly reflect that this project's TEST-split JBB goals lean
+  toward categories (defamation, harassment, extortion) the curated lexicon
+  wasn't built to cover, not just paraphrase/suffix robustness in general.
+- **Adversarial prompts were never tested for attack success against this
+  project's own models** -- they're real successful jailbreaks against
+  their original target models (Vicuna, Llama-2, GPT-3.5/4), reused here
+  purely as disguised-harmful *prompt text* for a classifier-robustness
+  test, not a claim about Qwen3-8B's own jailbreak susceptibility.
+- **Detector comparison is Qwen3-8B only** -- extending the dense-direction
+  detector and both baselines to Qwen2.5-1.5B/SmolLM2 (Phase 1's models) is
+  a cheap follow-up (activations already cached) but wasn't done here,
+  since the SAE-feature detector can't run there anyway (no SAE trained for
+  those models) and the four-way comparison is cleanest on one model.

@@ -261,4 +261,113 @@ stated differentiator from the existing literature, and still open;
 whether individual features among the top 20 are independently
 interpretable (this pipeline validates the *set*, not each member); or a
 comparison against the dense single-direction approach on equal footing
-(that comparison is Phase 4's job, per the project's original plan).
+(that comparison is below).
+
+## Baseline detectors and adversarial evaluation
+
+Phases 1 and 3 above validate *causal mechanisms* (does ablating/suppressing
+change generation behavior) on Qwen3-8B. This section reframes both as
+**prompt classifiers** -- a harmful/benign decision made on a prompt before
+generation -- and compares them against two simple baselines, all under one
+shared protocol. Full rationale in [DECISIONS.md](DECISIONS.md).
+
+### From causal mechanism to classifier
+
+- **Dense-direction detector** (`src/detectors/dense_direction_detector.py`):
+  projects a prompt's residual-stream activation, at the layer already
+  selected in the head-to-head ablation script (`scripts/06`, layer 23),
+  onto the TRAIN-estimated refusal direction (`compute_directions`). Higher
+  projection = more harmful-like, by construction.
+- **SAE-feature detector** (`src/detectors/sae_feature_detector.py`): sums
+  the encoded activations of Phase 3's top-15 causally-ranked
+  (layer, feature) pairs (loaded directly from
+  `results/sae_causal_ranking_Qwen3-8B.json`, not recomputed -- layers 23,
+  24, 25).
+- **Keyword filter** (`src/baselines/keyword_filter.py`): a curated
+  harmful-intent lexicon (~50 terms across weapon/malware/drug/violence/
+  fraud categories) -- the classic content-moderation baseline, expected to
+  degrade under paraphrase since it only recognizes surface vocabulary.
+- **Perplexity filter** (`src/baselines/perplexity_filter.py`): GPT-2
+  perplexity of the prompt, per Alon & Kamfonas 2023 ("Detecting Language
+  Model Attacks with Perplexity", arXiv:2308.14132) -- built to catch
+  gibberish adversarial suffixes (e.g. GCG), not expected to catch fluent
+  paraphrase.
+
+Both baselines operate on the prompt text alone (no target-model activations
+needed); the two detectors require the target model's (Qwen3-8B's) own
+activations, extracted the same forward-pass-only way as the rest of this
+project (`get_last_token_resid_acts`), never generation.
+
+### Split discipline
+
+Reuses the existing full-corpus TRAIN/VAL/TEST manifest and the Qwen3-8B
+activation cache from Phase 2/3 -- no new full-corpus extraction.
+
+- **TRAIN**: already used to estimate the refusal direction and rank SAE
+  features (Phases 1/3); reused as-is here, not re-derived.
+- **VAL**: calibrates every detector's decision threshold
+  (`scripts/10_calibrate_detector_thresholds.py`), via the cutoff that
+  maximizes Youden's J (TPR - FPR) on VAL's labeled prompts
+  (`src/eval/detector_metrics.youden_threshold`) -- the same
+  calibrate-on-a-disjoint-split discipline as the alpha-calibration sweep in
+  Phase 1, rather than a hand-picked constant. VAL was previously only used
+  for Phase 3's *generation-based* causal suppression validation; using its
+  *activations* for threshold-fitting here is a distinct, non-leaking use.
+- **TEST**: untouched by any tuning. Final metrics
+  (`scripts/11_head_to_head_detectors.py`) are reported here, plus its
+  XSTest-safe subset (false-positive/over-refusal check) and the
+  adversarial paraphrase set below (built only from TEST-split JBB goals).
+
+### Adversarial paraphrase set
+
+Built from real, published JailbreakBench attack artifacts
+(`src/eval/adversarial_paraphrase.py`,
+[github.com/JailbreakBench/artifacts](https://github.com/JailbreakBench/artifacts)),
+not self-authored jailbreak templates -- consistent with this project's
+existing "no self-authored harmful content, only real published benchmarks"
+policy (see [ETHICS.md](ETHICS.md)). Two attack families, kept separate in
+reporting because they represent different failure modes:
+
+- **PAIR** (black-box): fluent, roleplay/fictional-framing paraphrases of
+  the harmful goal -- the "adversarial paraphrase" case this evaluation is
+  named for.
+- **GCG** (white-box + transfer): the harmful goal plus an optimized
+  gibberish suffix -- the classic case perplexity filtering is built to
+  catch, kept as a contrasting condition rather than folded into "paraphrase."
+
+Only `jailbroken: true` records are kept (attacks that actually succeeded
+against their original target model -- Vicuna-13B, Llama-2-7B-chat,
+GPT-3.5, or GPT-4, depending on method). Each artifact's `goal` field is
+matched (case/whitespace-normalized) against this project's own TEST-split
+records with `source == "jbb"`, so the adversarial set only contains
+paraphrases of behaviors no detector was calibrated on. **This is
+explicitly not a claim that these prompts would jailbreak this project's
+own models** -- they were never tested against Qwen3-8B/Qwen2.5/SmolLM2 for
+attack success; only the *prompt surface form* is reused, to test whether
+it fools a *prompt classifier*, independent of whether it would actually
+elicit harmful generation from our target model.
+
+At the current corpus size, only 11 of TEST's JBB-sourced harmful goals had
+any matching successful artifact, yielding 35 adversarial prompts (21 PAIR,
+14 GCG) -- a real but modest-sized set; see RESULTS.md's limitations for
+what this does and doesn't support statistically.
+
+### Evaluation
+
+`src/eval/detector_metrics.py` computes accuracy/precision/recall/F1/AUROC
+(scikit-learn's `roc_auc_score`/`roc_curve`) with Wilson-score CIs on the
+rate-like metrics, matching the style of
+`refusal_classifier.refusal_stats`. Three conditions, per detector:
+
+1. **TEST overall** (harmful vs. harmless): the core comparison.
+2. **XSTest-safe subset of TEST** (all harmless): a false-positive /
+   over-refusal check -- reported as the "correctly not flagged" rate
+   (`accuracy` in this all-negative slice), i.e. 1 minus the false-positive
+   rate.
+3. **Adversarial paraphrase set** (all harmful, real published attacks):
+   reported as detection/flag rate (`accuracy` in this all-positive slice,
+   equivalently recall) -- precision/AUROC aren't well-defined with no
+   negatives in this set, and are correctly reported as N/A rather than a
+   misleading number. Broken down by attack method (PAIR vs. GCG)
+   separately from the pooled number, since pooling the two hides which
+   method is actually driving a detector's flag rate.

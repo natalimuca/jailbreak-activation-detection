@@ -595,3 +595,121 @@ separate moralize-vs-comply classifier or an LLM-judge -- the existing
 `refusal_classifier.py` was never designed to make that distinction and,
 per this spot-check, doesn't need to be replaced for its own stated
 purpose (detecting refusal phrasing, which is all Phase 1-3 asked of it).
+
+## Baseline detectors + adversarial evaluation: split discipline (2026-07-11)
+
+Building the head-to-head comparison required deciding where each of the
+four detectors' "training" (threshold calibration) happens, without
+re-opening any split already used elsewhere in this project.
+
+**Decision**: TRAIN (already used for direction estimation and SAE ranking)
+is reused as-is; VAL becomes the threshold-calibration split for all four
+detectors (`scripts/10_calibrate_detector_thresholds.py`, via Youden's J --
+`src.eval.detector_metrics.youden_threshold`); TEST is reserved entirely
+for final reporting and is also the only source pool for the adversarial
+paraphrase set.
+
+**Why VAL and not a new split**: VAL was previously used only for Phase 3's
+*generation-based* causal suppression validation (does suppressing features
+change what the model outputs). Using VAL's *activations* to fit a
+classifier threshold is a different, non-overlapping use of the same
+prompts -- it doesn't leak into anything reported on TEST, and avoids
+introducing a fifth split into an already-established train/val/test
+manifest (`data/splits/corpus_split_v1.json`) that several other scripts
+depend on by name.
+
+**Why not calibrate on TRAIN directly**: TRAIN was already used to *fit* the
+dense direction and rank the SAE features -- picking a decision threshold
+on the same data used to derive the underlying score would be a second
+layer of fitting on the same split (mild optimism, even for a single 1D
+cutoff). VAL is disjoint from both TRAIN and TEST, so it's the correct
+choice: closest in spirit to how `scripts/02_calibrate_addition_alpha.py`
+calibrates alpha on a split disjoint from the reported val in Phase 1.
+
+## Baseline detector design choices (2026-07-11)
+
+**Keyword filter** (`src/baselines/keyword_filter.py`): a hand-curated
+~50-term lexicon across weapon/malware/drug/violence/fraud categories,
+generic vocabulary rather than copied benchmark phrasing, deliberately kept
+simple since its whole purpose in this comparison is to be the *weak*
+baseline that surface-vocabulary paraphrase should defeat. Considered and
+rejected: mining the training corpus's own vocabulary for lexicon terms --
+would overfit to this project's specific benchmarks' phrasing and overstate
+the baseline's real-world performance.
+
+**Perplexity filter** (`src/baselines/perplexity_filter.py`): GPT-2, per
+Alon & Kamfonas 2023 (arXiv:2308.14132, verified via web search this
+session) -- their own reference model, so this isn't an arbitrary choice of
+LM. A larger/better LM would likely change the absolute perplexity values
+but not the qualitative story (fluent text scores low regardless of the
+scoring model; GCG-style gibberish scores high regardless of the scoring
+model) -- not worth the extra compute for this comparison's purposes.
+
+## Adversarial paraphrase set: real JailbreakBench artifacts, verified feasible (2026-07-11)
+
+Confirmed via web search + direct fetch this session (not assumed): 
+`github.com/JailbreakBench/artifacts` hosts real, published attack prompts
+at `attack-artifacts/{METHOD}/{subdir}/{model}.json` (e.g.
+`attack-artifacts/PAIR/black_box/vicuna-13b-v1.5.json`), fetchable via plain
+`raw.githubusercontent.com` GET requests, no auth, in the same direct-fetch
+style already used for AdvBench/HarmBench in `src/data/loaders.py`. Sample
+record schema confirmed by fetching a real file: `{index, goal, behavior,
+category, prompt, response, jailbroken, ...}` -- `jailbroken: true/false`
+lets us keep only prompts that actually succeeded against their original
+target model.
+
+**Decision: use real JailbreakBench artifacts, not self-authored jailbreak
+templates** (confirmed with user before implementation). Keeps this
+project's established "no self-authored harmful content, only real
+published benchmarks" policy (ETHICS.md) intact for the adversarial set too,
+and directly tests the paraphrase-robustness claim from arXiv:2505.23556
+(Phase 3's source paper) using real disguised prompts rather than ones this
+project invented.
+
+**PAIR (black_box) as the primary "paraphrase" condition, GCG (white_box +
+transfer) as a secondary "suffix" condition, reported separately, not
+pooled by default.** These are mechanistically different attacks -- PAIR
+produces fluent, roleplay-framed rewrites (a real paraphrase-robustness
+test); GCG appends an optimized gibberish suffix (a fluency-break, which is
+what perplexity filtering specifically targets). Pooling them into one
+number would hide which mechanism drives any given detector's flag rate --
+confirmed necessary once the first pooled run showed perplexity looking
+artificially competitive with the activation detectors purely because of
+GCG's 100% detection rate (see RESULTS.md's adversarial-evaluation section).
+
+**Matching, not synthesis**: artifacts are matched to this project's own
+TEST-split JBB-sourced harmful goals by exact (case/whitespace-normalized)
+`goal` text, restricting the adversarial set to behaviors no detector's
+threshold was calibrated on. Only 11 of TEST's JBB goals had any matching
+`jailbroken: true` artifact, yielding 35 adversarial prompts (21 PAIR, 14
+GCG) -- smaller than ideal (see RESULTS.md's limitations) but real, not
+padded with synthetic content to hit a target sample size.
+
+**Explicitly not a jailbreak-transfer claim**: these artifacts were
+generated and validated as successful jailbreaks against their *original*
+target models (Vicuna-13B, Llama-2-7B-chat, GPT-3.5, GPT-4) -- not against
+this project's own models. No claim is made or tested about whether these
+specific prompts would jailbreak Qwen3-8B/Qwen2.5/SmolLM2; only the prompt
+*text* is reused, to test whether disguised-harmful surface forms fool a
+*prompt classifier*, independent of generation-time attack success.
+
+## Adversarial evaluation results: honest, not smoothed over (2026-07-11)
+
+The pooled adversarial-detection numbers (perplexity 62.9%, dense-direction
+62.9%, SAE-feature 57.1%) made perplexity look roughly competitive with the
+activation-based detectors. Breaking down by attack method (per the
+decision above) showed this was an artifact of pooling: perplexity hits
+100% on GCG (its textbook case) but only 38.1% on PAIR, while
+dense-direction/SAE-feature both drop from ~88% (TEST-split performance) to
+33-43% on PAIR specifically. **This project's own numbers do not replicate
+arXiv:2505.23556's finding that SAE features are more robust to adversarial
+paraphrase than a dense direction** -- on PAIR, dense-direction (42.9%,
+n=21) numerically edges out SAE-feature (33.3%, n=21), the opposite
+direction, though the CIs overlap heavily enough that this isn't a
+statistically distinguishable difference either way. Reported in RESULTS.md
+as "no replication of that claim at this sample size" -- not papered over
+as a null result, and not oversold as a reversal of the published finding.
+Consistent with this project's established practice (the Phase 3 head-to-
+head's moralize-vs-comply finding, the classifier spot-check above) of
+testing a plausible expectation rather than assuming it and writing up
+whatever the actual numbers show.
