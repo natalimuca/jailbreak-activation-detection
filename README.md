@@ -12,14 +12,26 @@ across open chat models. Surface-level detectors can be fooled by disguising a
 harmful request as fiction/roleplay; an activation-based detector reads intent
 rather than wording and should be more robust to that disguise.
 
-This project extends that finding in two directions:
+This project extends that finding in three directions:
 
-1. **Cross-model generalization** — does a detector trained on one model's
+1. **Sparse, interpretable features over one dense direction** — rather than
+   a single residual-stream direction, a pretrained sparse autoencoder (SAE)
+   is used to find the specific sparse features (out of tens of thousands)
+   causally responsible for refusal, selected via cosine similarity to the
+   refusal direction and ranked by attribution-patching causal effect, then
+   validated by suppressing them and measuring the effect on real generated
+   completions.
+2. **Cross-model generalization** — does a detector trained on one model's
    internals transfer to a different model family/size, or does it need
    per-model retraining?
-2. **Engineering rigor** — calibration, decision-curve / operating-point
+3. **Engineering rigor** — calibration, decision-curve / operating-point
    tuning, false-positive cost analysis, latency benchmarking, and an honest
    head-to-head comparison against baselines on a held-out adversarial set.
+
+Methodology and results for both the single-direction reproduction and the
+SAE-feature detector are in [METHODOLOGY.md](METHODOLOGY.md) and
+[RESULTS.md](RESULTS.md); design decisions and open questions in
+[DECISIONS.md](DECISIONS.md).
 
 ## Tooling
 
@@ -39,9 +51,12 @@ This project extends that finding in two directions:
 ## Models
 
 Open-weight, via Hugging Face: `Qwen2.5-1.5B-Instruct`, `SmolLM2-1.7B-Instruct`
-for fast iteration, plus a larger cross-model set (`Llama-3-8B-Instruct`,
-`Gemma-2-9B-it`, `Qwen2.5-7B-Instruct`) run 4-bit quantized to fit local VRAM,
-or via nnsight remote execution for larger runs.
+for fast iteration on the single-direction reproduction; `Qwen3-8B` (4-bit
+quantized to fit a 6GB local GPU) for the SAE-feature detector, paired with
+[Qwen-Scope](https://arxiv.org/pdf/2605.11887)'s pretrained sparse
+autoencoders. A larger cross-model set (`Llama-3-8B-Instruct`, `Gemma-2-9B-it`)
+is planned for the cross-model generalization question above, pending HF
+gating approval.
 
 ## Repo layout
 
@@ -49,7 +64,9 @@ or via nnsight remote execution for larger runs.
 src/
   data/          dataset loading + harmful/harmless prompt pairing
   activations/   activation extraction and caching via nnsight
-  direction/     refusal-direction computation, ablation, activation addition
+  direction/     refusal-direction computation, ablation, activation addition,
+                 SAE feature-suppression generation, refusal metric
+  sae/           pretrained SAE loading, feature selection, causal ranking
 scripts/         standalone runnable pipeline stages
 notebooks/       exploratory analysis
 results/         metrics, figures, activation caches (gitignored)

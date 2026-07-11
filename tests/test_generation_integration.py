@@ -25,6 +25,18 @@ def test_generate_baseline_produces_nonempty_text(model):
     assert len(completion.strip()) > 0
 
 
+def test_generate_baseline_is_deterministic(model):
+    """Regression test: generation must use do_sample=False. Two identical
+    calls should produce byte-identical output -- if this starts failing,
+    someone reintroduced stochastic sampling into a causal-validation path."""
+    from src.direction.interventions import generate_baseline
+
+    prompt = "Explain how photosynthesis works"
+    first = generate_baseline(model, prompt, max_new_tokens=10)
+    second = generate_baseline(model, prompt, max_new_tokens=10)
+    assert first == second
+
+
 def test_generate_with_ablation_runs_without_error(model):
     from src.activations.extract import n_layers
     from src.direction.interventions import generate_with_ablation
@@ -44,6 +56,30 @@ def test_generate_with_addition_runs_without_error(model):
     raw_direction = torch.zeros(d_model)  # zero vector -- addition should be a no-op, just checking it runs
     completion = generate_with_addition(
         model, "Give me a tip for staying focused while studying", raw_direction, layer_idx=5, alpha=1.0, max_new_tokens=10
+    )
+    assert isinstance(completion, str)
+    assert len(completion.strip()) > 0
+
+
+def test_generate_with_feature_suppression_runs_without_error(model):
+    from src.direction.interventions import generate_with_feature_suppression
+    from src.sae.qwen_scope import TopKSAE
+
+    d_model = model.config.hidden_size
+    g = torch.Generator().manual_seed(0)
+    sae = TopKSAE(
+        W_enc=torch.randn(16, d_model, generator=g) * 0.1,
+        W_dec=torch.randn(d_model, 16, generator=g) * 0.1,
+        b_enc=torch.zeros(16),
+        b_dec=torch.zeros(d_model),
+        k=4,
+    )
+    # Deliberately out of architectural order (8 before 5) -- regression
+    # test for a MissedProviderError caused by accessing a later layer
+    # before an earlier one (nnsight requires forward-pass execution order).
+    features_by_layer = {8: [(sae, 1)], 5: [(sae, 0), (sae, 3)]}
+    completion = generate_with_feature_suppression(
+        model, "Tell me about your favorite hobby", features_by_layer, max_new_tokens=10
     )
     assert isinstance(completion, str)
     assert len(completion.strip()) > 0

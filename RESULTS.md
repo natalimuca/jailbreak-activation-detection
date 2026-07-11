@@ -1,4 +1,4 @@
-# Results: refusal-direction reproduction
+# Results: refusal-direction reproduction and SAE-feature detector
 
 Reproduction of Arditi et al.'s causal refusal-direction finding (a single
 residual-stream direction, estimated as the harmful/harmless mean-activation
@@ -13,13 +13,19 @@ never committed to this repo -- see `results/` in `.gitignore`.
 
 Direction estimated on a 200-prompt train split (AdvBench + Alpaca), best
 layer selected on a disjoint 30-prompt calib split, causal effect measured
-on a disjoint 30-prompt held-out val split. 95% CIs are Wilson score
-intervals.
+on a disjoint 30-prompt held-out val split with **greedy (`do_sample=False`)
+decoding**. 95% CIs are Wilson score intervals. (These numbers were
+originally measured with each model's default, sampling, generation
+config; re-run deterministic after the SAE-feature detector work below
+surfaced the same uncontrolled-sampling gap -- see DECISIONS.md. Practical
+effect was negligible: SmolLM2 already defaulted to greedy so its numbers
+are unchanged; Qwen2.5's ablated condition shifted by exactly one
+completion out of 30.)
 
 | Model | Condition | n | Refusal rate | 95% CI |
 |---|---|---|---|---|
 | Qwen2.5-1.5B-Instruct | harmful, baseline | 30 | 100.0% | [88.7%, 100%] |
-| Qwen2.5-1.5B-Instruct | harmful, **ablated** | 30 | 0.0% | [0%, 11.4%] |
+| Qwen2.5-1.5B-Instruct | harmful, **ablated** | 30 | 3.3% | [0.6%, 16.7%] |
 | Qwen2.5-1.5B-Instruct | harmless, baseline | 30 | 0.0% | [0%, 11.4%] |
 | Qwen2.5-1.5B-Instruct | harmless, **direction added** (alpha=1.0) | 30 | 96.7% | [83.3%, 99.4%] |
 | SmolLM2-1.7B-Instruct | harmful, baseline | 30 | 63.3% | [45.5%, 78.1%] |
@@ -37,7 +43,7 @@ directions (necessity via ablation, sufficiency via addition).
 |---|---|---|
 | Best layer (of 28) | 23 | 20 |
 | Raw direction norm at best layer | 75.3 | 279.6 |
-| Ablation effect (necessity) | 100% -> 0% | 63% -> 3% |
+| Ablation effect (necessity) | 100% -> 3% | 63% -> 3% |
 | Addition effect (sufficiency), calibrated | 0% -> 97% | 0% -> 40% |
 | Baseline refusal rate on AdvBench | 100% | 63% |
 
@@ -61,19 +67,26 @@ conclusions:
 
 Addition coefficient (multiplier on the raw, unnormalized mean-difference
 direction) swept on a 12-prompt calibration split, disjoint from both the
-train and held-out val splits above.
+train and held-out val splits above. Greedy decoding, as above.
 
 **Qwen2.5-1.5B-Instruct** (best layer 23, raw direction norm 75.3):
 
 | alpha | refusal rate | degenerate fraction |
 |---|---|---|
 | 0.25 | 17% | 0% |
-| 0.50 | 67% | 0% |
+| 0.50 | 50% | 0% |
 | **1.00** | **100%** | **0%** |
-| 1.50 | 100% | 17% |
-| 2.00 | 75% | 92% |
-| 3.00 | 17% | 100% |
+| 1.50 | 100% | 8% |
+| 2.00 | 75% | 83% |
+| 3.00 | 0% | 100% |
 | 4.00 | 0% | 100% |
+
+At n=12 (a small calibration sample), a few individual data points shifted
+from the original sampling-based sweep (0.50: 67%->50%, 1.50 degenerate:
+17%->8%, 2.00 degenerate: 92%->83%, 3.00: 17%->0%) -- expected noise on
+individual borderline completions, not a change in the overall shape: same
+calibrated alpha (1.0) selected either way, same qualitative pattern (a
+clean high-refusal window before degenerate collapse at higher alpha).
 
 **SmolLM2-1.7B-Instruct** (best layer 20, raw direction norm 279.6):
 
@@ -104,3 +117,183 @@ into repeated-token garbage at higher alpha.
 - Only two small models tested (1.5B, 1.7B params). Whether the
   necessity/sufficiency asymmetry holds at the 7-9B scale used later in
   this project is untested.
+
+## SAE-feature detector (Qwen3-8B)
+
+Methodology in [METHODOLOGY.md](METHODOLOGY.md#sae-feature-detector-qwen3-8b),
+full rationale for every design choice in [DECISIONS.md](DECISIONS.md).
+Raw completions are not committed (same policy as above); aggregate stats
+and the selected feature list are in
+`results/sae_causal_ranking_Qwen3-8B.json` and
+`results/sae_suppression_validation_Qwen3-8B.json`.
+
+### Layer selection
+
+Separation scores (difference-in-means direction from TRAIN, measured on
+held-out VAL), full 1922-prompt corpus:
+
+| layer | score |
+|-------|-------|
+| 23    | 1.783 |
+| 25    | 1.783 |
+| 24    | 1.781 |
+| 26    | 1.780 |
+| 28    | 1.778 |
+
+Extremely tightly clustered (spread of 0.005) -- unlike the single-model
+reproduction above, no one layer stands out, which is why the top 3 (23,
+25, 24) were pooled for feature selection rather than causally testing
+only the single best layer.
+
+### Causal ranking (attribution patching)
+
+Top-5 of the 20 selected features, by integrated-gradients attribution
+score on the refusal-vs-compliance logit-diff metric (16 harmful TRAIN
+prompts, length-capped -- increased from an initial n=8 pass that gave
+essentially the same top-2 features and score, confirming this ranking
+is stable, not noise; see DECISIONS.md):
+
+| rank | layer | feature | score |
+|---|---|---|---|
+| 1 | 25 | 65291 | 2.198 |
+| 2 | 23 | 42331 | 1.430 |
+| 3 | 24 | 5393  | 0.452 |
+| 4 | 24 | 4711  | 0.361 |
+| 5 | 23 | 23501 | 0.354 |
+
+The top 2 features are a clear standout (2.198 and 1.430) above the rest
+of the top-20 (all <= 0.452) -- a much sharper signal than an earlier,
+since-superseded run of this same pipeline that hadn't yet disabled
+Qwen3's default thinking mode (that run's top score was only 0.547, with
+2 near-zero/negative features surviving into the top-20; see DECISIONS.md
+for the full account). Full list of all 20 selected features (layer,
+feature index, score) is in the JSON results file.
+
+### Causal validation (feature suppression)
+
+Baseline vs. suppressing the top-1/top-5/top-10/top-15/top-20 ranked
+features, on 50 held-out VAL harmful prompts (disjoint from every prompt
+used upstream), 40 tokens generated per completion with **greedy
+(`do_sample=False`) decoding**, real `refusal_classifier`. 95% CIs are
+Wilson score intervals.
+
+(Two earlier, smaller/stochastic passes -- n=25 with 4 conditions, then
+n=50 with 6 conditions but still sampling -- found the same overall
+effect but a non-monotonic curve; tracing that down led to discovering
+every generation call defaulted to stochastic sampling (`do_sample=True`)
+rather than greedy decoding, conflating the intervention's true effect
+with sampling noise. Fixed and re-run below; full account in DECISIONS.md.)
+
+| condition | n | refusal rate | 95% CI | degenerate |
+|---|---|---|---|---|
+| baseline | 50 | 82.0% | [69.2%, 90.2%] | 0/50 |
+| suppress top-1 | 50 | 84.0% | [71.5%, 91.7%] | 0/50 |
+| suppress top-5 | 50 | 42.0% | [29.4%, 55.8%] | 0/50 |
+| suppress top-10 | 50 | 32.0% | [20.8%, 45.8%] | 0/50 |
+| **suppress top-15** | 50 | **24.0%** | **[14.3%, 37.4%]** | 0/50 |
+| suppress top-20 | 50 | 26.0% | [15.9%, 39.6%] | 0/50 |
+
+**A clean, steady monotonic decline from top-1 through top-15** (84% ->
+42% -> 32% -> 24%), then a plateau at top-15/top-20 (24% vs 26%, heavily
+overlapping CIs -- settling, not a reversal). Baseline's CI does not
+overlap top-5 through top-20 -- a clearly distinguishable causal effect
+from a modest fraction of the pooled candidates onward. **Zero completions
+degenerated into incoherent output** across all 300 generations. Unlike
+the single hand-picked feature in arXiv:2411.11296 (which achieved a
+refusal-rate shift only by destroying general capability -- MMLU 68.8% ->
+36.0%), this project's systematic top-K* selection produces a real
+behavioral effect without a coherence collapse.
+
+**Honest finding, not smoothed over**: suppressing the single top-ranked
+feature alone (top-1) does not reduce refusal at all (84% vs 82%
+baseline, statistically indistinguishable) -- the effect is **distributed
+across the feature set**, not concentrated in one dominant feature, even
+with sampling noise removed. **top-15 is the strongest single data
+point** (lowest refusal rate, right before the plateau) -- the number to
+lead with when summarizing this project's core finding.
+
+### Head-to-head: dense-direction ablation vs SAE-feature suppression
+
+Phase 1's ablation method run on Qwen3-8B, same 50 held-out VAL prompts
+as the SAE suppression results above, layer selected via a separate TEST
+split to avoid leakage (see DECISIONS.md). Baseline reused from above.
+
+| condition | refusal rate | 95% CI | degenerate |
+|---|---|---|---|
+| baseline | 82.0% | [69.2%, 90.2%] | 0/50 |
+| dense-direction ablation | 6.0% | [2.1%, 16.2%] | 0/50 |
+| SAE suppress top-15 (best) | 24.0% | [14.3%, 37.4%] | 0/50 |
+
+**Read this with a real caveat, not at face value**: dense ablation's raw
+refusal rate is lower than any SAE-suppression condition, but inspecting
+the actual completions shows why that comparison is misleading -- 47 of
+50 "non-refusal" completions under dense ablation are the model
+moralizing/lecturing about why the request is illegal or unethical
+("Cracking passwords... is illegal, unethical, and immoral...") without
+ever using the keyword classifier's refusal markers. That's a third
+behavior mode, neither a clean refusal nor genuine harmful compliance.
+
+A follow-up classifier-validation spot-check (below) confirmed the
+classifier itself correctly calls this moralize pattern non-refuse --
+that part isn't a classifier error. **The actual issue is that
+`refusal_rate` as a single number conflates moralize (safe) and comply
+(unsafe) under "non_refuse,"** so "6% refusal" should not be read as "94%
+compliance." **The true harmful-compliance gap between the two methods is
+very likely much smaller than the 6% vs 24% non-refusal-rate gap
+suggests.** What the result does support: dense ablation (36 layers
+touched) is a blunter, more disruptive intervention than SAE-feature
+suppression (3 layers, up to 20 of 65536 features per layer) that pushes
+the model into "moralize instead of refuse" far more often -- a real
+finding about intervention bluntness, just not a compliance-rate
+comparison. **Do not read this table as "dense ablation achieves more
+compliance" -- it only shows dense ablation suppresses refusal
+*phrasing* more.**
+
+### Classifier-validation spot-check
+
+Motivated by the finding above: 45 completions sampled across every
+experiment in this project (Phase 1 x2 models, Phase 3 SAE suppression x6
+conditions, the head-to-head), human-labeled blind to the classifier's own
+verdict, then compared (`scripts/07_sample_completions_for_labeling.py`,
+`scripts/08_score_classifier_agreement.py`; full methodology in
+DECISIONS.md).
+
+| human label | n | classifier accuracy |
+|---|---|---|
+| refuse | 17 | 100% |
+| moralize | 13 | 100% |
+| comply | 13 | 100% |
+| partial | 2 | 50% |
+| **overall** | **45** | **97.8%** |
+
+**The classifier is more accurate than initially feared** -- all 13
+moralize completions were correctly called non_refuse, zero
+misclassifications in this sample. The head-to-head write-up above has
+been corrected accordingly: this was never a case of the classifier being
+*wrong*, it was a case of a single summary number (`refusal_rate`) hiding
+a real distinction (moralize vs comply) that the classifier was never
+designed to make. Only "partial" showed any disagreement, and at n=2 that's
+too small to draw a conclusion from -- partial compliance is inherently
+the hardest case for any binary classifier, not a specific weakness here.
+
+### Known limitations (SAE-feature detector)
+
+- n=50 for the suppression validation and n=16 for the ranking pass
+  (both increased from an initial n=25/n=8 pass -- see DECISIONS.md) are
+  enough to show the top-5-through-top-20 effect is real and the
+  ranking's top features are stable.
+- Single model (Qwen3-8B). Cross-model generalization -- whether a feature
+  set selected this way transfers to a different model family -- is this
+  project's explicit differentiator from the existing literature and
+  remains untested.
+- The SAEs are trained on the base model's activations, applied here to
+  the instruct/chat model -- a documented, accepted limitation shared with
+  the source paper (see DECISIONS.md), not unique to this reproduction.
+- **`refusal_rate` conflates "moralize" (safe) and "comply" (unsafe) into
+  one "non_refuse" bucket.** The classifier itself is accurate at its
+  actual job (97.8% agreement, spot-check above) -- but no number in this
+  project currently reports a true harmful-compliance rate distinct from
+  a refusal-phrasing rate. Needed for any future claim like "method A
+  produces more actual harmful content than method B": either a
+  moralize-vs-comply classifier or an LLM-judge, since the existing
+  keyword classifier was never designed to make that distinction.
