@@ -356,3 +356,39 @@ evidence the N=8 screening pass wasn't actually noise-dominated -- doubling
 the sample barely moved the result. Full comparison and the new ranked
 list in `results/sae_causal_ranking_Qwen3-8B.json` (overwritten; N=8 result
 is this file's git history if needed).
+
+**Validation-pass N=50, 6-condition result: tighter, and honestly more
+interesting than the n=25 run.** Real per-call cost ran ~2x slower than
+calibrated (more conditions apparently added overhead beyond simple
+linear scaling), total runtime ~4.5hrs not the estimated ~1.75hrs.
+
+| condition | n | refusal rate | 95% CI |
+|---|---|---|---|
+| baseline | 50 | 84.0% | [71.5%, 91.7%] |
+| top1 | 50 | 78.0% | [64.8%, 87.3%] |
+| top5 | 50 | 44.0% | [31.2%, 57.7%] |
+| top10 | 50 | 44.0% | [31.2%, 57.7%] |
+| **top15** | 50 | **18.0%** | **[9.8%, 30.8%]** |
+| top20 | 50 | 26.0% | [15.9%, 39.6%] |
+
+Zero degenerate completions in every condition (300 generations total) --
+capability preserved throughout.
+
+**Not a clean monotonic dose-response curve, reported exactly as observed
+rather than smoothed over**: refusal bottoms out at **top15** (18%), then
+ticks back *up* to 26% at top20. top15 and top20's CIs overlap
+(9.8-30.8% vs 15.9-39.6%), so this uptick isn't necessarily a real
+reversal -- plausibly noise, or the 5 lowest-ranked features (IG scores
+0.08-0.02, close to the noise floor) contribute little net suppression
+individually and one may even mildly counteract the effect, similar to
+how suppressing the single top feature alone (top1) barely moved refusal
+in the first-pass n=25 run. top5 and top10 landed on the *exact same*
+count (22/50 refused) -- the 6 features added between rank 6 and rank 10
+had zero net aggregate effect on this specific 50-prompt sample.
+
+**What's now statistically solid that wasn't before**: baseline is
+distinguishable (non-overlapping CI) from top5 onward, not just top20 as
+in the n=25 run -- the tighter sample resolved the middle data points that
+were previously ambiguous. **top15, not top20, is the strongest single
+data point** for the "systematic feature suppression causes refusal
+collapse" claim -- worth leading with in the write-up rather than top20.

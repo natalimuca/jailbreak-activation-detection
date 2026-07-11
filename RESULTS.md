@@ -135,19 +135,21 @@ only the single best layer.
 ### Causal ranking (attribution patching)
 
 Top-5 of the 20 selected features, by integrated-gradients attribution
-score on the refusal-vs-compliance logit-diff metric (8 harmful TRAIN
-prompts, length-capped):
+score on the refusal-vs-compliance logit-diff metric (16 harmful TRAIN
+prompts, length-capped -- increased from an initial n=8 pass that gave
+essentially the same top-2 features and score, confirming this ranking
+is stable, not noise; see DECISIONS.md):
 
 | rank | layer | feature | score |
 |---|---|---|---|
-| 1 | 25 | 65291 | 2.371 |
-| 2 | 23 | 42331 | 1.461 |
-| 3 | 23 | 23501 | 0.501 |
-| 4 | 24 | 4711  | 0.474 |
-| 5 | 24 | 5393  | 0.421 |
+| 1 | 25 | 65291 | 2.198 |
+| 2 | 23 | 42331 | 1.430 |
+| 3 | 24 | 5393  | 0.452 |
+| 4 | 24 | 4711  | 0.361 |
+| 5 | 23 | 23501 | 0.354 |
 
-The top 2 features are a clear standout (2.371 and 1.461) above the rest
-of the top-20 (all <= 0.501) -- a much sharper signal than an earlier,
+The top 2 features are a clear standout (2.198 and 1.430) above the rest
+of the top-20 (all <= 0.452) -- a much sharper signal than an earlier,
 since-superseded run of this same pipeline that hadn't yet disabled
 Qwen3's default thinking mode (that run's top score was only 0.547, with
 2 near-zero/negative features surviving into the top-20; see DECISIONS.md
@@ -156,41 +158,57 @@ feature index, score) is in the JSON results file.
 
 ### Causal validation (feature suppression)
 
-Baseline vs. suppressing the top-1/top-5/top-20 ranked features, on 25
-held-out VAL harmful prompts (disjoint from every prompt used upstream),
-40 tokens generated per completion, real `refusal_classifier`. 95% CIs are
-Wilson score intervals.
+Baseline vs. suppressing the top-1/top-5/top-10/top-15/top-20 ranked
+features, on 50 held-out VAL harmful prompts (disjoint from every prompt
+used upstream), 40 tokens generated per completion, real
+`refusal_classifier`. 95% CIs are Wilson score intervals. (An initial pass
+at n=25 with only baseline/top1/top5/top20 found the same overall effect
+but with wider, partly-overlapping CIs -- superseded by this larger,
+finer-grained run; both stages are documented in DECISIONS.md.)
 
 | condition | n | refusal rate | 95% CI | degenerate |
 |---|---|---|---|---|
-| baseline | 25 | 72.0% | [52.4%, 85.7%] | 0/25 |
-| suppress top-1 | 25 | 84.0% | [65.4%, 93.6%] | 0/25 |
-| suppress top-5 | 25 | 44.0% | [26.7%, 62.9%] | 0/25 |
-| **suppress top-20** | 25 | **20.0%** | **[8.9%, 39.1%]** | 0/25 |
+| baseline | 50 | 84.0% | [71.5%, 91.7%] | 0/50 |
+| suppress top-1 | 50 | 78.0% | [64.8%, 87.3%] | 0/50 |
+| suppress top-5 | 50 | 44.0% | [31.2%, 57.7%] | 0/50 |
+| suppress top-10 | 50 | 44.0% | [31.2%, 57.7%] | 0/50 |
+| **suppress top-15** | 50 | **18.0%** | **[9.8%, 30.8%]** | 0/50 |
+| suppress top-20 | 50 | 26.0% | [15.9%, 39.6%] | 0/50 |
 
-The top-20 condition's CI does not overlap baseline's -- suppressing this
-systematically-selected feature set causes a real, large drop in refusal
-(72% -> 20%), with **zero completions degenerating into incoherent
-output** across all 100 generations in this run. Unlike the single
-hand-picked feature in arXiv:2411.11296 (which achieved a refusal-rate
-shift only by destroying general capability -- MMLU 68.8% -> 36.0%), this
-project's systematic top-K* selection produces a real behavioral effect
-without a coherence collapse.
+**Suppressing the top-15 features gives the strongest effect** (84% -> 18%
+refusal), with baseline's CI not overlapping top-5 through top-20 at all --
+a clearly distinguishable causal effect from a modest fraction of the
+pooled candidates onward, not just the full top-20 as the smaller first
+pass suggested. **Zero completions degenerated into incoherent output**
+across all 300 generations in this run. Unlike the single hand-picked
+feature in arXiv:2411.11296 (which achieved a refusal-rate shift only by
+destroying general capability -- MMLU 68.8% -> 36.0%), this project's
+systematic top-K* selection produces a real behavioral effect without a
+coherence collapse.
 
-**Honest finding, not smoothed over**: suppressing the single top-ranked
-feature alone (top-1) did *not* reduce refusal -- it rose slightly (84% vs
-72% baseline), though the CIs overlap heavily enough that this likely
-isn't a real reversal, just noise at n=25. The refusal-suppressing effect
-is **distributed across the feature set**: it only becomes distinguishable
-from baseline once enough of the top-20 are suppressed together (5 is not
-enough on its own; the CI at top-5 still marginally overlaps baseline's).
+**Honest findings, not smoothed over**:
+- Suppressing the single top-ranked feature alone (top-1) barely moved
+  refusal (78% vs 84% baseline) -- the effect is **distributed across the
+  feature set**, not concentrated in one dominant feature, confirmed again
+  at this larger sample size.
+- **Not a clean monotonic dose-response curve**: refusal bottoms out at
+  top-15 (18%) then rises to 26% at top-20. top-15 and top-20's CIs
+  overlap (9.8-30.8% vs 15.9-39.6%), so this uptick isn't necessarily a
+  real reversal -- plausibly noise from the 5 lowest-ranked features
+  (IG scores 0.02-0.08, close to the noise floor in the ranking pass),
+  one of which may mildly counteract the others' effect. top-5 and top-10
+  landed on the exact same refused-count (22/50) -- features ranked 6-10
+  contributed no net additional suppression on this sample.
 
 ### Known limitations (SAE-feature detector)
 
-- n=25 for the suppression validation and n=8 for the ranking pass are
-  enough to show the top-20 effect is real, not enough for fine-grained
-  per-feature confidence -- the bottom few of the 20 ranked features carry
-  more uncertainty than the top 2.
+- n=50 for the suppression validation and n=16 for the ranking pass (both
+  increased from an initial n=25/n=8 pass -- see DECISIONS.md) are enough
+  to show the top-15/top-20 effect is real and the ranking's top features
+  are stable, but still not enough to fully explain the non-monotonic
+  dip at top-15 vs top-20 -- that would need either more prompts or a
+  repeated run with a different random seed to distinguish real signal
+  from sampling noise.
 - Single model (Qwen3-8B). Cross-model generalization -- whether a feature
   set selected this way transfers to a different model family -- is this
   project's explicit differentiator from the existing literature and
