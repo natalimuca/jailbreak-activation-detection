@@ -212,6 +212,37 @@ with sampling noise removed. **top-15 is the strongest single data
 point** (lowest refusal rate, right before the plateau) -- the number to
 lead with when summarizing this project's core finding.
 
+### Head-to-head: dense-direction ablation vs SAE-feature suppression
+
+Phase 1's ablation method run on Qwen3-8B, same 50 held-out VAL prompts
+as the SAE suppression results above, layer selected via a separate TEST
+split to avoid leakage (see DECISIONS.md). Baseline reused from above.
+
+| condition | refusal rate | 95% CI | degenerate |
+|---|---|---|---|
+| baseline | 82.0% | [69.2%, 90.2%] | 0/50 |
+| dense-direction ablation | 6.0% | [2.1%, 16.2%] | 0/50 |
+| SAE suppress top-15 (best) | 24.0% | [14.3%, 37.4%] | 0/50 |
+
+**Read this with a real caveat, not at face value**: dense ablation's raw
+refusal rate is lower than any SAE-suppression condition, but inspecting
+the actual completions shows why that comparison is misleading -- 47 of
+50 "non-refusal" completions under dense ablation are the model
+moralizing/lecturing about why the request is illegal or unethical
+("Cracking passwords... is illegal, unethical, and immoral...") without
+ever using the keyword classifier's refusal markers. That's a third
+behavior mode -- neither a clean refusal nor genuine harmful compliance --
+that the classifier cannot distinguish from actual compliance. **The true
+gap between the two methods is very likely smaller than 6% vs 24%
+suggests.** What the result does support: dense ablation (36 layers
+touched) is a blunter, more disruptive intervention than SAE-feature
+suppression (3 layers, up to 20 of 65536 features per layer) that pushes
+the model into a differently-shaped, less classifiable failure mode --
+itself a real finding about interpretability/precision vs raw effect size,
+just not the clean percentage comparison the numbers alone imply. This is
+concrete evidence for the classifier-validation gap noted below, not just
+an abstract concern.
+
 ### Known limitations (SAE-feature detector)
 
 - n=50 for the suppression validation and n=16 for the ranking pass
@@ -225,5 +256,11 @@ lead with when summarizing this project's core finding.
 - The SAEs are trained on the base model's activations, applied here to
   the instruct/chat model -- a documented, accepted limitation shared with
   the source paper (see DECISIONS.md), not unique to this reproduction.
-- No comparison yet against the single-dense-direction approach (Phase 1
-  above) on equal footing -- that head-to-head is separate, later work.
+- **The refusal classifier (`src/direction/refusal_classifier.py`) has
+  never been validated against human judgment or an LLM-judge.** The
+  head-to-head comparison above shows this is not just a theoretical gap
+  -- it materially affects interpretation of at least one real result in
+  this project. Needs either a multi-category classifier (refuse /
+  moralize-without-comply / partially comply / fully comply) or an
+  LLM-judge before cross-method refusal-rate comparisons should be trusted
+  at face value.

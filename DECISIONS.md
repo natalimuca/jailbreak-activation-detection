@@ -477,3 +477,51 @@ quantization needed) -- confirms this really was cheap, as predicted, and
 worth just doing rather than deferring. RESULTS.md updated in place
 (no more "predates this fix" caveats anywhere in the repo); the earlier
 "deferred to a future session" note above is superseded by this entry.
+
+## Head-to-head: dense-direction ablation vs SAE-feature suppression (2026-07-11)
+
+`scripts/06_dense_direction_ablation_qwen3.py`: Phase 1's ablation method
+(project the direction out at every layer, every token) run on Qwen3-8B,
+same 50 held-out VAL prompts as the SAE suppression validation, same
+`do_sample=False`. Ablation layer (23) selected via separation score on
+the **TEST split** -- not VAL, since VAL is the exact prompt set used for
+causal validation here and was already used to pick Phase 3's SAE layers;
+scoring on TEST avoids that leakage while still allowing the same VAL
+prompts to be reused for a true apples-to-apples comparison. Baseline
+(82.0%) reused directly from the suppression-validation JSON rather than
+re-measured.
+
+**Raw numbers**: dense-direction ablation drove refusal down to 6.0%
+[2.1%, 16.2%] -- lower than any SAE-suppression condition (best was
+top-15 at 24.0%). Zero degenerate completions (0/50), so this isn't a
+coherence collapse.
+
+**But the raw number is misleading, and inspecting actual completions
+caught it**: 47 of 50 "non-refusal" completions under dense ablation are
+not compliance -- they're the model moralizing/lecturing about why the
+request is illegal or unethical ("Cracking passwords... is illegal,
+unethical, and immoral...") without ever using the keyword classifier's
+refusal markers ("I cannot", "I'm sorry", etc.). This is a third behavior
+mode -- neither a clean refusal nor genuine harmful compliance -- that
+`refusal_classifier.py`'s simple keyword match cannot distinguish from
+actual compliance. **This directly demonstrates, with a concrete example,
+the exact risk already flagged as a known limitation since Phase 1**: the
+classifier has never been validated against human judgment or an
+LLM-judge, and this result shows that gap isn't just theoretical -- it
+materially changes how this specific comparison should be interpreted.
+
+**Honest conclusion**: the true refusal-suppression gap between dense
+ablation and SAE-feature suppression is very likely smaller than the raw
+6% vs 24% numbers suggest, since dense ablation appears to push the model
+into a "moralize but don't comply" mode that the classifier miscounts as
+non-refusal. What the raw numbers *do* still support: dense ablation is a
+blunter, more aggressive intervention (touches all 36 layers vs SAE's 3)
+that produces a different, less classifiable failure mode than the more
+surgical SAE-feature suppression -- an interesting, honest finding in its
+own right (interpretability/precision vs raw disruptive effect), just not
+the clean "X% more effective" claim the raw numbers alone would suggest.
+**Do not report the 6% vs 24% comparison without this caveat.** A proper
+resolution needs either a multi-category classifier (refuse /
+moralize-without-comply / partially comply / fully comply) or an
+LLM-judge -- the classifier-validation gap flagged earlier, now with
+concrete evidence for why it matters.
