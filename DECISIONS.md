@@ -705,11 +705,25 @@ dense-direction/SAE-feature both drop from ~88% (TEST-split performance) to
 arXiv:2505.23556's finding that SAE features are more robust to adversarial
 paraphrase than a dense direction** -- on PAIR, dense-direction (42.9%,
 n=21) numerically edges out SAE-feature (33.3%, n=21), the opposite
-direction, though the CIs overlap heavily enough that this isn't a
-statistically distinguishable difference either way. Reported in RESULTS.md
-as "no replication of that claim at this sample size" -- not papered over
-as a null result, and not oversold as a reversal of the published finding.
-Consistent with this project's established practice (the Phase 3 head-to-
-head's moralize-vs-comply finding, the classifier spot-check above) of
-testing a plausible expectation rather than assuming it and writing up
-whatever the actual numbers show.
+direction.
+
+**Tightened after an initial, informal pass**: the first version of this
+finding called the CIs "overlapping heavily" and left it there. That's a
+weaker check than the data actually supports -- both detectors are scored
+on the exact same 21 PAIR prompts, which is paired data, not two
+independent samples; comparing two separate Wilson CIs for overlap is an
+informal proxy that can miss (or wrongly suggest) a real paired difference.
+Added `src.eval.detector_metrics.mcnemar_exact` (exact McNemar's test on
+the discordant pairs) and reran the comparison on the actual paired
+predictions: only 2 of 21 pairs are discordant (dense flags 2 prompts SAE
+doesn't; SAE flags none dense doesn't), p = 0.5 -- confirms the original
+conclusion on solid statistical footing rather than overturning it, but
+it's the correct test for this specific claim and should have been done
+the first time, not after the fact. Same standing "full rigor upfront, not
+fast-now/rigor-later" discipline this project applies elsewhere.
+Reported in RESULTS.md as "no replication of that claim at this sample
+size" -- not papered over as a null result, and not oversold as a reversal
+of the published finding. Consistent with this project's established
+practice (the Phase 3 head-to-head's moralize-vs-comply finding, the
+classifier spot-check above) of testing a plausible expectation rather
+than assuming it and writing up whatever the actual numbers show.

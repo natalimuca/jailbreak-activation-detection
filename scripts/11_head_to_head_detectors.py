@@ -34,7 +34,7 @@ from src.detectors.dense_direction_detector import project as dense_project
 from src.detectors.sae_feature_detector import load_top_features
 from src.detectors.sae_feature_detector import score as sae_score
 from src.direction.compute import compute_directions
-from src.eval.detector_metrics import detector_stats
+from src.eval.detector_metrics import classify, detector_stats, mcnemar_exact
 from src.sae.qwen_scope import load_sae
 
 MODEL_LABEL = "Qwen3-8B"
@@ -147,6 +147,20 @@ def main() -> None:
         for method in sorted({r["method"] for r in adv_records})
     }
 
+    # Dense-direction vs SAE-feature is the specific comparison this
+    # project's write-up makes a "no significant difference" claim about on
+    # PAIR -- worth a real paired test (McNemar's exact, on the SAME
+    # prompts scored by both detectors), not just eyeballing whether two
+    # independent Wilson CIs overlap (see DECISIONS.md).
+    dense_preds_pooled = classify(adv_scores["dense_direction"], thresholds["dense_direction"])
+    sae_preds_pooled = classify(adv_scores["sae_feature"], thresholds["sae_feature"])
+    results["dense_vs_sae_mcnemar"] = {"pooled": mcnemar_exact(dense_preds_pooled, sae_preds_pooled)}
+    for method in sorted({r["method"] for r in adv_records}):
+        method_idx = [i for i, r in enumerate(adv_records) if r["method"] == method]
+        results["dense_vs_sae_mcnemar"][method] = mcnemar_exact(
+            [dense_preds_pooled[i] for i in method_idx], [sae_preds_pooled[i] for i in method_idx]
+        )
+
     def print_condition(label: str, detectors: dict) -> None:
         print(f"\n-- {label} --")
         for name, stats in detectors.items():
@@ -166,6 +180,13 @@ def main() -> None:
     for method, detectors in results["adversarial_paraphrase_by_method"].items():
         n = results["adversarial_paraphrase_n_by_method"][method]
         print_condition(f"adversarial_paraphrase / {method} (n={n})", detectors)
+
+    print("\n-- dense-direction vs SAE-feature: paired McNemar's exact test --")
+    for condition, mc in results["dense_vs_sae_mcnemar"].items():
+        print(
+            f"  {condition:8s} discordant={mc['n_discordant']:3d} "
+            f"(dense-only={mc['only_a']}, sae-only={mc['only_b']})  p={mc['p_value']}"
+        )
 
     out_path = RESULTS_DIR / "detector_head_to_head_Qwen3-8B.json"
     with open(out_path, "w") as fh:

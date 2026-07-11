@@ -1,4 +1,4 @@
-from src.eval.detector_metrics import classify, detector_stats, youden_threshold
+from src.eval.detector_metrics import classify, detector_stats, mcnemar_exact, youden_threshold
 
 
 def test_youden_threshold_separates_perfectly_separable_scores():
@@ -54,3 +54,32 @@ def test_detector_stats_auroc_none_for_single_class():
     labels = [True, True, True]
     stats = detector_stats(scores, labels, threshold=0.5)
     assert stats["auroc"] is None
+
+
+def test_mcnemar_exact_identical_predictions_have_no_discordant_pairs():
+    preds = [True, False, True, True, False]
+    result = mcnemar_exact(preds, preds)
+    assert result == {"only_a": 0, "only_b": 0, "n_discordant": 0, "p_value": 1.0}
+
+
+def test_mcnemar_exact_symmetric_disagreement_is_not_significant():
+    # 3 vs 3 discordant pairs -- perfectly balanced disagreement, should not
+    # look significant.
+    preds_a = [True, True, True, False, False, False]
+    preds_b = [False, False, False, True, True, True]
+    result = mcnemar_exact(preds_a, preds_b)
+    assert result["n_discordant"] == 6
+    assert result["only_a"] == 3
+    assert result["only_b"] == 3
+    assert result["p_value"] == 1.0
+
+
+def test_mcnemar_exact_lopsided_disagreement_is_significant():
+    # a flags 10 items b doesn't, b flags 0 items a doesn't -- a clearly
+    # systematic difference, should read as significant at the usual 0.05.
+    preds_a = [True] * 10 + [False] * 10
+    preds_b = [False] * 10 + [False] * 10
+    result = mcnemar_exact(preds_a, preds_b)
+    assert result["only_a"] == 10
+    assert result["only_b"] == 0
+    assert result["p_value"] < 0.05

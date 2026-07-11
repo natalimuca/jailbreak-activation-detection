@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import math
 
+from scipy.stats import binomtest
 from sklearn.metrics import roc_auc_score, roc_curve
 
 
@@ -87,3 +88,29 @@ def detector_stats(scores: list[float], labels: list[bool], threshold: float, z:
         "auroc": auc,
         "confusion": {"tp": tp, "fp": fp, "fn": fn, "tn": tn},
     }
+
+
+def mcnemar_exact(preds_a: list[bool], preds_b: list[bool]) -> dict:
+    """Exact McNemar's test for two detectors' paired binary decisions on
+    the SAME items (e.g. dense-direction vs SAE-feature flag/no-flag calls
+    on the same 21 PAIR prompts). This is the statistically correct way to
+    ask "do these two detectors differ" on paired data -- comparing two
+    independent Wilson CIs for overlap is a weaker, informal proxy for the
+    same question and can miss a real paired difference (or, as importantly,
+    can't be trusted to rule one out either).
+
+    Only the *discordant* pairs (where the two detectors disagree) carry
+    information about which is better; concordant pairs (both flag, or
+    both don't) are uninformative and dropped, same as standard McNemar's.
+    Under the null hypothesis of no systematic difference, discordant pairs
+    should split ~50/50 between "a flags, b doesn't" and "b flags, a
+    doesn't" -- tested via an exact two-sided binomial test on that split
+    (more appropriate than the chi-squared approximation at the small
+    sample sizes this project's adversarial-set conditions have)."""
+    only_a = sum(1 for a, b in zip(preds_a, preds_b) if a and not b)
+    only_b = sum(1 for a, b in zip(preds_a, preds_b) if b and not a)
+    n_discordant = only_a + only_b
+    if n_discordant == 0:
+        return {"only_a": only_a, "only_b": only_b, "n_discordant": 0, "p_value": 1.0}
+    p_value = binomtest(min(only_a, only_b), n_discordant, 0.5).pvalue
+    return {"only_a": only_a, "only_b": only_b, "n_discordant": n_discordant, "p_value": round(p_value, 4)}

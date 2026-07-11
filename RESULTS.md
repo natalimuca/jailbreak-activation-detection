@@ -386,10 +386,13 @@ breakdown" discipline as the moralize-vs-comply finding above.
 4. **This does not replicate arXiv:2505.23556's finding that SAE features
    are more robust to adversarial paraphrase than a dense direction** -- on
    PAIR, dense-direction (42.9%) numerically edges out SAE-feature (33.3%),
-   the opposite direction. At n=21 per method the CIs overlap heavily
-   ([24.5%, 63.4%] vs. [17.2%, 54.6%]), so this is **not** a statistically
-   distinguishable difference either way -- reported honestly as "no
-   replication of that specific claim at this sample size," not as a
+   the opposite direction. Tested with a paired exact McNemar's test on the
+   same 21 prompts (`src.eval.detector_metrics.mcnemar_exact` -- the correct
+   test here, since both detectors are scored on identical items, not a
+   comparison of two independent Wilson CIs): only 2 of 21 pairs are
+   discordant (dense flags 2 prompts SAE doesn't; SAE flags none dense
+   doesn't), **p = 0.5** -- nowhere near significant. Reported honestly as
+   "no replication of that specific claim at this sample size," not as a
    reversal of it.
 
 ### Known limitations (baseline detectors and adversarial evaluation)
