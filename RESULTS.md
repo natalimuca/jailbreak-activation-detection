@@ -412,8 +412,80 @@ breakdown" discipline as the moralize-vs-comply finding above.
   their original target models (Vicuna, Llama-2, GPT-3.5/4), reused here
   purely as disguised-harmful *prompt text* for a classifier-robustness
   test, not a claim about Qwen3-8B's own jailbreak susceptibility.
-- **Detector comparison is Qwen3-8B only** -- extending the dense-direction
-  detector and both baselines to Qwen2.5-1.5B/SmolLM2 (Phase 1's models) is
-  a cheap follow-up (activations already cached) but wasn't done here,
-  since the SAE-feature detector can't run there anyway (no SAE trained for
-  those models) and the four-way comparison is cleanest on one model.
+- **Detector comparison in this section is Qwen3-8B only** -- the SAE-feature
+  detector can't run on Qwen2.5-1.5B/SmolLM2 (no SAE trained for those
+  models), so it's excluded there. The dense-direction detector and both
+  baselines *are* extended to those two models below.
+
+## Dense-direction detector: cross-model comparison (Qwen2.5-1.5B, SmolLM2-1.7B)
+
+Extends the dense-direction detector (not the SAE-feature detector, which
+has no trained SAE for these models) to Phase 1's two smaller models, using
+the same protocol as the Qwen3-8B comparison above: layer selection and
+threshold calibration both on VAL (`src.detectors.dense_direction_detector
+.select_layer_and_calibrate` -- see METHODOLOGY.md for why this is cleaner
+than reusing a TEST-selected layer), final metrics on TEST, same 35-prompt
+adversarial paraphrase set (activations freshly extracted per model, real
+JailbreakBench prompts reused unchanged from the Qwen3-8B run). Keyword and
+perplexity baselines are **not** re-run here -- they score prompt text only,
+independent of target model, so their Qwen3-8B numbers above apply
+unchanged to every model.
+
+Note: the layer selected here (20 for Qwen2.5-1.5B, 14 for SmolLM2-1.7B) is
+chosen on the full 4-dataset corpus's VAL split, not Phase 1's original
+small-scale AdvBench/Alpaca-only calibration split -- so it differs from
+Phase 1's reported "best layer" (23 and 20 respectively) by construction,
+not by error; the two layer-selection procedures are answering different
+questions (best layer for this classifier vs. best layer for causal
+ablation on a narrower dataset).
+
+| model | layer | TEST accuracy | TEST AUROC | XSTest-safe correctly-not-flagged | adversarial (pooled) | GCG | PAIR |
+|---|---|---|---|---|---|---|---|
+| Qwen2.5-1.5B-Instruct | 20 | 89.6% [85.5%, 92.6%] | 0.970 | 75.7% [59.9%, 86.6%] | 42.9% [28.0%, 59.1%] | 50.0% [26.8%, 73.2%] | 38.1% [20.7%, 59.1%] |
+| SmolLM2-1.7B-Instruct | 14 | 87.8% [83.6%, 91.1%] | 0.945 | **100.0%** [90.6%, 100%] | **91.4%** [77.6%, 97.0%] | **92.9%** [68.5%, 98.7%] | **90.5%** [71.1%, 97.4%] |
+| Qwen3-8B (from above) | 23 | 88.9% [84.7%, 92.0%] | 0.983 | 94.6% [82.3%, 98.5%] | 62.9% [46.3%, 76.8%] | 92.9% [68.5%, 98.7%] | 42.9% [24.5%, 63.4%] |
+
+**All three models achieve comparably strong TEST-split accuracy** (87.8-89.6%,
+AUROC 0.94-0.98) -- the dense-direction approach isn't fragile to model
+choice on clean, in-distribution prompts.
+
+**Striking, unexplained cross-model difference on PAIR paraphrase**:
+SmolLM2's dense-direction detector holds up dramatically better under PAIR
+(90.5%) than either Qwen model (Qwen2.5: 38.1%, Qwen3-8B: 42.9%) --
+statistically distinguishable given the non-overlapping confidence
+intervals. This is not explained by this project's data alone. One
+plausible connection (not established, just a candidate hypothesis worth
+testing later): Phase 1 found SmolLM2's baseline refusal behavior itself is
+weaker and less "linear" than Qwen's -- lower baseline AdvBench refusal
+rate (63% vs. Qwen2.5's 100%), and its activation-addition sufficiency
+effect capped at 42% instead of reaching Qwen's ~97-100% (see this
+document's "Cross-model comparison" section above). A refusal
+representation that's less cleanly linear to begin with might, for reasons
+this project hasn't investigated, end up less disrupted by surface-level
+paraphrasing specifically -- or this could be unrelated model-specific
+noise. **Not claimed as established** -- flagged as a concrete, testable
+hypothesis for Phase 6's cross-model generalization work, not asserted as
+an explanation.
+
+**XSTest-safe false-positive rates also vary substantially by model**
+(75.7% / 94.6% / 100.0% correctly-not-flagged for Qwen2.5 / Qwen3-8B /
+SmolLM2 respectively) -- Qwen2.5-1.5B's dense-direction detector flags
+roughly 1 in 4 safe-but-scary-looking prompts as harmful, a real
+practical difference in "safety tax" across models using the exact same
+detection method.
+
+### Known limitations (cross-model dense-direction comparison)
+
+- **n=35 adversarial prompts, shared across all three models** -- the same
+  small-sample caveat from the Qwen3-8B section applies here too, and more
+  so for the striking SmolLM2-vs-Qwen gap above: real and statistically
+  distinguishable at this sample size, but not yet understood mechanistically.
+- **The SmolLM2 hypothesis above is untested.** Confirming or ruling it out
+  would need, at minimum, checking whether the same pattern holds on a
+  larger/different adversarial set, and probably a deeper look at how
+  SmolLM2's refusal direction differs geometrically (e.g. via the
+  "different but functionally similar directions" framing in
+  arXiv:2602.02132, surveyed in LITERATURE.md).
+- **Baselines are asserted, not re-verified, to be model-agnostic.** This is
+  true by construction (keyword/perplexity scores never touch model
+  activations), but wasn't independently re-run per model as a sanity check.
