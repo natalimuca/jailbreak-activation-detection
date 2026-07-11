@@ -727,3 +727,59 @@ of the published finding. Consistent with this project's established
 practice (the Phase 3 head-to-head's moralize-vs-comply finding, the
 classifier spot-check above) of testing a plausible expectation rather
 than assuming it and writing up whatever the actual numbers show.
+
+## Found (and fixed going forward) a mild leakage pattern in the Qwen3-8B dense-direction pipeline (2026-07-11)
+
+While starting the Qwen2.5/SmolLM2 cross-model extension, noticed that the
+just-merged Qwen3-8B pipeline (`scripts/06` -> `scripts/10` -> `scripts/11`)
+selects the dense-direction detector's layer via **TEST**-split separation
+score (`scripts/06`'s docstring explains this was to avoid VAL, which was
+already used by Phase 3's causal validation at the time), then reports the
+detector's final classification metrics on that **same TEST split**. That's
+reusing one split for both layer selection and final reporting -- a mild
+leakage pattern this project explicitly flagged and fixed elsewhere (see
+METHODOLOGY.md's "Train/calib/val separation" entry, which describes fixing
+the identical issue for Phase 1's causal validation by adding a third
+split).
+
+**Checked whether this actually distorted anything**: recomputed Qwen3-8B's
+separation scores using VAL instead of TEST -- **layer 23 is selected
+either way** (VAL top-3: [23, 25, 24]; TEST top-3: [23, 24, 22], same top
+layer, nearly identical scores: 1.783 vs. 1.750). So this leakage pattern
+existed in the merged code but did not actually change Qwen3-8B's reported
+numbers -- consistent with Phase 3's earlier finding that separation scores
+are tightly clustered across nearby layers (a robust, low-variance
+architectural signal, not something a handful of TEST-split prompts could
+meaningfully overfit).
+
+**Decision**: not worth reopening the merged Qwen3-8B PR to redo numbers
+that would come out identical -- but new work (this cross-model extension,
+and any future Phase 6 work) uses the corrected discipline:
+`src.detectors.dense_direction_detector.select_layer_and_calibrate` does
+BOTH layer selection and threshold calibration on VAL, leaving TEST
+completely untouched until final reporting. Documented here rather than
+silently fixed, since "we found a leakage pattern in already-shipped code,
+checked it didn't matter, and are fixing the discipline going forward" is
+exactly the kind of thing this project's rigor culture expects to be
+written down, not just quietly patched.
+
+## Cross-model dense-direction extension: real, unexplained finding (2026-07-11)
+
+Extended the dense-direction detector to Qwen2.5-1.5B-Instruct (layer 20,
+selected on VAL) and SmolLM2-1.7B-Instruct (layer 14, selected on VAL),
+reusing the same 35-prompt adversarial set (fresh per-model activation
+extraction, same real JailbreakBench prompts, not refetched) and the
+Qwen3-8B run's keyword/perplexity baseline numbers (model-agnostic, not
+rerun). Full numbers in RESULTS.md's cross-model section.
+
+**Headline finding**: SmolLM2's dense-direction detector holds up far
+better under PAIR (fluent paraphrase) attacks (90.5%) than either Qwen
+model (Qwen2.5: 38.1%, Qwen3-8B: 42.9%) -- non-overlapping CIs, a real
+difference at this sample size. **Deliberately not explained away with a
+plausible-sounding story asserted as fact** -- flagged one candidate
+hypothesis (SmolLM2's weaker/less-linear baseline refusal behavior from
+Phase 1 might correlate with the paraphrase-robustness gap) explicitly as
+untested speculation in RESULTS.md, not a conclusion. This is the same
+discipline as the classifier spot-check earlier in this document: a
+plausible story is not evidence until it's actually tested, and asserting
+one without testing it is exactly the mistake corrected back then.

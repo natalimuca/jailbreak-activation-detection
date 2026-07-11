@@ -371,3 +371,22 @@ rate-like metrics, matching the style of
    misleading number. Broken down by attack method (PAIR vs. GCG)
    separately from the pooled number, since pooling the two hides which
    method is actually driving a detector's flag rate.
+
+### Cross-model extension (Qwen2.5-1.5B, SmolLM2-1.7B)
+
+Extends only the dense-direction detector (not the SAE-feature detector --
+no SAE trained for these models) to Phase 1's two smaller models
+(`scripts/12_extend_dense_direction_qwen25_smollm2.py`). Keyword and
+perplexity baselines are not re-run per model since they score prompt text
+only, never activations -- their Qwen3-8B numbers apply unchanged.
+
+`src.detectors.dense_direction_detector.select_layer_and_calibrate` does
+layer selection AND threshold calibration both on VAL, never TEST -- a
+cleaner discipline than the TEST-based layer selection used for Qwen3-8B's
+ablation layer (`scripts/06`), which reused a TEST-selected layer for final
+TEST-split reporting too. That reuse is a mild leakage pattern this
+project explicitly avoids elsewhere (see "Train/calib/val separation"
+above); it happened to make no practical difference for Qwen3-8B (layer 23
+is selected whether scored on VAL or TEST -- verified directly, see
+DECISIONS.md) but the VAL-only approach is the correct one to use going
+forward, including here.
