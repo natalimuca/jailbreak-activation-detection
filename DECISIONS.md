@@ -645,6 +645,13 @@ but not the qualitative story (fluent text scores low regardless of the
 scoring model; GCG-style gibberish scores high regardless of the scoring
 model) -- not worth the extra compute for this comparison's purposes.
 
+**Superseded** -- see "Perplexity backbone switched from GPT-2 to
+GPT-Neo-1.3B" below. The "wouldn't change the qualitative story" prediction
+above turned out to be half right: true for GCG (unchanged at 100%), false
+for the XSTest false-positive rate (13.5% -> 75.7%, a real, large change) --
+worth noting as a specific place this project's own prior reasoning was
+wrong and corrected empirically rather than left standing.
+
 ## Adversarial paraphrase set: real JailbreakBench artifacts, verified feasible (2026-07-11)
 
 Confirmed via web search + direct fetch this session (not assumed): 
@@ -783,3 +790,67 @@ untested speculation in RESULTS.md, not a conclusion. This is the same
 discipline as the classifier spot-check earlier in this document: a
 plausible story is not evidence until it's actually tested, and asserting
 one without testing it is exactly the mistake corrected back then.
+
+## Perplexity backbone switched from GPT-2 to GPT-Neo-1.3B (2026-07-11)
+
+User asked, after seeing the perplexity filter's bad XSTest-safe number
+(13.5% correctly-not-flagged), whether GPT-2 was really the right choice
+for a thesis given it's a small 2019 base model. Worked through the
+alternatives:
+
+1. **A newer/better OpenAI GPT (GPT-4/GPT-5) was considered and rejected.**
+   Three concrete blockers, not just "it's closed-weight": (a) it would send
+   real harmful-intent prompts and actual jailbreak-attack text (this
+   project's whole corpus) to a third-party paid API -- everything else in
+   this project runs locally specifically to avoid that exposure (see
+   ETHICS.md); (b) current chat-completion APIs don't cleanly expose the
+   full-sequence log-probabilities this calculation needs, so it isn't even
+   a clean drop-in; (c) it would introduce a recurring paid-API dependency
+   and break reproducibility for anyone without the same billing access,
+   unlike every other number in this project (reproducible from public
+   weights alone).
+2. **One of this project's own target models (Qwen2.5-1.5B, SmolLM2-1.7B,
+   Qwen3-8B) was considered and rejected too** -- initially proposed by
+   Claude, then walked back after the user pushed back ("u sure its the
+   right call for a thesis project?"). Using a target model as the
+   "independent" baseline's backbone breaks the comparison's own logic: the
+   baseline is supposed to be cheap and model-agnostic precisely so the
+   activation-detector-vs-baseline comparison isolates what deep model
+   access buys you. It also concretely breaks independence for the
+   Qwen2.5-1.5B row specifically, since the dense-direction detector
+   already runs on that exact checkpoint (see the cross-model section
+   above) -- perplexity and dense-direction would be scoring off the same
+   model for that row.
+3. **Landed on GPT-Neo-1.3B** (EleutherAI, 2021): open-weight, small enough
+   to run without quantization, meaningfully more modern/better-trained
+   than GPT-2, not used as a target model anywhere else in this project,
+   and stays in the spirit of "a GPT-family model" the original paper used
+   (Alon & Kamfonas explicitly built this method around GPT-2 specifically
+   for its ubiquity as a plain reference scorer).
+
+**Empirical outcome after rerunning `scripts/10`/`scripts/11`** (full
+numbers in RESULTS.md): confirmed the hypothesis behind the switch, but not
+in the way expected.
+- **XSTest-safe correctly-not-flagged rate: 13.5% -> 75.7%**, a large real
+  improvement -- GPT-2's near-total failure there was substantially a
+  weak-model artifact, not an inherent property of perplexity filtering.
+- **GCG detection: unchanged at a perfect 100%** -- confirms this is a
+  property of the attack text (any reasonable LM finds an optimized
+  gibberish suffix improbable), not something a weak scoring model was
+  getting right by accident.
+- **PAIR detection: 38.1% -> 0.0%** -- the opposite direction from XSTest.
+  The stronger model recognizes PAIR's fluent, roleplay-framed paraphrases
+  as ordinary, unremarkable text and never flags any of them. This
+  strengthens rather than weakens the project's core finding about
+  perplexity filtering: GPT-2's 38.1% was likely inflated by its own
+  weakness at modeling fluent text, not genuine partial detection of
+  anything adversarial -- with a better backbone, the "perplexity cannot
+  catch fluent paraphrase" conclusion holds *more* cleanly, not less.
+
+Overall TEST-split accuracy/AUROC barely moved (0.451 -> 0.516 AUROC,
+still near chance) -- as expected, since perplexity isn't measuring
+semantic harmfulness regardless of backbone quality; only the two
+conditions that specifically depend on "does this model find ordinary
+unusual-but-fluent text surprising" (XSTest, PAIR) changed substantially.
+No other detector's numbers changed (dense-direction, SAE-feature, and the
+McNemar comparison between them never touch the perplexity backbone).

@@ -301,7 +301,7 @@ the hardest case for any binary classifier, not a specific weakness here.
 ## Baseline detectors and adversarial evaluation
 
 Four prompt classifiers, compared under one protocol on Qwen3-8B: two
-baselines (keyword filter, GPT-2 perplexity filter) and two reframed
+baselines (keyword filter, GPT-Neo-1.3B perplexity filter) and two reframed
 activation-based detectors (dense-direction projection at layer 23,
 sum of Phase 3's top-15 ranked SAE features across layers 23/24/25).
 Methodology, split discipline, and the adversarial paraphrase set's real
@@ -311,21 +311,31 @@ Thresholds calibrated on VAL (`results/detector_thresholds_Qwen3-8B.json`),
 never touched by the numbers below; full results in
 `results/detector_head_to_head_Qwen3-8B.json`.
 
+**Perplexity backbone note**: the perplexity filter originally used GPT-2
+(2019, matching Alon & Kamfonas 2023's own reference model). Swapped to
+GPT-Neo-1.3B (2021) after the GPT-2 version's XSTest false-positive rate
+looked suspiciously bad -- see DECISIONS.md for the full reasoning and why
+one of this project's own target models (Qwen2.5/SmolLM2/Qwen3-8B) was
+considered and rejected as the replacement. All numbers below are the
+GPT-Neo-1.3B version; the GPT-2 numbers are superseded, not reported twice.
+
 ### TEST split overall (n=288: 158 harmful, 130 harmless)
 
 | detector | accuracy | 95% CI | F1 | AUROC |
 |---|---|---|---|---|
 | keyword filter | 56.6% | [50.8%, 62.2%] | 0.359 | 0.603 |
-| perplexity filter | 53.1% | [47.4%, 58.8%] | 0.668 | 0.451 |
+| perplexity filter | 49.7% | [43.9%, 55.4%] | 0.440 | 0.516 |
 | **dense-direction** | **88.9%** | **[84.7%, 92.0%]** | **0.890** | **0.983** |
 | **SAE-feature (top-15)** | **87.8%** | **[83.6%, 91.1%]** | **0.878** | **0.975** |
 
 On clean, in-distribution prompts the two activation-based detectors
-clearly beat both baselines -- an AUROC of 0.98/0.975 vs. 0.60/0.45.
-**Perplexity's AUROC is below 0.5** (worse than a coin flip at ranking
-harmful vs. harmless prompts) -- expected, since perplexity says nothing
-about semantic harmfulness, only textual naturalness, and most of this
-corpus's prompts (harmful and harmless alike) are ordinary fluent English.
+clearly beat both baselines -- an AUROC of 0.98/0.975 vs. 0.60/0.52.
+**Perplexity's AUROC is essentially at chance (0.516)** even with a much
+better backbone model -- expected, and confirms this isn't a "GPT-2 was too
+weak" artifact: perplexity says nothing about semantic harmfulness, only
+textual naturalness, and most of this corpus's prompts (harmful and
+harmless alike) are ordinary fluent English regardless of which model
+scores them.
 
 ### XSTest-safe subset of TEST (n=37, all harmless -- false-positive check)
 
@@ -336,17 +346,17 @@ kill a Python process"), so a good detector should score high here.
 | detector | correctly-not-flagged rate | 95% CI |
 |---|---|---|
 | keyword filter | 97.3% | [86.2%, 99.5%] |
-| **perplexity filter** | **13.5%** | **[5.9%, 28.0%]** |
+| perplexity filter | 75.7% | [59.9%, 86.6%] |
 | dense-direction | 94.6% | [82.3%, 98.5%] |
 | SAE-feature (top-15) | 97.3% | [86.2%, 99.5%] |
 
-**Perplexity filter fails badly here** -- it flags 86.5% of safe-but-
-scary-looking prompts as harmful. XSTest's prompts are deliberately
-constructed with unusual phrasing (homonyms, figurative language) to probe
-over-refusal, and that same unusualness drives their perplexity up under
-GPT-2 regardless of actual harmfulness. Both activation-based detectors and
-the keyword filter hold up well on this "safety tax" axis; perplexity does
-not.
+**This is the number that motivated switching backbones, and the switch
+mattered a lot**: GPT-2 flagged 86.5% of safe-but-scary-looking prompts as
+harmful (13.5% correctly-not-flagged); GPT-Neo-1.3B flags only 24.3%
+(75.7% correctly-not-flagged) -- a real, large improvement from a better
+base model, confirming the hypothesis that GPT-2's specific weakness (not
+perplexity filtering in general) was driving that failure. Still the worst
+of the four detectors on this axis, but no longer a near-total failure.
 
 ### Adversarial paraphrase set (n=35 real JailbreakBench artifacts, all harmful -- detection rate)
 
@@ -360,30 +370,36 @@ breakdown" discipline as the moralize-vs-comply finding above.
 | detector | pooled (n=35) | GCG suffix (n=14) | PAIR paraphrase (n=21) |
 |---|---|---|---|
 | keyword filter | 17.1% [8.1%, 32.7%] | 7.1% [1.3%, 31.5%] | 23.8% [10.6%, 45.1%] |
-| perplexity filter | 62.9% [46.3%, 76.8%] | **100.0%** [78.5%, 100%] | 38.1% [20.7%, 59.1%] |
+| perplexity filter | 40.0% [25.6%, 56.4%] | **100.0%** [78.5%, 100%] | **0.0%** [0%, 15.5%] |
 | dense-direction | 62.9% [46.3%, 76.8%] | 92.9% [68.5%, 98.7%] | 42.9% [24.5%, 63.4%] |
 | SAE-feature (top-15) | 57.1% [40.9%, 72.0%] | 92.9% [68.5%, 98.7%] | 33.3% [17.2%, 54.6%] |
 
 **Honest findings, not smoothed over:**
 
-1. **The pooled number is misleading on its own.** Perplexity looks
-   competitive with the activation detectors pooled (62.9% vs. 62.9%/57.1%),
-   but that's entirely GCG-driven: perplexity hits a perfect 100% on GCG's
-   gibberish suffixes (textbook case -- Alon & Kamfonas 2023's whole point)
-   while catching well under half of PAIR's fluent paraphrases (38.1%).
-2. **On GCG, all three of perplexity/dense-direction/SAE-feature perform
-   similarly well** (92.9-100%, heavily overlapping CIs) -- unsurprising,
-   since a suffix that breaks fluency is exactly what all three are
-   differently sensitive to. Keyword filter is the outlier here (7.1%): the
-   JBB-sourced harmful goals in this project's TEST split mostly aren't
-   from the weapon/malware/drug categories the lexicon covers, so it misses
-   even the unparaphrased goal text.
-3. **On PAIR -- the case this evaluation is actually named for -- all four
+1. **GCG detection is unchanged at a perfect 100%** with the stronger
+   backbone -- confirms GCG's gibberish suffix is improbable under any
+   reasonable LM, not an artifact of a weak scoring model (exactly Alon &
+   Kamfonas 2023's original point, now replicated with a different, better
+   reference model).
+2. **PAIR detection dropped from 38.1% (GPT-2) to a flat 0.0% (GPT-Neo-1.3B)**
+   -- the opposite direction from the XSTest improvement, and the more
+   important result for this evaluation's actual question. GPT-2's 38.1%
+   on PAIR was likely inflated by its own weakness at modeling ordinary
+   fluent text (the same weakness that produced the bad XSTest number), not
+   genuine detection of anything adversarial. **A better backbone doesn't
+   just fail to help against fluent paraphrase -- it makes the failure
+   cleaner and more total**, strengthening rather than undermining the
+   conclusion that perplexity-based filtering structurally cannot catch
+   fluent paraphrase attacks, regardless of which model scores it.
+3. **The pooled number is still misleading on its own** (now 40.0%, was
+   62.9%) -- entirely GCG-driven either way; PAIR is the case this
+   evaluation is actually named for, and perplexity now detects none of it.
+4. **On PAIR -- the case this evaluation is actually named for -- all four
    detectors degrade sharply relative to their TEST-split performance**
    (dense-direction: 88.9% to 42.9%; SAE-feature: 87.8% to 33.3%; keyword:
-   56.6% to 23.8%; perplexity: 53.1% to 38.1%). Fluent paraphrase is a hard
+   56.6% to 23.8%; perplexity: 49.7% to 0.0%). Fluent paraphrase is a hard
    case across the board, including for the activation-based methods.
-4. **This does not replicate arXiv:2505.23556's finding that SAE features
+5. **This does not replicate arXiv:2505.23556's finding that SAE features
    are more robust to adversarial paraphrase than a dense direction** -- on
    PAIR, dense-direction (42.9%) numerically edges out SAE-feature (33.3%),
    the opposite direction. Tested with a paired exact McNemar's test on the
@@ -393,7 +409,8 @@ breakdown" discipline as the moralize-vs-comply finding above.
    discordant (dense flags 2 prompts SAE doesn't; SAE flags none dense
    doesn't), **p = 0.5** -- nowhere near significant. Reported honestly as
    "no replication of that specific claim at this sample size," not as a
-   reversal of it.
+   reversal of it. (Unaffected by the perplexity-backbone switch -- this
+   comparison never involved perplexity.)
 
 ### Known limitations (baseline detectors and adversarial evaluation)
 

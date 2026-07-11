@@ -29,7 +29,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from src.activations.cache import load_cache
 from src.baselines.keyword_filter import score as keyword_score
-from src.baselines.perplexity_filter import compute_perplexity, load_gpt2
+from src.baselines.perplexity_filter import compute_perplexity, load_perplexity_model
 from src.detectors.dense_direction_detector import project as dense_project
 from src.detectors.sae_feature_detector import load_top_features
 from src.detectors.sae_feature_detector import score as sae_score
@@ -72,15 +72,15 @@ def main() -> None:
     features = load_top_features(k=sae_k)
     saes = {layer: load_sae(layer) for layer in sae_layers}
 
-    print("Loading GPT-2 for perplexity scoring")
-    gpt2_model, gpt2_tok = load_gpt2()
+    print("Loading GPT-Neo-1.3B for perplexity scoring")
+    ppl_model, ppl_tok = load_perplexity_model()
 
     def score_all(idx_mask: torch.Tensor) -> dict[str, list[float]]:
         idx = idx_mask.nonzero(as_tuple=True)[0].tolist()
         subset_texts = [texts[i] for i in idx]
         return {
             "keyword": [float(keyword_score(t)) for t in subset_texts],
-            "perplexity": [compute_perplexity(t, gpt2_model, gpt2_tok) for t in subset_texts],
+            "perplexity": [compute_perplexity(t, ppl_model, ppl_tok) for t in subset_texts],
             "dense_direction": dense_project(acts[dense_layer, idx_mask, :], direction).tolist(),
             "sae_feature": sae_score(
                 {layer: acts[layer, idx_mask, :] for layer in sae_layers}, saes, features
@@ -119,7 +119,7 @@ def main() -> None:
     adv_labels = [True] * len(adv_texts)
     adv_scores = {
         "keyword": [float(keyword_score(t)) for t in adv_texts],
-        "perplexity": [compute_perplexity(t, gpt2_model, gpt2_tok) for t in adv_texts],
+        "perplexity": [compute_perplexity(t, ppl_model, ppl_tok) for t in adv_texts],
         "dense_direction": dense_project(adv_acts[dense_layer], direction).tolist(),
         "sae_feature": sae_score({layer: adv_acts[layer] for layer in sae_layers}, saes, features).tolist(),
     }

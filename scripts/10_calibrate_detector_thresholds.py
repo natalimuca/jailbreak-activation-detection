@@ -21,7 +21,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from src.activations.cache import load_cache
 from src.baselines.keyword_filter import score as keyword_score
-from src.baselines.perplexity_filter import compute_perplexity, load_gpt2
+from src.baselines.perplexity_filter import compute_perplexity, load_perplexity_model
 from src.detectors.dense_direction_detector import calibrate as calibrate_dense
 from src.detectors.sae_feature_detector import calibrate as calibrate_sae, load_top_features
 from src.direction.compute import compute_directions
@@ -58,9 +58,9 @@ def main() -> None:
     print(f"threshold: {thresholds['keyword']}")
 
     print("\n--- perplexity filter ---")
-    print("Loading GPT-2")
-    gpt2_model, gpt2_tok = load_gpt2()
-    ppl_scores = [compute_perplexity(t, gpt2_model, gpt2_tok) for t in val_texts]
+    print("Loading GPT-Neo-1.3B")
+    ppl_model, ppl_tok = load_perplexity_model()
+    ppl_scores = [compute_perplexity(t, ppl_model, ppl_tok) for t in val_texts]
     thresholds["perplexity"] = youden_threshold(ppl_scores, val_labels)
     print(f"threshold: {thresholds['perplexity']:.2f}")
 

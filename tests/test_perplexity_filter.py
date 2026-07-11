@@ -46,10 +46,10 @@ def test_is_flagged_thresholding():
 
 
 @pytest.mark.network
-def test_real_gpt2_scores_gibberish_higher_than_fluent_text():
-    from src.baselines.perplexity_filter import load_gpt2
+def test_real_perplexity_model_scores_gibberish_higher_than_fluent_text():
+    from src.baselines.perplexity_filter import load_perplexity_model
 
-    model, tokenizer = load_gpt2()
+    model, tokenizer = load_perplexity_model()
     fluent = "The quick brown fox jumps over the lazy dog."
     gibberish = "asdf ! kq93 xzP ;;; qq77 !!! blorptron zzq"
     assert compute_perplexity(gibberish, model, tokenizer) > compute_perplexity(fluent, model, tokenizer)
