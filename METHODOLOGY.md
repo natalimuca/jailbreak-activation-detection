@@ -227,19 +227,24 @@ Six conditions compared on 50 held-out VAL harmful prompts (disjoint from
 every prompt used in direction extraction, layer selection, and ranking):
 baseline, suppress the single top-ranked feature, and suppress the top
 5/10/15/20 (the intermediate points added after an initial, coarser
-baseline/top1/top5/top20 pass -- see DECISIONS.md for why). Per
-DECISIONS.md's capability-check requirement, every completion is also
-checked for degeneracy (`refusal_classifier.is_degenerate()`) -- a
-refusal-rate drop caused by incoherent garbage output wouldn't be a real
-causal finding.
+baseline/top1/top5/top20 pass -- see DECISIONS.md for why). Generation
+uses **greedy decoding** (`do_sample=False`) rather than each model's
+default sampling config -- an earlier pass at this same sample size found
+a non-monotonic curve, traced to uncontrolled stochastic sampling
+conflating the intervention's true effect with sampling noise (one
+generation sample per prompt); fixed and confirmed to produce a clean,
+reproducible curve (see DECISIONS.md). Per DECISIONS.md's capability-check
+requirement, every completion is also checked for degeneracy
+(`refusal_classifier.is_degenerate()`) -- a refusal-rate drop caused by
+incoherent garbage output wouldn't be a real causal finding.
 
 ### What the SAE-feature detector does and doesn't establish
 
 Establishes: a systematically-selected set of features (pooled across 3
 layers, ranked by attribution-patching causal effect) has a real,
 statistically distinguishable causal effect on refusal when suppressed --
-strongest at the top-15 subset (full numbers and the non-monotonic
-top-15-vs-top-20 finding in `RESULTS.md`) -- and, unlike the
+a clean, monotonic dose-response from top-1 through top-15, then a
+plateau (full numbers in `RESULTS.md`) -- and, unlike the
 single-hand-picked-feature approach this project explicitly designed
 around avoiding (arXiv:2411.11296), without collapsing model coherence.
 

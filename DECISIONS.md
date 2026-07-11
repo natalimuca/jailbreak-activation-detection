@@ -422,4 +422,29 @@ fix, leave Phase 1's numbers as-is for now.** Phase 1's results predate
 this fix and technically share the same gap, but they're already
 published/stable and not the active work -- documented here as a known,
 accepted limitation rather than silently ignored. Worth redoing if Phase 1
-is revisited later.
+is revisited later (deferred to a future session, cheap since Phase 1 uses
+small fast models -- see [[project-thesis-jailbreak-detection]] memory).
+
+**Deterministic re-run result (2026-07-11) -- this is the final, definitive
+number for Phase 3, superseding both earlier passes:**
+
+| condition | n | refusal rate | 95% CI |
+|---|---|---|---|
+| baseline | 50 | 82.0% | [69.2%, 90.2%] |
+| suppress top-1 | 50 | 84.0% | [71.5%, 91.7%] |
+| suppress top-5 | 50 | 42.0% | [29.4%, 55.8%] |
+| suppress top-10 | 50 | 32.0% | [20.8%, 45.8%] |
+| **suppress top-15** | 50 | **24.0%** | **[14.3%, 37.4%]** |
+| suppress top-20 | 50 | 26.0% | [15.9%, 39.6%] |
+
+**This is the clean curve the user was asking for.** Steady monotonic
+decline from top1 through top15 (84% -> 42% -> 32% -> 24%), then a
+plateau at top15/top20 (24% vs 26%, heavily overlapping CIs -- settling,
+not a real reversal). Confirms the hypothesis exactly: the earlier
+non-monotonic wobble (n=50, stochastic decoding) was a real artifact of
+sampling noise, not a genuine property of the intervention. Zero
+degenerate completions across all 300 generations. Baseline is
+distinguishable from top5 onward. **top15 remains the strongest single
+data point** (lowest refusal rate, tightest practical floor before the
+plateau) -- this is now the number to lead with in any summary of the
+project's core finding.

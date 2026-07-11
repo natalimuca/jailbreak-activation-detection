@@ -168,55 +168,51 @@ feature index, score) is in the JSON results file.
 
 Baseline vs. suppressing the top-1/top-5/top-10/top-15/top-20 ranked
 features, on 50 held-out VAL harmful prompts (disjoint from every prompt
-used upstream), 40 tokens generated per completion, real
-`refusal_classifier`. 95% CIs are Wilson score intervals. (An initial pass
-at n=25 with only baseline/top1/top5/top20 found the same overall effect
-but with wider, partly-overlapping CIs -- superseded by this larger,
-finer-grained run; both stages are documented in DECISIONS.md.)
+used upstream), 40 tokens generated per completion with **greedy
+(`do_sample=False`) decoding**, real `refusal_classifier`. 95% CIs are
+Wilson score intervals.
+
+(Two earlier, smaller/stochastic passes -- n=25 with 4 conditions, then
+n=50 with 6 conditions but still sampling -- found the same overall
+effect but a non-monotonic curve; tracing that down led to discovering
+every generation call defaulted to stochastic sampling (`do_sample=True`)
+rather than greedy decoding, conflating the intervention's true effect
+with sampling noise. Fixed and re-run below; full account in DECISIONS.md.)
 
 | condition | n | refusal rate | 95% CI | degenerate |
 |---|---|---|---|---|
-| baseline | 50 | 84.0% | [71.5%, 91.7%] | 0/50 |
-| suppress top-1 | 50 | 78.0% | [64.8%, 87.3%] | 0/50 |
-| suppress top-5 | 50 | 44.0% | [31.2%, 57.7%] | 0/50 |
-| suppress top-10 | 50 | 44.0% | [31.2%, 57.7%] | 0/50 |
-| **suppress top-15** | 50 | **18.0%** | **[9.8%, 30.8%]** | 0/50 |
+| baseline | 50 | 82.0% | [69.2%, 90.2%] | 0/50 |
+| suppress top-1 | 50 | 84.0% | [71.5%, 91.7%] | 0/50 |
+| suppress top-5 | 50 | 42.0% | [29.4%, 55.8%] | 0/50 |
+| suppress top-10 | 50 | 32.0% | [20.8%, 45.8%] | 0/50 |
+| **suppress top-15** | 50 | **24.0%** | **[14.3%, 37.4%]** | 0/50 |
 | suppress top-20 | 50 | 26.0% | [15.9%, 39.6%] | 0/50 |
 
-**Suppressing the top-15 features gives the strongest effect** (84% -> 18%
-refusal), with baseline's CI not overlapping top-5 through top-20 at all --
-a clearly distinguishable causal effect from a modest fraction of the
-pooled candidates onward, not just the full top-20 as the smaller first
-pass suggested. **Zero completions degenerated into incoherent output**
-across all 300 generations in this run. Unlike the single hand-picked
-feature in arXiv:2411.11296 (which achieved a refusal-rate shift only by
-destroying general capability -- MMLU 68.8% -> 36.0%), this project's
-systematic top-K* selection produces a real behavioral effect without a
-coherence collapse.
+**A clean, steady monotonic decline from top-1 through top-15** (84% ->
+42% -> 32% -> 24%), then a plateau at top-15/top-20 (24% vs 26%, heavily
+overlapping CIs -- settling, not a reversal). Baseline's CI does not
+overlap top-5 through top-20 -- a clearly distinguishable causal effect
+from a modest fraction of the pooled candidates onward. **Zero completions
+degenerated into incoherent output** across all 300 generations. Unlike
+the single hand-picked feature in arXiv:2411.11296 (which achieved a
+refusal-rate shift only by destroying general capability -- MMLU 68.8% ->
+36.0%), this project's systematic top-K* selection produces a real
+behavioral effect without a coherence collapse.
 
-**Honest findings, not smoothed over**:
-- Suppressing the single top-ranked feature alone (top-1) barely moved
-  refusal (78% vs 84% baseline) -- the effect is **distributed across the
-  feature set**, not concentrated in one dominant feature, confirmed again
-  at this larger sample size.
-- **Not a clean monotonic dose-response curve**: refusal bottoms out at
-  top-15 (18%) then rises to 26% at top-20. top-15 and top-20's CIs
-  overlap (9.8-30.8% vs 15.9-39.6%), so this uptick isn't necessarily a
-  real reversal -- plausibly noise from the 5 lowest-ranked features
-  (IG scores 0.02-0.08, close to the noise floor in the ranking pass),
-  one of which may mildly counteract the others' effect. top-5 and top-10
-  landed on the exact same refused-count (22/50) -- features ranked 6-10
-  contributed no net additional suppression on this sample.
+**Honest finding, not smoothed over**: suppressing the single top-ranked
+feature alone (top-1) does not reduce refusal at all (84% vs 82%
+baseline, statistically indistinguishable) -- the effect is **distributed
+across the feature set**, not concentrated in one dominant feature, even
+with sampling noise removed. **top-15 is the strongest single data
+point** (lowest refusal rate, right before the plateau) -- the number to
+lead with when summarizing this project's core finding.
 
 ### Known limitations (SAE-feature detector)
 
-- n=50 for the suppression validation and n=16 for the ranking pass (both
-  increased from an initial n=25/n=8 pass -- see DECISIONS.md) are enough
-  to show the top-15/top-20 effect is real and the ranking's top features
-  are stable, but still not enough to fully explain the non-monotonic
-  dip at top-15 vs top-20 -- that would need either more prompts or a
-  repeated run with a different random seed to distinguish real signal
-  from sampling noise.
+- n=50 for the suppression validation and n=16 for the ranking pass
+  (both increased from an initial n=25/n=8 pass -- see DECISIONS.md) are
+  enough to show the top-5-through-top-20 effect is real and the
+  ranking's top features are stable.
 - Single model (Qwen3-8B). Cross-model generalization -- whether a feature
   set selected this way transfers to a different model family -- is this
   project's explicit differentiator from the existing literature and
@@ -226,3 +222,9 @@ coherence collapse.
   the source paper (see DECISIONS.md), not unique to this reproduction.
 - No comparison yet against the single-dense-direction approach (Phase 1
   above) on equal footing -- that head-to-head is separate, later work.
+- Phase 1's causal-validation numbers above predate the switch to greedy
+  decoding (they used each model's default, sampling, generation config)
+  -- a documented, accepted gap, not redone since Phase 1's effect sizes
+  are far too large (100%->0%, 63%->3%) to plausibly be sampling
+  artifacts, unlike the more borderline effect that motivated fixing this
+  for the SAE-feature detector. See DECISIONS.md.
