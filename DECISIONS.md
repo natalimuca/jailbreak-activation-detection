@@ -448,3 +448,32 @@ distinguishable from top5 onward. **top15 remains the strongest single
 data point** (lowest refusal rate, tightest practical floor before the
 plateau) -- this is now the number to lead with in any summary of the
 project's core finding.
+
+## Phase 1 redo with greedy decoding, after all (2026-07-11)
+
+Despite deciding above to defer Phase 1's redo to a future session, user
+asked for it the same session once the current job finished (cheap enough
+to just do). Re-ran `scripts/01_reproduce_refusal_direction.py` for both
+models and `scripts/02_calibrate_addition_alpha.py` for both, no code
+changes needed (the `do_sample=False` fix in `interventions.py` already
+covers these functions).
+
+**Result: confirms the prediction exactly.**
+- **SmolLM2-1.7B-Instruct: numbers are byte-identical** to the original
+  sampling-based run, across both the causal-validation table and the
+  full 7-point alpha sweep -- expected, since SmolLM2's default
+  `GenerationConfig` already had `do_sample=None` (effectively greedy).
+- **Qwen2.5-1.5B-Instruct: nearly identical, one small shift.** Causal
+  validation: `harmful_ablated` moved from 0.0% to 3.3% (a single
+  completion out of 30) -- the headline 100%->~0% necessity finding is
+  unchanged. Alpha sweep (n=12, more sensitive to individual-completion
+  noise): a few mid-table values shifted (0.50: 67%->50%; 3.00: 17%->0%;
+  degenerate fractions at 1.50/2.00 shifted similarly) but the calibrated
+  alpha (1.0) and the overall shape (clean high-refusal window, then
+  degenerate collapse) are unchanged.
+
+Both scripts ran in well under 5 minutes total (small models, no 4-bit
+quantization needed) -- confirms this really was cheap, as predicted, and
+worth just doing rather than deferring. RESULTS.md updated in place
+(no more "predates this fix" caveats anywhere in the repo); the earlier
+"deferred to a future session" note above is superseded by this entry.

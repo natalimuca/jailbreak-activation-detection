@@ -13,13 +13,19 @@ never committed to this repo -- see `results/` in `.gitignore`.
 
 Direction estimated on a 200-prompt train split (AdvBench + Alpaca), best
 layer selected on a disjoint 30-prompt calib split, causal effect measured
-on a disjoint 30-prompt held-out val split. 95% CIs are Wilson score
-intervals.
+on a disjoint 30-prompt held-out val split with **greedy (`do_sample=False`)
+decoding**. 95% CIs are Wilson score intervals. (These numbers were
+originally measured with each model's default, sampling, generation
+config; re-run deterministic after the SAE-feature detector work below
+surfaced the same uncontrolled-sampling gap -- see DECISIONS.md. Practical
+effect was negligible: SmolLM2 already defaulted to greedy so its numbers
+are unchanged; Qwen2.5's ablated condition shifted by exactly one
+completion out of 30.)
 
 | Model | Condition | n | Refusal rate | 95% CI |
 |---|---|---|---|---|
 | Qwen2.5-1.5B-Instruct | harmful, baseline | 30 | 100.0% | [88.7%, 100%] |
-| Qwen2.5-1.5B-Instruct | harmful, **ablated** | 30 | 0.0% | [0%, 11.4%] |
+| Qwen2.5-1.5B-Instruct | harmful, **ablated** | 30 | 3.3% | [0.6%, 16.7%] |
 | Qwen2.5-1.5B-Instruct | harmless, baseline | 30 | 0.0% | [0%, 11.4%] |
 | Qwen2.5-1.5B-Instruct | harmless, **direction added** (alpha=1.0) | 30 | 96.7% | [83.3%, 99.4%] |
 | SmolLM2-1.7B-Instruct | harmful, baseline | 30 | 63.3% | [45.5%, 78.1%] |
@@ -37,7 +43,7 @@ directions (necessity via ablation, sufficiency via addition).
 |---|---|---|
 | Best layer (of 28) | 23 | 20 |
 | Raw direction norm at best layer | 75.3 | 279.6 |
-| Ablation effect (necessity) | 100% -> 0% | 63% -> 3% |
+| Ablation effect (necessity) | 100% -> 3% | 63% -> 3% |
 | Addition effect (sufficiency), calibrated | 0% -> 97% | 0% -> 40% |
 | Baseline refusal rate on AdvBench | 100% | 63% |
 
@@ -61,19 +67,26 @@ conclusions:
 
 Addition coefficient (multiplier on the raw, unnormalized mean-difference
 direction) swept on a 12-prompt calibration split, disjoint from both the
-train and held-out val splits above.
+train and held-out val splits above. Greedy decoding, as above.
 
 **Qwen2.5-1.5B-Instruct** (best layer 23, raw direction norm 75.3):
 
 | alpha | refusal rate | degenerate fraction |
 |---|---|---|
 | 0.25 | 17% | 0% |
-| 0.50 | 67% | 0% |
+| 0.50 | 50% | 0% |
 | **1.00** | **100%** | **0%** |
-| 1.50 | 100% | 17% |
-| 2.00 | 75% | 92% |
-| 3.00 | 17% | 100% |
+| 1.50 | 100% | 8% |
+| 2.00 | 75% | 83% |
+| 3.00 | 0% | 100% |
 | 4.00 | 0% | 100% |
+
+At n=12 (a small calibration sample), a few individual data points shifted
+from the original sampling-based sweep (0.50: 67%->50%, 1.50 degenerate:
+17%->8%, 2.00 degenerate: 92%->83%, 3.00: 17%->0%) -- expected noise on
+individual borderline completions, not a change in the overall shape: same
+calibrated alpha (1.0) selected either way, same qualitative pattern (a
+clean high-refusal window before degenerate collapse at higher alpha).
 
 **SmolLM2-1.7B-Instruct** (best layer 20, raw direction norm 279.6):
 
@@ -104,14 +117,6 @@ into repeated-token garbage at higher alpha.
 - Only two small models tested (1.5B, 1.7B params). Whether the
   necessity/sufficiency asymmetry holds at the 7-9B scale used later in
   this project is untested.
-- **Generation was not forced to greedy decoding** -- Qwen2.5-1.5B-Instruct's
-  default `GenerationConfig` samples (`do_sample=True`, temperature=0.7),
-  so these numbers include uncontrolled sampling noise on top of the
-  intervention's true effect (SmolLM2 defaults to greedy, so its numbers
-  aren't affected the same way). Discovered and fixed for the SAE-feature
-  detector below (`do_sample=False` now set in
-  `src/direction/interventions.py`); not retroactively fixed here since
-  these results are already stable/published -- see DECISIONS.md.
 
 ## SAE-feature detector (Qwen3-8B)
 
@@ -222,9 +227,3 @@ lead with when summarizing this project's core finding.
   the source paper (see DECISIONS.md), not unique to this reproduction.
 - No comparison yet against the single-dense-direction approach (Phase 1
   above) on equal footing -- that head-to-head is separate, later work.
-- Phase 1's causal-validation numbers above predate the switch to greedy
-  decoding (they used each model's default, sampling, generation config)
-  -- a documented, accepted gap, not redone since Phase 1's effect sizes
-  are far too large (100%->0%, 63%->3%) to plausibly be sampling
-  artifacts, unlike the more borderline effect that motivated fixing this
-  for the SAE-feature detector. See DECISIONS.md.

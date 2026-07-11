@@ -11,11 +11,13 @@
 
 All generation here uses `do_sample=False` (greedy decoding): every model's
 default `GenerationConfig` otherwise samples (Qwen3-8B: temperature=0.6,
-top_p=0.95, top_k=20), meaning a single completion per (prompt, condition)
-would conflate the intervention's true effect with sampling noise -- the
-opposite of what a causal-validation measurement wants. Discovered late in
-Phase 3 (see DECISIONS.md); Phase 1's already-reported numbers predate this
-fix and are a documented, accepted limitation rather than redone.
+top_p=0.95, top_k=20; Qwen2.5-1.5B: temperature=0.7), meaning a single
+completion per (prompt, condition) would conflate the intervention's true
+effect with sampling noise -- the opposite of what a causal-validation
+measurement wants. Discovered late in Phase 3, then Phase 1 was re-run
+with this fix too (both are on the same deterministic footing now; see
+DECISIONS.md for the full account and confirmation that effect sizes
+barely moved).
 """
 
 from __future__ import annotations
