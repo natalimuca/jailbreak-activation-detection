@@ -9,6 +9,7 @@ datasets>=2.20
 numpy
 pandas
 scikit-learn
+scipy
 matplotlib
 seaborn
 tqdm
