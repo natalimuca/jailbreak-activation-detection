@@ -392,3 +392,34 @@ in the n=25 run -- the tighter sample resolved the middle data points that
 were previously ambiguous. **top15, not top20, is the strongest single
 data point** for the "systematic feature suppression causes refusal
 collapse" claim -- worth leading with in the write-up rather than top20.
+
+## Found the real reason the curve wasn't clean: uncontrolled sampling (2026-07-11)
+
+User pushed back on the non-monotonic top15-vs-top20 result -- investigated
+rather than shrugging it off as "noise" (see [[feedback-thesis-rigor-upfront]]).
+Checked Qwen3-8B's default `GenerationConfig`: `do_sample=True,
+temperature=0.6, top_p=0.95, top_k=20`. **Every generation call in this
+project's causal-validation pipeline was stochastic** -- one sample per
+(prompt, condition) pair, never overridden to greedy decoding. This
+directly explains sampling-driven wobble in the results (e.g. top5 and
+top10 landing on the exact same count by coincidence, top20 ticking back
+up from top15) that isn't necessarily the true aggregate causal effect.
+
+**Not unique to Phase 3**: checked Qwen2.5-1.5B-Instruct too (used in
+Phase 1) -- also defaults to `do_sample=True` (temperature=0.7). SmolLM2
+defaults to `do_sample=None` (effectively greedy), which may be *why*
+Phase 1's SmolLM2 numbers happened to look cleaner than Qwen2.5's.
+
+**Fix**: `do_sample=False` added to all four `model.generate()` calls in
+`src/direction/interventions.py` (ablation, addition, feature suppression,
+baseline) -- greedy decoding isolates the intervention's true effect from
+sampling noise, and makes every result exactly reproducible run-to-run.
+Verified via a new regression test (`test_generate_baseline_is_deterministic`)
+that two identical calls now produce byte-identical output.
+
+**Decided (user's call): redo Phase 3's suppression validation with this
+fix, leave Phase 1's numbers as-is for now.** Phase 1's results predate
+this fix and technically share the same gap, but they're already
+published/stable and not the active work -- documented here as a known,
+accepted limitation rather than silently ignored. Worth redoing if Phase 1
+is revisited later.

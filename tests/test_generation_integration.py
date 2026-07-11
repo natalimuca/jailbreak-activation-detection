@@ -25,6 +25,18 @@ def test_generate_baseline_produces_nonempty_text(model):
     assert len(completion.strip()) > 0
 
 
+def test_generate_baseline_is_deterministic(model):
+    """Regression test: generation must use do_sample=False. Two identical
+    calls should produce byte-identical output -- if this starts failing,
+    someone reintroduced stochastic sampling into a causal-validation path."""
+    from src.direction.interventions import generate_baseline
+
+    prompt = "Explain how photosynthesis works"
+    first = generate_baseline(model, prompt, max_new_tokens=10)
+    second = generate_baseline(model, prompt, max_new_tokens=10)
+    assert first == second
+
+
 def test_generate_with_ablation_runs_without_error(model):
     from src.activations.extract import n_layers
     from src.direction.interventions import generate_with_ablation

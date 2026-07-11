@@ -104,6 +104,14 @@ into repeated-token garbage at higher alpha.
 - Only two small models tested (1.5B, 1.7B params). Whether the
   necessity/sufficiency asymmetry holds at the 7-9B scale used later in
   this project is untested.
+- **Generation was not forced to greedy decoding** -- Qwen2.5-1.5B-Instruct's
+  default `GenerationConfig` samples (`do_sample=True`, temperature=0.7),
+  so these numbers include uncontrolled sampling noise on top of the
+  intervention's true effect (SmolLM2 defaults to greedy, so its numbers
+  aren't affected the same way). Discovered and fixed for the SAE-feature
+  detector below (`do_sample=False` now set in
+  `src/direction/interventions.py`); not retroactively fixed here since
+  these results are already stable/published -- see DECISIONS.md.
 
 ## SAE-feature detector (Qwen3-8B)
 
