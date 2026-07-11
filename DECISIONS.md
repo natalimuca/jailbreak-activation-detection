@@ -525,3 +525,34 @@ resolution needs either a multi-category classifier (refuse /
 moralize-without-comply / partially comply / fully comply) or an
 LLM-judge -- the classifier-validation gap flagged earlier, now with
 concrete evidence for why it matters.
+
+## Classifier-validation spot-check tooling (2026-07-11)
+
+Rather than spend more compute tightening CIs around a classifier of
+unknown accuracy (considered and rejected -- see below), built a
+human-labeling spot-check that costs no new GPU time: every experiment's
+completions are already saved in its results JSON, so
+`scripts/07_sample_completions_for_labeling.py` draws a stratified sample
+(3 per source/condition group, 45 total across all 15 groups from Phase 1,
+Phase 3, and the head-to-head) and writes a CSV worksheet with the
+classifier's own verdict deliberately hidden (saved separately to
+`results/classifier_spotcheck_reference.json`) to avoid anchoring the
+labeler's judgment. `scripts/08_score_classifier_agreement.py` joins the
+filled-in worksheet back against the classifier's calls once labeled,
+reporting overall agreement and a per-label breakdown -- the "moralize"
+row's accuracy is the number that matters most, since that's the specific
+blind spot the head-to-head comparison surfaced.
+
+**Why not just increase sample sizes instead** (the alternative the user
+asked about directly): bigger N only tightens confidence intervals around
+whatever the classifier measures -- it buys precision, not accuracy. Given
+the classifier has a demonstrated blind spot, spending ~16hrs of compute
+(N=50->100 validation, N=16->30 ranking) would produce a more confident-
+looking estimate of a potentially biased number, which is a worse outcome
+than the status quo, not better. Fixing the measurement instrument (cheap,
+no GPU needed, reuses existing data) comes first; bigger samples are only
+worth it once the classifier is trusted.
+
+Worksheet/reference files are gitignored (`results/`, generated artifacts,
+not source) -- awaiting the user's labels before `scripts/08` can report
+real numbers.
