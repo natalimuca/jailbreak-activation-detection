@@ -98,10 +98,17 @@ interval (chosen over a plain normal approximation because it stays well-behaved
 at small n and at rates near 0% or 100%, both of which occur throughout
 these results).
 
-**Known limitation**: this classifier has not been validated against human
-judgment or an LLM-judge baseline on these specific completions. It is
-adequate for confirming a causal intervention has *some* effect (which is
-all Phase 1 needs), not for precise rate estimation.
+**Validated (2026-07-11)**: a 45-completion human-labeling spot-check
+across every experiment in this project (`scripts/07`/`08`, full results
+in RESULTS.md/DECISIONS.md) found 97.8% agreement between the classifier
+and human judgment, including 100% accuracy at correctly calling
+"moralizes without complying" completions non-refuse. The classifier is
+accurate at its stated job (detecting refusal phrasing). **What it does
+not do, and was never designed to do**: distinguish "moralizes without
+complying" (safe) from "complies" (unsafe) -- both count as "non_refuse."
+`refusal_rate` should not be read as a compliance rate for that reason;
+see RESULTS.md's head-to-head section for a concrete case where that
+distinction mattered.
 
 ## What this reproduction does and doesn't establish
 

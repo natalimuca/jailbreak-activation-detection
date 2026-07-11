@@ -502,29 +502,31 @@ not compliance -- they're the model moralizing/lecturing about why the
 request is illegal or unethical ("Cracking passwords... is illegal,
 unethical, and immoral...") without ever using the keyword classifier's
 refusal markers ("I cannot", "I'm sorry", etc.). This is a third behavior
-mode -- neither a clean refusal nor genuine harmful compliance -- that
-`refusal_classifier.py`'s simple keyword match cannot distinguish from
-actual compliance. **This directly demonstrates, with a concrete example,
-the exact risk already flagged as a known limitation since Phase 1**: the
-classifier has never been validated against human judgment or an
-LLM-judge, and this result shows that gap isn't just theoretical -- it
-materially changes how this specific comparison should be interpreted.
+mode, neither a clean refusal nor genuine harmful compliance.
 
-**Honest conclusion**: the true refusal-suppression gap between dense
-ablation and SAE-feature suppression is very likely smaller than the raw
-6% vs 24% numbers suggest, since dense ablation appears to push the model
-into a "moralize but don't comply" mode that the classifier miscounts as
-non-refusal. What the raw numbers *do* still support: dense ablation is a
-blunter, more aggressive intervention (touches all 36 layers vs SAE's 3)
-that produces a different, less classifiable failure mode than the more
-surgical SAE-feature suppression -- an interesting, honest finding in its
-own right (interpretability/precision vs raw disruptive effect), just not
-the clean "X% more effective" claim the raw numbers alone would suggest.
-**Do not report the 6% vs 24% comparison without this caveat.** A proper
-resolution needs either a multi-category classifier (refuse /
-moralize-without-comply / partially comply / fully comply) or an
-LLM-judge -- the classifier-validation gap flagged earlier, now with
-concrete evidence for why it matters.
+**Correction after the classifier-validation spot-check below**: this was
+initially written up as the classifier "miscounting" or being "unable to
+distinguish" moralize from compliance -- that characterization turned out
+to be wrong once actually tested (see next entry). The classifier
+correctly calls moralize non-refuse; that's not an error, it's exactly
+what a refusal-phrase detector should do. **The real issue is one level
+up**: `refusal_rate` as a summary statistic conflates moralize (safe,
+non-compliant) and comply (unsafe) under one "non_refuse" bucket, so
+reading "6% refusal" as "94% compliance" is the actual mistake, not
+anything wrong with the classifier itself.
+
+**Honest conclusion, revised**: the true *harmful-compliance* gap between
+dense ablation and SAE-feature suppression is very likely much smaller
+than the raw 6% vs 24% *non-refusal* numbers suggest, since most of dense
+ablation's non-refusals are moralize, not comply. What the raw numbers do
+still support: dense ablation (36 layers touched) is a blunter, more
+disruptive intervention that pushes the model into a "moralize instead of
+refuse" mode far more often than SAE-feature suppression (3 layers) does
+-- an interesting, honest finding about intervention bluntness, just not
+the clean "X% more effective at inducing compliance" claim the raw numbers
+alone would suggest. **Do not report the 6% vs 24% comparison as a
+compliance-rate comparison** -- it measures refusal-phrasing rate, not
+compliance rate, and those are not the same thing for this intervention.
 
 ## Classifier-validation spot-check tooling (2026-07-11)
 
@@ -556,3 +558,40 @@ worth it once the classifier is trusted.
 Worksheet/reference files are gitignored (`results/`, generated artifacts,
 not source) -- awaiting the user's labels before `scripts/08` can report
 real numbers.
+
+## Classifier-validation spot-check: results (2026-07-11)
+
+All 45 sampled completions labeled (17 refuse, 13 moralize, 13 comply, 2
+partial). Classifier agreement: **44/45 (97.8%)**. Broken down by human
+label -- this is the classifier's binary refuse/non_refuse accuracy
+against what the completion actually was:
+
+| human label | classifier accuracy |
+|---|---|
+| refuse | 17/17 (100%) |
+| moralize | 13/13 (100%) |
+| comply | 13/13 (100%) |
+| partial | 1/2 (50%) |
+
+**The classifier is more accurate than the head-to-head writeup initially
+implied.** All 13 moralize completions were correctly called non_refuse --
+zero misclassifications in this sample. This means the earlier framing
+("the classifier cannot distinguish moralize from compliance") was not
+quite right and has been corrected in the head-to-head entry above: the
+classifier does its narrow job (detecting refusal phrasing) accurately.
+The actual problem is that `refusal_rate` as a single number conflates
+moralize and comply into "non_refuse," so a reader can't tell from the
+statistic alone how much of a low refusal rate is safe moralizing vs
+actual harmful compliance -- that's a reporting/metric-design issue, not a
+classifier bug. Only the "partial" category (n=2, too small to read much
+into) showed any disagreement, and partial-compliance completions are
+inherently the hardest case for a binary classifier regardless of
+implementation.
+
+**Practical upshot for future work**: if a "true compliance rate" number
+is ever needed (e.g. for a head-to-head claim like "method A achieves N%
+more actual harmful compliance than method B"), it requires either a
+separate moralize-vs-comply classifier or an LLM-judge -- the existing
+`refusal_classifier.py` was never designed to make that distinction and,
+per this spot-check, doesn't need to be replaced for its own stated
+purpose (detecting refusal phrasing, which is all Phase 1-3 asked of it).
