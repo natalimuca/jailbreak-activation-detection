@@ -13,20 +13,22 @@ perplexity, since they read as ordinary text) -- the adversarial paraphrase
 set built in `src/eval/adversarial_paraphrase.py` includes both attack types
 so this distinction shows up in the results rather than being asserted here.
 
-**Backbone: OLMo-2-0425-1B (AI2, base/pretrained, April 2025), not GPT-2,
-GPT-Neo, or an instruction-tuned model** (see DECISIONS.md for the full
-history: GPT-2 -> GPT-Neo-1.3B -> Phi-4-mini-instruct -> here). Two
-requirements drove this: (1) modern and independent of every model family
-already used or reserved as a target in this project (Qwen, SmolLM, and
-Llama/Gemma, the latter two reserved for Phase 6 per README.md); (2) a
-genuine **base** model, not instruction-tuned. (2) was learned the hard
-way -- Phi-4-mini-instruct's XSTest false-positive rate was *worse* than
-GPT-Neo-1.3B's despite being newer and larger, because scoring raw,
-non-chat-templated text (this function never applies a chat template) is
-off-distribution for a model fine-tuned on chat-formatted conversations.
-`compute_perplexity` needs a model trained on next-token prediction over
-plain text, which is what GPT-2/GPT-Neo were and what OLMo-2-0425-1B is.
-Small enough (1B) to run without quantization.
+**Backbone: Olmo-3-1025-7B (AI2, base/pretrained, October 2025), not GPT-2,
+GPT-Neo, an instruction-tuned model, or OLMo-2-0425-1B** (see DECISIONS.md
+for the full history: GPT-2 -> GPT-Neo-1.3B -> Phi-4-mini-instruct ->
+OLMo-2-0425-1B -> here). Requirements: (1) as current as reasonably
+possible; (2) independent of every model family already used or reserved
+as a target in this project (Qwen, SmolLM, and Llama/Gemma, the latter two
+reserved for Phase 6 per README.md); (3) a genuine **base** model, not
+instruction-tuned -- learned the hard way from Phi-4-mini-instruct, whose
+XSTest false-positive rate got *worse* than GPT-Neo-1.3B's because scoring
+raw, non-chat-templated text is off-distribution for a model fine-tuned on
+chat-formatted conversations. Olmo-3-1025-7B is AI2's next generation after
+OLMo-2 (same fully-open lineage: weights, training data, and code all
+released), a genuine base checkpoint, and more recent (October 2025 vs.
+April 2025). At 7B it doesn't fit unquantized on a 6GB GPU, so it's loaded
+4-bit via the same `BitsAndBytesConfig` approach already used for
+Qwen3-8B (`src.activations.extract.load_model`).
 """
 
 from __future__ import annotations
@@ -35,15 +37,26 @@ import math
 
 import torch
 
-DEFAULT_MODEL_NAME = "allenai/OLMo-2-0425-1B"
+DEFAULT_MODEL_NAME = "allenai/Olmo-3-1025-7B"
 
 
-def load_perplexity_model(device: str = "cuda"):
+def load_perplexity_model(device: str = "cuda", load_in_4bit: bool = True):
     from transformers import AutoModelForCausalLM, AutoTokenizer
 
     tokenizer = AutoTokenizer.from_pretrained(DEFAULT_MODEL_NAME)
-    model = AutoModelForCausalLM.from_pretrained(DEFAULT_MODEL_NAME, torch_dtype=torch.float16)
-    model.to(device)
+    kwargs = dict(torch_dtype=torch.float16)
+    if load_in_4bit:
+        from transformers import BitsAndBytesConfig
+
+        kwargs["quantization_config"] = BitsAndBytesConfig(
+            load_in_4bit=True,
+            bnb_4bit_compute_dtype=torch.float16,
+            bnb_4bit_use_double_quant=True,
+        )
+        kwargs["device_map"] = {"": 0}
+    model = AutoModelForCausalLM.from_pretrained(DEFAULT_MODEL_NAME, **kwargs)
+    if not load_in_4bit:
+        model.to(device)
     model.eval()
     return model, tokenizer
 

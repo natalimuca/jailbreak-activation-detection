@@ -72,7 +72,7 @@ def main() -> None:
     features = load_top_features(k=sae_k)
     saes = {layer: load_sae(layer) for layer in sae_layers}
 
-    print("Loading OLMo-2-0425-1B for perplexity scoring")
+    print("Loading Olmo-3-1025-7B (4-bit) for perplexity scoring")
     ppl_model, ppl_tok = load_perplexity_model()
 
     def score_all(idx_mask: torch.Tensor) -> dict[str, list[float]]:

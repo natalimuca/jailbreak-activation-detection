@@ -27,7 +27,7 @@ This project extends that finding in three directions:
 3. **Engineering rigor** — calibration, formal paired significance testing
    (McNemar's, DeLong's, Cochran's Q) rather than eyeballing confidence
    intervals, an honest head-to-head comparison against baselines (keyword
-   filter, OLMo-2-0425-1B perplexity filter) on a held-out adversarial
+   filter, Olmo-3-1025-7B perplexity filter) on a held-out adversarial
    paraphrase set built from real, published JailbreakBench attack
    artifacts, and false-positive ("safety tax") measurement on XSTest's
    safe-but-scary-looking prompts.

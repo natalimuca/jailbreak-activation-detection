@@ -288,13 +288,14 @@ shared protocol. Full rationale in [DECISIONS.md](DECISIONS.md).
   fraud categories) -- the classic content-moderation baseline, expected to
   degrade under paraphrase since it only recognizes surface vocabulary.
 - **Perplexity filter** (`src/baselines/perplexity_filter.py`): prompt
-  perplexity under OLMo-2-0425-1B, per the general approach of Alon &
+  perplexity under Olmo-3-1025-7B, per the general approach of Alon &
   Kamfonas 2023 ("Detecting Language Model Attacks with Perplexity",
   arXiv:2308.14132) -- built to catch gibberish adversarial suffixes (e.g.
-  GCG), not expected to catch fluent paraphrase. Backbone went through four
-  models (GPT-2 -> GPT-Neo-1.3B -> Phi-4-mini-instruct -> OLMo-2-0425-1B)
-  before landing here -- see DECISIONS.md for the full history, including
-  why an instruction-tuned model was rejected (scoring raw, non-templated
+  GCG), not expected to catch fluent paraphrase. Backbone went through five
+  models (GPT-2 -> GPT-Neo-1.3B -> Phi-4-mini-instruct -> OLMo-2-0425-1B ->
+  Olmo-3-1025-7B) before landing here -- see DECISIONS.md for the full
+  history, including why an instruction-tuned model was rejected (scoring
+  raw, non-templated
   text is off-distribution for a chat model) and why a target model was
   rejected as the alternative (breaks the baseline's independence).
 
