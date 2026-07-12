@@ -58,7 +58,7 @@ def main() -> None:
     print(f"threshold: {thresholds['keyword']}")
 
     print("\n--- perplexity filter ---")
-    print("Loading GPT-Neo-1.3B")
+    print("Loading OLMo-2-0425-1B")
     ppl_model, ppl_tok = load_perplexity_model()
     ppl_scores = [compute_perplexity(t, ppl_model, ppl_tok) for t in val_texts]
     thresholds["perplexity"] = youden_threshold(ppl_scores, val_labels)

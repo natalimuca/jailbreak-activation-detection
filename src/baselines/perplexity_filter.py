@@ -13,18 +13,20 @@ perplexity, since they read as ordinary text) -- the adversarial paraphrase
 set built in `src/eval/adversarial_paraphrase.py` includes both attack types
 so this distinction shows up in the results rather than being asserted here.
 
-**Backbone: GPT-Neo-1.3B, not GPT-2 or one of this project's target models**
-(see DECISIONS.md). Alon & Kamfonas used GPT-2 (2019, 124M) as their
-reference scorer; a meaningfully more modern, better-trained model should
-model ordinary fluent text (including XSTest's deliberately unusual-but-safe
-phrasing) more accurately, without changing GCG's high-perplexity signature,
-which is a property of the *attack text* under any reasonable LM. Reusing
-one of this project's own target models (Qwen2.5-1.5B/SmolLM2-1.7B/Qwen3-8B)
-was considered and rejected: it would make the "independent baseline" row
-share a model with the very activation-based detector it's being compared
-against for that model, breaking the comparison's apples-to-apples framing.
-GPT-Neo-1.3B is open-weight, small enough to run without quantization, and
-not used anywhere else in this project.
+**Backbone: OLMo-2-0425-1B (AI2, base/pretrained, April 2025), not GPT-2,
+GPT-Neo, or an instruction-tuned model** (see DECISIONS.md for the full
+history: GPT-2 -> GPT-Neo-1.3B -> Phi-4-mini-instruct -> here). Two
+requirements drove this: (1) modern and independent of every model family
+already used or reserved as a target in this project (Qwen, SmolLM, and
+Llama/Gemma, the latter two reserved for Phase 6 per README.md); (2) a
+genuine **base** model, not instruction-tuned. (2) was learned the hard
+way -- Phi-4-mini-instruct's XSTest false-positive rate was *worse* than
+GPT-Neo-1.3B's despite being newer and larger, because scoring raw,
+non-chat-templated text (this function never applies a chat template) is
+off-distribution for a model fine-tuned on chat-formatted conversations.
+`compute_perplexity` needs a model trained on next-token prediction over
+plain text, which is what GPT-2/GPT-Neo were and what OLMo-2-0425-1B is.
+Small enough (1B) to run without quantization.
 """
 
 from __future__ import annotations
@@ -33,25 +35,28 @@ import math
 
 import torch
 
-DEFAULT_MODEL_NAME = "EleutherAI/gpt-neo-1.3B"
+DEFAULT_MODEL_NAME = "allenai/OLMo-2-0425-1B"
 
 
-def load_perplexity_model(device: str = "cpu"):
+def load_perplexity_model(device: str = "cuda"):
     from transformers import AutoModelForCausalLM, AutoTokenizer
 
     tokenizer = AutoTokenizer.from_pretrained(DEFAULT_MODEL_NAME)
-    model = AutoModelForCausalLM.from_pretrained(DEFAULT_MODEL_NAME)
+    model = AutoModelForCausalLM.from_pretrained(DEFAULT_MODEL_NAME, torch_dtype=torch.float16)
     model.to(device)
     model.eval()
     return model, tokenizer
 
 
 @torch.no_grad()
-def compute_perplexity(prompt: str, model, tokenizer, device: str = "cpu") -> float:
+def compute_perplexity(prompt: str, model, tokenizer) -> float:
     """Perplexity of `prompt` under `model`, via its own next-token
     cross-entropy loss (the standard `labels=input_ids` trick: HF causal LMs
     shift labels internally, so this is the mean per-token NLL of the
-    sequence under itself)."""
+    sequence under itself). Reads the model's own device off its
+    parameters rather than taking a separate `device` argument, so callers
+    can't accidentally score on a different device than the model lives on."""
+    device = next(model.parameters()).device
     ids = tokenizer(prompt, return_tensors="pt").input_ids.to(device)
     if ids.shape[1] < 2:
         # A single-token prompt has no next-token prediction to score --
