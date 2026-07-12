@@ -1035,3 +1035,46 @@ GemmaScope (different architecture from Qwen-Scope/LlamaScope's TopK) and
 a LlamaScope-specific checkpoint loader, then repeating Phase 3's full
 causal-ranking/validation methodology per model. Scoped as substantial,
 comparable to Phase 3 itself, and deliberately left for a separate pass.
+
+## Phase 6 Wave 2, step 1: corrected a wrong assumption in the approved plan (2026-07-12)
+
+The approved Wave 2 plan assumed LlamaScope reuses `TopKSAE` as-is (same
+architecture as Qwen-Scope) and only GemmaScope needs new JumpReLU code.
+**Checked before building on that assumption, and it was wrong**: downloaded
+and inspected a real LlamaScope checkpoint
+(`fnlp/Llama3_1-8B-Base-LXR-8x`, layer 15) -- its `hyperparams.json` reports
+`"act_fn": "jumprelu"` with a scalar `"jump_relu_threshold"`, confirmed
+across three different LlamaScope variants (`LXR-8x`, `LXR-32x`, `LXA-8x`),
+not TopK. The paper's "improved TopK SAEs" title describes the training
+recipe, not necessarily the activation function of what's actually
+published. **Both LlamaScope and GemmaScope need JumpReLU support** --
+there's no "easy one, hard one" split on architecture after all.
+
+Added one shared `src/sae/jumprelu_sae.py::JumpReLUSAE` (same
+`W_enc`/`W_dec`/`b_enc`/`b_dec`/`encode`/`decode`/`feature_direction`/`to`
+interface as `TopKSAE`, so it's a drop-in for
+`src/sae/feature_selection.py`/`causal_ranking.py`/`interventions.py`
+without changing any of them -- verified by actually running
+`top_k0_by_cosine_similarity` against a live LlamaScope-loaded SAE and a
+TRAIN-derived direction on Llama-3.1-8B's cached activations, no errors,
+no changes needed to existing pipeline code). `threshold` accepts either a
+scalar (LlamaScope) or a `(d_sae,)` tensor (GemmaScope, confirmed to use
+per-feature thresholds per its own published paper), so the same class
+covers both providers.
+
+`src/sae/llama_scope.py::load_sae` loads real checkpoints from
+`fnlp/Llama3_1-8B-Base-LXR-8x`
+(`Llama3_1-8B-Base-L{layer}R-8x/checkpoints/final.safetensors` +
+`hyperparams.json`, confirmed via direct inspection, not assumed) --
+`.safetensors` format, needed adding `safetensors` to requirements.txt
+(already an indirect dependency via `transformers`, now direct since
+imported explicitly).
+
+**Where this leaves Wave 2**: the actual remaining work is (1) a
+GemmaScope-specific loader (`.npz` format, per-feature thresholds, and a
+width/L0-sparsity variant selection decision LlamaScope didn't need), then
+(2) for each model, layer selection (cheap, cached activations, no new
+code), causal ranking via attribution patching, and causal validation via
+suppression -- the compute-heavy, generation-based steps that redo Phase
+3's methodology per model. Not started; this session only de-risked the
+SAE-loading foundation both models will need.
