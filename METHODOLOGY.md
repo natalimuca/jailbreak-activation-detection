@@ -287,11 +287,13 @@ shared protocol. Full rationale in [DECISIONS.md](DECISIONS.md).
   harmful-intent lexicon (~50 terms across weapon/malware/drug/violence/
   fraud categories) -- the classic content-moderation baseline, expected to
   degrade under paraphrase since it only recognizes surface vocabulary.
-- **Perplexity filter** (`src/baselines/perplexity_filter.py`): GPT-2
-  perplexity of the prompt, per Alon & Kamfonas 2023 ("Detecting Language
-  Model Attacks with Perplexity", arXiv:2308.14132) -- built to catch
-  gibberish adversarial suffixes (e.g. GCG), not expected to catch fluent
-  paraphrase.
+- **Perplexity filter** (`src/baselines/perplexity_filter.py`): prompt
+  perplexity under GPT-Neo-1.3B, per the general approach of Alon &
+  Kamfonas 2023 ("Detecting Language Model Attacks with Perplexity",
+  arXiv:2308.14132) -- built to catch gibberish adversarial suffixes (e.g.
+  GCG), not expected to catch fluent paraphrase. Backbone is GPT-Neo-1.3B,
+  not the paper's own GPT-2 (see DECISIONS.md for why the switch was made
+  and why a target model was rejected as the alternative).
 
 Both baselines operate on the prompt text alone (no target-model activations
 needed); the two detectors require the target model's (Qwen3-8B's) own

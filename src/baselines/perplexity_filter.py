@@ -1,9 +1,9 @@
-"""GPT-2 perplexity-based prompt filter, per Alon & Kamfonas 2023 ("Detecting
-Language Model Attacks with Perplexity", arXiv:2308.14132) -- GPT-2 is their
-own reference model too. The core intuition: adversarial-suffix attacks
-(e.g. GCG) append gibberish token sequences that are wildly improbable under
-any language model, so a plain perplexity threshold catches them cheaply
-without needing to understand the prompt's meaning at all.
+"""Perplexity-based prompt filter, per Alon & Kamfonas 2023 ("Detecting
+Language Model Attacks with Perplexity", arXiv:2308.14132). The core
+intuition: adversarial-suffix attacks (e.g. GCG) append gibberish token
+sequences that are wildly improbable under any language model, so a plain
+perplexity threshold catches them cheaply without needing to understand the
+prompt's meaning at all.
 
 Included in Phase 4's baseline comparison specifically because this is a
 *different* failure mode than the keyword filter's: perplexity should catch
@@ -12,6 +12,19 @@ grammatical jailbreak paraphrases like PAIR's roleplay wrappers (low
 perplexity, since they read as ordinary text) -- the adversarial paraphrase
 set built in `src/eval/adversarial_paraphrase.py` includes both attack types
 so this distinction shows up in the results rather than being asserted here.
+
+**Backbone: GPT-Neo-1.3B, not GPT-2 or one of this project's target models**
+(see DECISIONS.md). Alon & Kamfonas used GPT-2 (2019, 124M) as their
+reference scorer; a meaningfully more modern, better-trained model should
+model ordinary fluent text (including XSTest's deliberately unusual-but-safe
+phrasing) more accurately, without changing GCG's high-perplexity signature,
+which is a property of the *attack text* under any reasonable LM. Reusing
+one of this project's own target models (Qwen2.5-1.5B/SmolLM2-1.7B/Qwen3-8B)
+was considered and rejected: it would make the "independent baseline" row
+share a model with the very activation-based detector it's being compared
+against for that model, breaking the comparison's apples-to-apples framing.
+GPT-Neo-1.3B is open-weight, small enough to run without quantization, and
+not used anywhere else in this project.
 """
 
 from __future__ import annotations
@@ -20,10 +33,10 @@ import math
 
 import torch
 
-DEFAULT_MODEL_NAME = "gpt2"
+DEFAULT_MODEL_NAME = "EleutherAI/gpt-neo-1.3B"
 
 
-def load_gpt2(device: str = "cpu"):
+def load_perplexity_model(device: str = "cpu"):
     from transformers import AutoModelForCausalLM, AutoTokenizer
 
     tokenizer = AutoTokenizer.from_pretrained(DEFAULT_MODEL_NAME)

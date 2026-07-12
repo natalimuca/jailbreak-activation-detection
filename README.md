@@ -25,10 +25,10 @@ This project extends that finding in three directions:
    internals transfer to a different model family/size, or does it need
    per-model retraining?
 3. **Engineering rigor** — calibration, an honest head-to-head comparison
-   against baselines (keyword filter, GPT-2 perplexity filter) on a held-out
-   adversarial paraphrase set built from real, published JailbreakBench
-   attack artifacts, and false-positive ("safety tax") measurement on
-   XSTest's safe-but-scary-looking prompts.
+   against baselines (keyword filter, GPT-Neo-1.3B perplexity filter) on a
+   held-out adversarial paraphrase set built from real, published
+   JailbreakBench attack artifacts, and false-positive ("safety tax")
+   measurement on XSTest's safe-but-scary-looking prompts.
 
 Methodology and results for the single-direction reproduction, the
 SAE-feature detector, and the baseline/adversarial detector comparison are
