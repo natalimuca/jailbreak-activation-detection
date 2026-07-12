@@ -18,7 +18,8 @@ from __future__ import annotations
 
 import math
 
-from scipy.stats import binomtest
+import numpy as np
+from scipy.stats import binomtest, chi2, norm
 from sklearn.metrics import roc_auc_score, roc_curve
 
 
@@ -114,3 +115,92 @@ def mcnemar_exact(preds_a: list[bool], preds_b: list[bool]) -> dict:
         return {"only_a": only_a, "only_b": only_b, "n_discordant": 0, "p_value": 1.0}
     p_value = binomtest(min(only_a, only_b), n_discordant, 0.5).pvalue
     return {"only_a": only_a, "only_b": only_b, "n_discordant": n_discordant, "p_value": round(p_value, 4)}
+
+
+def _delong_placements(pos_scores: np.ndarray, neg_scores: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """DeLong et al. (1988)'s structural components: psi(x, y) = 1 if
+    x > y, 0.5 if x == y, 0 if x < y, averaged over the opposite class for
+    each sample. Mean of `v10` (or equivalently `v01`) is the AUC itself,
+    expressed as a Mann-Whitney U-statistic."""
+    diff = pos_scores[:, None] - neg_scores[None, :]
+    psi = (diff > 0).astype(float) + 0.5 * (diff == 0).astype(float)
+    v10 = psi.mean(axis=1)  # one value per positive sample
+    v01 = psi.mean(axis=0)  # one value per negative sample
+    return v10, v01
+
+
+def delong_auc_test(scores_a: list[float], scores_b: list[float], labels: list[bool]) -> dict:
+    """Paired DeLong's test comparing two detectors' AUROC on the SAME
+    labeled sample (Sun & Xu 2014's structural-components formulation of
+    DeLong et al. 1988). The right tool whenever this project compares two
+    detectors' AUROC on the same prompt set -- e.g. dense-direction vs
+    SAE-feature on TEST-overall -- since an unpaired test (independent
+    bootstrap CIs on each AUC) would ignore that both scores come from the
+    exact same items and are therefore correlated; ignoring that
+    correlation makes an unpaired test systematically too conservative
+    (declares real differences non-significant more often than it should).
+
+    Returns each AUC (should match `sklearn.roc_auc_score` exactly), their
+    difference, and a two-sided p-value from the resulting z-statistic."""
+    labels_arr = np.asarray(labels, dtype=bool)
+    a = np.asarray(scores_a, dtype=float)
+    b = np.asarray(scores_b, dtype=float)
+
+    pos_a, neg_a = a[labels_arr], a[~labels_arr]
+    pos_b, neg_b = b[labels_arr], b[~labels_arr]
+    n_pos, n_neg = len(pos_a), len(neg_a)
+
+    v10_a, v01_a = _delong_placements(pos_a, neg_a)
+    v10_b, v01_b = _delong_placements(pos_b, neg_b)
+    auc_a, auc_b = float(v10_a.mean()), float(v10_b.mean())
+
+    v10 = np.stack([v10_a, v10_b])  # (2, n_pos)
+    v01 = np.stack([v01_a, v01_b])  # (2, n_neg)
+    s10 = np.cov(v10, ddof=1)
+    s01 = np.cov(v01, ddof=1)
+    s = s10 / n_pos + s01 / n_neg
+
+    auc_diff = auc_a - auc_b
+    var_diff = s[0, 0] + s[1, 1] - 2 * s[0, 1]
+    if var_diff <= 0:
+        # Only happens if the two detectors' scores are perfectly
+        # correlated (e.g. identical) -- no evidence of a difference either
+        # way, reported as non-significant rather than dividing by ~0.
+        return {"auc_a": round(auc_a, 4), "auc_b": round(auc_b, 4), "diff": round(auc_diff, 4), "z": 0.0, "p_value": 1.0}
+    z = auc_diff / math.sqrt(var_diff)
+    p_value = 2 * (1 - norm.cdf(abs(z)))
+    return {
+        "auc_a": round(auc_a, 4),
+        "auc_b": round(auc_b, 4),
+        "diff": round(auc_diff, 4),
+        "z": round(float(z), 4),
+        "p_value": round(float(p_value), 4),
+    }
+
+
+def cochrans_q(preds_matrix: list[list[bool]]) -> dict:
+    """Cochran's Q test: generalizes McNemar's test from two to k >= 2
+    related binary classifiers scored on the SAME n items (e.g. three
+    models' dense-direction detectors, each flag/no-flag on the same 21
+    PAIR prompts). Tests whether the k classifiers' success rates differ,
+    using the repeated-measures structure -- the right tool here instead of
+    comparing k independent Wilson CIs pairwise, which both inflates the
+    false-positive rate (multiple untested comparisons) and, as with
+    McNemar's, ignores that all k classifiers are scored on the same items.
+
+    preds_matrix: k lists of n paired booleans (k classifiers x n items).
+    Q ~ chi-squared(k-1) under the null of equal success rates."""
+    arr = np.array(preds_matrix, dtype=float)  # (k, n)
+    k, n = arr.shape
+    item_totals = arr.sum(axis=0)  # how many classifiers flagged each item
+    classifier_totals = arr.sum(axis=1)  # each classifier's total flag count
+
+    numerator = k * (k - 1) * np.sum((classifier_totals - classifier_totals.mean()) ** 2)
+    denominator = k * np.sum(item_totals) - np.sum(item_totals**2)
+    if denominator == 0:
+        # Every classifier agreed on every item (all-flag or all-no-flag
+        # rows/columns) -- no variation to test, not significant.
+        return {"q": 0.0, "df": k - 1, "p_value": 1.0}
+    q = numerator / denominator
+    p_value = 1 - chi2.cdf(q, df=k - 1)
+    return {"q": round(float(q), 4), "df": k - 1, "p_value": round(float(p_value), 4)}

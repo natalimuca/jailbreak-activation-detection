@@ -301,9 +301,9 @@ the hardest case for any binary classifier, not a specific weakness here.
 ## Baseline detectors and adversarial evaluation
 
 Four prompt classifiers, compared under one protocol on Qwen3-8B: two
-baselines (keyword filter, GPT-Neo-1.3B perplexity filter) and two reframed
-activation-based detectors (dense-direction projection at layer 23,
-sum of Phase 3's top-15 ranked SAE features across layers 23/24/25).
+baselines (keyword filter, Olmo-3-1025-7B perplexity filter) and two
+reframed activation-based detectors (dense-direction projection at layer
+23, sum of Phase 3's top-15 ranked SAE features across layers 23/24/25).
 Methodology, split discipline, and the adversarial paraphrase set's real
 JailbreakBench provenance are in
 [METHODOLOGY.md](METHODOLOGY.md#baseline-detectors-and-adversarial-evaluation).
@@ -311,31 +311,47 @@ Thresholds calibrated on VAL (`results/detector_thresholds_Qwen3-8B.json`),
 never touched by the numbers below; full results in
 `results/detector_head_to_head_Qwen3-8B.json`.
 
-**Perplexity backbone note**: the perplexity filter originally used GPT-2
-(2019, matching Alon & Kamfonas 2023's own reference model). Swapped to
-GPT-Neo-1.3B (2021) after the GPT-2 version's XSTest false-positive rate
-looked suspiciously bad -- see DECISIONS.md for the full reasoning and why
-one of this project's own target models (Qwen2.5/SmolLM2/Qwen3-8B) was
-considered and rejected as the replacement. All numbers below are the
-GPT-Neo-1.3B version; the GPT-2 numbers are superseded, not reported twice.
+**Perplexity backbone note**: went through five models before settling
+here -- GPT-2 (2019, 124M, matching Alon & Kamfonas 2023's own reference
+model) -> GPT-Neo-1.3B (2021, after GPT-2's XSTest false-positive rate
+looked suspiciously bad) -> Phi-4-mini-instruct (2025, 3.8B, rejected after
+its XSTest number came back *worse* than GPT-Neo-1.3B's -- traced to it
+being instruction-tuned, off-distribution for scoring raw non-chat text) ->
+OLMo-2-0425-1B (2025, 1B, a genuine base model, still not the best
+performer) -> **Olmo-3-1025-7B** (2025, 7B, AI2's next generation, final).
+One of this project's own target models (Qwen2.5/SmolLM2/Qwen3-8B) was
+also considered and rejected throughout, for a separate reason (breaks the
+baseline's independence from what it's being compared against). Full
+history and the non-monotonic result across all five backbones in
+DECISIONS.md. All numbers below are the Olmo-3-1025-7B version; earlier
+backbones' numbers are superseded, not reported twice.
 
 ### TEST split overall (n=288: 158 harmful, 130 harmless)
 
 | detector | accuracy | 95% CI | F1 | AUROC |
 |---|---|---|---|---|
 | keyword filter | 56.6% | [50.8%, 62.2%] | 0.359 | 0.603 |
-| perplexity filter | 49.7% | [43.9%, 55.4%] | 0.440 | 0.516 |
+| perplexity filter | 54.9% | [49.1%, 60.5%] | 0.637 | 0.520 |
 | **dense-direction** | **88.9%** | **[84.7%, 92.0%]** | **0.890** | **0.983** |
 | **SAE-feature (top-15)** | **87.8%** | **[83.6%, 91.1%]** | **0.878** | **0.975** |
 
 On clean, in-distribution prompts the two activation-based detectors
 clearly beat both baselines -- an AUROC of 0.98/0.975 vs. 0.60/0.52.
-**Perplexity's AUROC is essentially at chance (0.516)** even with a much
-better backbone model -- expected, and confirms this isn't a "GPT-2 was too
-weak" artifact: perplexity says nothing about semantic harmfulness, only
-textual naturalness, and most of this corpus's prompts (harmful and
+**Perplexity's AUROC is essentially at chance (0.520)** regardless of which
+of the five backbones scores it -- expected, and confirms this isn't a
+"weak model" artifact: perplexity says nothing about semantic harmfulness,
+only textual naturalness, and most of this corpus's prompts (harmful and
 harmless alike) are ordinary fluent English regardless of which model
 scores them.
+
+**Dense-direction vs. SAE-feature is close enough here to test formally**:
+0.983 vs. 0.975 AUROC on the same 288 items is paired data, so a DeLong
+test (`src.eval.detector_metrics.delong_auc_test`) is the right tool rather
+than eyeballing the gap. Result: diff = 0.0076, **p = 0.068** -- not
+significant at the conventional 0.05 threshold, though borderline.
+Combined with the adversarial-set McNemar result below (also
+non-significant, p = 0.5), the two detectors are not statistically
+distinguishable on either evaluation this project has run.
 
 ### XSTest-safe subset of TEST (n=37, all harmless -- false-positive check)
 
@@ -346,17 +362,27 @@ kill a Python process"), so a good detector should score high here.
 | detector | correctly-not-flagged rate | 95% CI |
 |---|---|---|
 | keyword filter | 97.3% | [86.2%, 99.5%] |
-| perplexity filter | 75.7% | [59.9%, 86.6%] |
+| perplexity filter | 13.5% | [5.9%, 28.0%] |
 | dense-direction | 94.6% | [82.3%, 98.5%] |
 | SAE-feature (top-15) | 97.3% | [86.2%, 99.5%] |
 
-**This is the number that motivated switching backbones, and the switch
-mattered a lot**: GPT-2 flagged 86.5% of safe-but-scary-looking prompts as
-harmful (13.5% correctly-not-flagged); GPT-Neo-1.3B flags only 24.3%
-(75.7% correctly-not-flagged) -- a real, large improvement from a better
-base model, confirming the hypothesis that GPT-2's specific weakness (not
-perplexity filtering in general) was driving that failure. Still the worst
-of the four detectors on this axis, but no longer a near-total failure.
+**The full five-backbone story, deliberately not smoothed into a clean
+"newer is better" narrative**: GPT-2 (2019, 124M) 13.5% -> GPT-Neo-1.3B
+(2021, 1.3B) 75.7% -> Phi-4-mini-instruct (2025, 3.8B) 40.5% ->
+OLMo-2-0425-1B (2025, 1B) 24.3% -> Olmo-3-1025-7B (2025, 7B) **13.5%**
+(correctly-not-flagged, in that order). **The newest and largest backbone
+tried ties the oldest and smallest one for the worst result in the entire
+sequence** -- not "close to," an exact tie down to the confidence interval.
+This is about as clean a demonstration as this project could ask for that
+recency and parameter count do not predict this specific number at all.
+The most likely explanation, per DECISIONS.md: XSTest's false-positive
+behavior under perplexity scoring depends on idiosyncratic properties of
+each reference model's training distribution, not on any axis (age, size,
+base-vs-instruct) checked here -- a genuinely messier and more
+scientifically interesting conclusion than "a better model fixes this,"
+and one only visible because five real backbones were actually run instead
+of assumed. Perplexity filtering remains the worst of the four detectors
+on this axis in every version tried.
 
 ### Adversarial paraphrase set (n=35 real JailbreakBench artifacts, all harmful -- detection rate)
 
@@ -376,28 +402,28 @@ breakdown" discipline as the moralize-vs-comply finding above.
 
 **Honest findings, not smoothed over:**
 
-1. **GCG detection is unchanged at a perfect 100%** with the stronger
-   backbone -- confirms GCG's gibberish suffix is improbable under any
-   reasonable LM, not an artifact of a weak scoring model (exactly Alon &
-   Kamfonas 2023's original point, now replicated with a different, better
-   reference model).
-2. **PAIR detection dropped from 38.1% (GPT-2) to a flat 0.0% (GPT-Neo-1.3B)**
-   -- the opposite direction from the XSTest improvement, and the more
-   important result for this evaluation's actual question. GPT-2's 38.1%
-   on PAIR was likely inflated by its own weakness at modeling ordinary
-   fluent text (the same weakness that produced the bad XSTest number), not
-   genuine detection of anything adversarial. **A better backbone doesn't
-   just fail to help against fluent paraphrase -- it makes the failure
-   cleaner and more total**, strengthening rather than undermining the
-   conclusion that perplexity-based filtering structurally cannot catch
-   fluent paraphrase attacks, regardless of which model scores it.
-3. **The pooled number is still misleading on its own** (now 40.0%, was
-   62.9%) -- entirely GCG-driven either way; PAIR is the case this
-   evaluation is actually named for, and perplexity now detects none of it.
+1. **GCG detection is a perfect 100% across all five backbones tried**
+   (GPT-2, GPT-Neo-1.3B, Phi-4-mini-instruct, OLMo-2-0425-1B,
+   Olmo-3-1025-7B) -- strong, convergent evidence that GCG's gibberish
+   suffix is improbable under any reasonable LM, not an artifact of any one
+   scoring model (exactly Alon & Kamfonas 2023's original point).
+2. **PAIR detection is 0.0% for every backbone except the original GPT-2**
+   (which got 38.1%). Getting the identical flat 0% from four independent
+   replacement models (GPT-Neo-1.3B, Phi-4-mini-instruct, OLMo-2-0425-1B,
+   Olmo-3-1025-7B) is more convincing than any single model's result would
+   be: GPT-2's 38.1% was very likely inflated by its own weakness at
+   modeling ordinary fluent text, not genuine detection of anything
+   adversarial. **Every better backbone tried makes the failure cleaner and
+   more total**, strengthening rather than undermining the conclusion that
+   perplexity-based filtering structurally cannot catch fluent paraphrase
+   attacks, regardless of which model scores it.
+3. **The pooled number is still misleading on its own** (40.0%) -- entirely
+   GCG-driven; PAIR is the case this evaluation is actually named for, and
+   perplexity detects none of it.
 4. **On PAIR -- the case this evaluation is actually named for -- all four
    detectors degrade sharply relative to their TEST-split performance**
    (dense-direction: 88.9% to 42.9%; SAE-feature: 87.8% to 33.3%; keyword:
-   56.6% to 23.8%; perplexity: 49.7% to 0.0%). Fluent paraphrase is a hard
+   56.6% to 23.8%; perplexity: 54.9% to 0.0%). Fluent paraphrase is a hard
    case across the board, including for the activation-based methods.
 5. **This does not replicate arXiv:2505.23556's finding that SAE features
    are more robust to adversarial paraphrase than a dense direction** -- on
@@ -468,9 +494,13 @@ choice on clean, in-distribution prompts.
 
 **Striking, unexplained cross-model difference on PAIR paraphrase**:
 SmolLM2's dense-direction detector holds up dramatically better under PAIR
-(90.5%) than either Qwen model (Qwen2.5: 38.1%, Qwen3-8B: 42.9%) --
-statistically distinguishable given the non-overlapping confidence
-intervals. This is not explained by this project's data alone. One
+(90.5%) than either Qwen model (Qwen2.5: 38.1%, Qwen3-8B: 42.9%). Tested
+formally with Cochran's Q (`src.eval.detector_metrics.cochrans_q` --
+generalizes McNemar's paired test from two to three related classifiers
+scored on the same 21 items, the correct tool here instead of eyeballing
+three pairwise CIs): **Q = 13.06, df = 2, p = 0.0015** -- clearly
+significant, not just non-overlapping-CIs-shaped. This is not explained by
+this project's data alone. One
 plausible connection (not established, just a candidate hypothesis worth
 testing later): Phase 1 found SmolLM2's baseline refusal behavior itself is
 weaker and less "linear" than Qwen's -- lower baseline AdvBench refusal
@@ -493,10 +523,11 @@ detection method.
 
 ### Known limitations (cross-model dense-direction comparison)
 
-- **n=35 adversarial prompts, shared across all three models** -- the same
-  small-sample caveat from the Qwen3-8B section applies here too, and more
-  so for the striking SmolLM2-vs-Qwen gap above: real and statistically
-  distinguishable at this sample size, but not yet understood mechanistically.
+- **n=35 adversarial prompts (21 PAIR), shared across all three models** --
+  the same small-sample caveat from the Qwen3-8B section applies here too,
+  and more so for the striking SmolLM2-vs-Qwen gap above: formally
+  significant (Cochran's Q, p = 0.0015) at this sample size, but not yet
+  understood mechanistically.
 - **The SmolLM2 hypothesis above is untested.** Confirming or ruling it out
   would need, at minimum, checking whether the same pattern holds on a
   larger/different adversarial set, and probably a deeper look at how

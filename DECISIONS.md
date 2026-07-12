@@ -854,3 +854,129 @@ conditions that specifically depend on "does this model find ordinary
 unusual-but-fluent text surprising" (XSTest, PAIR) changed substantially.
 No other detector's numbers changed (dense-direction, SAE-feature, and the
 McNemar comparison between them never touch the perplexity backbone).
+
+## Perplexity backbone, round two: GPT-Neo-1.3B is itself stale (2026-07-11, same session)
+
+User pointed out, immediately after the GPT-Neo-1.3B switch above, that
+2021 is itself several years stale for a thesis being presented in 2027.
+Fair -- re-opened the choice rather than treating "newer than GPT-2" as
+good enough.
+
+**Verified via web search (not assumed) what's actually current in the
+1B-4B open-weight range**: SmolLM3-3B, Gemma 3 (1B/4B), Phi-4-mini (3.8B),
+Qwen3.5 (2B/4B), Llama 3.2 3B were the live 2025/2026 options. Ruled out by
+family, not by quality: Qwen and SmolLM already used as target models
+(Qwen2.5-1.5B, Qwen3-8B, SmolLM2-1.7B); Llama and Gemma explicitly reserved
+for Phase 6's cross-model work per README.md, so using either now would
+recreate the exact same-family conflict Phase 6 would later hit. That left
+**Phi-4-mini-instruct** (Microsoft, 3.8B) as the best fit: independent
+family, actively maintained (Microsoft shipped further Phi-4 variants as
+recently as March 2026, confirmed via search), and among the
+best-performing models in its size class. Loaded 4-bit (verified HF id:
+`microsoft/Phi-4-mini-instruct`) since 3.8B doesn't fit unquantized in the
+6GB GPU's ~4.5GB free memory, reusing the `BitsAndBytesConfig` pattern
+already built for Qwen3-8B.
+
+**Empirical result: worse than GPT-Neo-1.3B on the exact number the switch
+was meant to fix.** XSTest-safe correctly-not-flagged rate: 75.7%
+(GPT-Neo-1.3B) -> 40.5% (Phi-4-mini-instruct) -- a real regression despite
+being newer and roughly 3x larger. Investigated rather than accepted at
+face value: Phi-4-mini-instruct is **instruction-tuned**, and confirmed via
+a second search that Microsoft has not released a base (non-chat-tuned)
+checkpoint for it. `compute_perplexity` scores raw prompt text with no chat
+template applied -- exactly the methodology Alon & Kamfonas used with
+GPT-2, a base model. Scoring un-templated text with a model fine-tuned
+specifically on chat-formatted conversations is off-distribution for it,
+which plausibly explains the regression: the model may be finding
+ordinary declarative sentences unusual specifically because its
+post-training pulled its distribution toward conversational formatting,
+not because it's a worse language model in general.
+
+**Decision: perplexity scoring needs a genuine base model, not merely "a
+newer model."** This was the wrong axis to optimize -- recency alone
+doesn't fix this if the newer model is instruction-tuned. Rejected
+Phi-4-mini-instruct on this basis, not on capability.
+
+## Perplexity backbone, round three: OLMo-2-0425-1B, and a genuinely messy result (2026-07-11, same session)
+
+Needed a modern (2025+), independent (not Qwen/SmolLM/Llama/Gemma), and
+**base** (non-instruct) small open model. Verified via search:
+**`allenai/OLMo-2-0425-1B`** (AI2, released April 2025, 1B params, Apache
+2.0) -- a genuine pretrained base checkpoint, fully open (weights, training
+data, and code all released, unusually strong reproducibility story for a
+thesis citation), independent of every model family used or reserved
+elsewhere in this project. At 1B params it runs without quantization.
+
+**Result: neither confirms nor cleanly refutes the "better base model
+fixes XSTest" hypothesis -- it's messier than that.** Full four-backbone
+history on XSTest-safe correctly-not-flagged rate: GPT-2 13.5% -> GPT-Neo-1.3B
+75.7% -> Phi-4-mini-instruct 40.5% (rejected) -> OLMo-2-0425-1B 24.3%.
+OLMo-2-0425-1B is a genuine base model, modern, and well-trained on
+substantially better data than either GPT-2 or GPT-Neo-1.3B -- yet it
+scored *worse* on this specific check than GPT-Neo-1.3B (2021, smaller
+training run, less modern data pipeline). Recency, base-vs-instruct
+status, and even raw capability don't predict this number cleanly; the
+best performer across all four attempts remains GPT-Neo-1.3B, the second
+one tried, not the newest, largest, or most "correct" by any single
+criterion checked.
+
+**Decision: stop searching for a better backbone here.** Four real
+attempts is enough to establish the actual, more defensible finding: XSTest
+false-positive behavior under perplexity scoring appears to depend on
+idiosyncratic properties of each specific reference model's training
+distribution, not on any single axis (age, size, base-vs-instruct) this
+project can cheaply optimize. This is a more scientifically honest
+conclusion than "we found the fix" would have been, and it's only visible
+*because* four different backbones were actually tried rather than
+assumed. **OLMo-2-0425-1B is the final backbone** -- chosen because it is
+the methodologically correct choice (base model, matching Alon & Kamfonas'
+own approach, independent of every target-model family, fully
+reproducible), not because it produced the best number. GCG detection
+(100%) and PAIR detection (0.0%) are unchanged from the GPT-Neo-1.3B and
+Phi-4-mini-instruct versions -- those two findings are robust across all
+three of the "better" backbones tried, strengthening confidence in them
+specifically (see RESULTS.md).
+
+## Significance testing: DeLong's test and Cochran's Q added (2026-07-11)
+
+Asked "what's left before Phase 5" and identified that this project's
+significance testing so far covered exactly one comparison (McNemar's,
+dense-direction vs. SAE-feature on the adversarial set) out of several
+places a paired/repeated-measures test was actually warranted but had only
+been argued from eyeballing Wilson CIs:
+
+1. **Dense-direction vs. SAE-feature AUROC on TEST-overall** (0.983 vs.
+   0.975, Qwen3-8B) -- close enough to need a real test. Added
+   `src.eval.detector_metrics.delong_auc_test` (DeLong et al. 1988, via Sun
+   & Xu 2014's structural-components formulation -- verified the AUC
+   values it computes match `sklearn.roc_auc_score` exactly, then tested
+   against both an identical-scores null case and a seeded synthetic
+   case with a real separation, confirming the test detects a genuine
+   difference when one exists). Result: diff = 0.0076, **p = 0.068** --
+   not significant, consistent with the adversarial-set McNemar result
+   (p = 0.5). Two independent evaluations, same conclusion: no
+   statistically distinguishable difference between the two detectors
+   found anywhere in this project.
+2. **The 3-model PAIR comparison** (Qwen2.5-1.5B: 38.1%, Qwen3-8B: 42.9%,
+   SmolLM2: 90.5%) -- previously argued only from non-overlapping CIs.
+   Added `cochrans_q` (generalizes McNemar's from 2 to *k* related
+   classifiers on the same items; verified against a perfect-agreement
+   null case, a clear-difference case, and an equal-marginal-rates case
+   that forces Q to exactly 0 regardless of item-level pattern -- a
+   property of the test worth checking explicitly since it's easy to get
+   the formula subtly wrong). `scripts/13_cross_model_significance.py`
+   reuses Qwen3-8B's cached adversarial activations and does a fresh
+   (cheap, forward-pass-only) extraction for Qwen2.5-1.5B/SmolLM2-1.7B on
+   just the 21 PAIR prompts. Result: **Q = 13.06, df = 2, p = 0.0015** --
+   clearly significant. Formally confirms what RESULTS.md's cross-model
+   section previously stated informally: SmolLM2's PAIR-paraphrase
+   robustness really is a significant, real difference from both Qwen
+   models, not just a CI-overlap artifact.
+
+## Perplexity backbone, round four: Olmo-3-1025-7B, and the non-monotonic pattern gets stronger (2026-07-12)
+
+User asked to keep looking for a newer model immediately after OLMo-2-0425-1B was settled on above. Verified via search what AI2 (and other independent labs -- IBM Granite 4.1, Falcon 3) have released more recently: **`allenai/Olmo-3-1025-7B`**, AI2's next generation after OLMo-2, released October 2025 (vs. OLMo-2-0425-1B's April 2025), a genuine base checkpoint, same fully-open lineage (weights, training data, and code all released). IBM Granite 4.1 (November 2025, hybrid Mamba-2/Transformer, 3B/8B/30B, base+instruct both released) was a close second candidate but Olmo-3 was chosen to stay within the already-vetted, already-cited OLMo lineage rather than introduce a fourth family into the backbone history. At 7B it needs 4-bit quantization on the 6GB GPU (reused the same `BitsAndBytesConfig` pattern as Qwen3-8B and the rejected Phi-4-mini-instruct attempt).
+
+**Empirical result: the non-monotonic pattern got more extreme, not less.** Full five-backbone sequence on XSTest-safe correctly-not-flagged rate: GPT-2 (2019, 124M) 13.5% -> GPT-Neo-1.3B (2021, 1.3B) 75.7% -> Phi-4-mini-instruct (2025, 3.8B) 40.5% -> OLMo-2-0425-1B (2025, 1B) 24.3% -> Olmo-3-1025-7B (2025, 7B) **13.5%** -- the newest and largest model in the entire sequence ties the oldest and smallest one exactly, down to the confidence interval ([5.9%, 28.0%] both times). GCG detection (100%) and PAIR detection (0.0%) are unchanged yet again, now confirmed across four independent replacement backbones instead of three.
+
+**Decision: stop here.** Five real, independently verified and run backbones is enough to establish the finding conclusively: recency, parameter count, and base-vs-instruct status do not predict XSTest false-positive behavior under perplexity scoring in any way this project can act on. Chasing a sixth model would have diminishing scientific return -- the point (this is idiosyncratic to each model's training distribution, not a capability gap fixable by picking a better model) is now about as well-evidenced as it can get from this angle. **Olmo-3-1025-7B is the final backbone**, chosen for the same reason OLMo-2-0425-1B was (genuine base model, independent family, fully open/reproducible, current as of this session) -- not because it produced the best number, since by this point it's clear no backbone choice will.

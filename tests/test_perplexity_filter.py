@@ -18,13 +18,18 @@ class _StubTokenizer:
 class _StubModel:
     """Returns a fixed, uniform next-token loss regardless of input, so the
     test only checks the loss->perplexity conversion (exp(loss)), not any
-    real language-modeling behavior."""
+    real language-modeling behavior. `.parameters()` yields one CPU tensor
+    so `compute_perplexity`'s device auto-detection (`next(model.parameters
+    ()).device`) works the same as it would against a real HF model."""
 
     def __init__(self, loss_value: float):
         self.loss_value = loss_value
 
     def __call__(self, ids, labels=None):
         return type("Out", (), {"loss": torch.tensor(self.loss_value)})()
+
+    def parameters(self):
+        yield torch.zeros(1)
 
 
 def test_compute_perplexity_matches_exp_of_loss():
@@ -45,8 +50,10 @@ def test_is_flagged_thresholding():
     assert not is_flagged(perplexity=50.0, threshold=100.0)
 
 
-@pytest.mark.network
+@pytest.mark.model
 def test_real_perplexity_model_scores_gibberish_higher_than_fluent_text():
+    # Needs CUDA: loads the real backbone (OLMo-2-0425-1B) on GPU -- see
+    # `model` marker.
     from src.baselines.perplexity_filter import load_perplexity_model
 
     model, tokenizer = load_perplexity_model()

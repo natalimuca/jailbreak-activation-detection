@@ -288,12 +288,16 @@ shared protocol. Full rationale in [DECISIONS.md](DECISIONS.md).
   fraud categories) -- the classic content-moderation baseline, expected to
   degrade under paraphrase since it only recognizes surface vocabulary.
 - **Perplexity filter** (`src/baselines/perplexity_filter.py`): prompt
-  perplexity under GPT-Neo-1.3B, per the general approach of Alon &
+  perplexity under Olmo-3-1025-7B, per the general approach of Alon &
   Kamfonas 2023 ("Detecting Language Model Attacks with Perplexity",
   arXiv:2308.14132) -- built to catch gibberish adversarial suffixes (e.g.
-  GCG), not expected to catch fluent paraphrase. Backbone is GPT-Neo-1.3B,
-  not the paper's own GPT-2 (see DECISIONS.md for why the switch was made
-  and why a target model was rejected as the alternative).
+  GCG), not expected to catch fluent paraphrase. Backbone went through five
+  models (GPT-2 -> GPT-Neo-1.3B -> Phi-4-mini-instruct -> OLMo-2-0425-1B ->
+  Olmo-3-1025-7B) before landing here -- see DECISIONS.md for the full
+  history, including why an instruction-tuned model was rejected (scoring
+  raw, non-templated
+  text is off-distribution for a chat model) and why a target model was
+  rejected as the alternative (breaks the baseline's independence).
 
 Both baselines operate on the prompt text alone (no target-model activations
 needed); the two detectors require the target model's (Qwen3-8B's) own
@@ -373,6 +377,31 @@ rate-like metrics, matching the style of
    misleading number. Broken down by attack method (PAIR vs. GCG)
    separately from the pooled number, since pooling the two hides which
    method is actually driving a detector's flag rate.
+
+### Significance testing
+
+Two comparisons in this evaluation are close enough (or involve more than
+two related classifiers) that eyeballing Wilson CIs for overlap isn't
+sufficient -- both are paired/repeated-measures designs (the same items
+scored by multiple detectors or the same detector run on multiple models),
+so `src/eval/detector_metrics.py` provides the matching formal tests
+instead of treating each score as an independent sample:
+
+- **`delong_auc_test`** (DeLong et al. 1988, Sun & Xu 2014's structural-
+  components formulation): compares two AUROCs measured on the *same*
+  labeled sample, accounting for their correlation. Used for
+  dense-direction vs. SAE-feature on TEST-overall (`scripts/11`), where the
+  gap (0.983 vs. 0.975) is close enough to need a real test rather than an
+  eyeballed "clearly beats."
+- **`mcnemar_exact`**: paired binary-decision test for exactly two
+  classifiers (already used for the adversarial-paraphrase dense-vs-SAE
+  comparison, see the section above).
+- **`cochrans_q`**: generalizes McNemar's test from two to *k* related
+  classifiers scored on the same items -- used for the 3-model
+  dense-direction PAIR-paraphrase comparison (`scripts/13_cross_model_significance.py`),
+  replacing an earlier informal "non-overlapping CIs" argument for
+  "SmolLM2 is significantly more robust to PAIR paraphrase" with a real
+  chi-squared test.
 
 ### Cross-model extension (Qwen2.5-1.5B, SmolLM2-1.7B)
 

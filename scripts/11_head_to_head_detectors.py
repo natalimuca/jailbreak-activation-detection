@@ -34,7 +34,7 @@ from src.detectors.dense_direction_detector import project as dense_project
 from src.detectors.sae_feature_detector import load_top_features
 from src.detectors.sae_feature_detector import score as sae_score
 from src.direction.compute import compute_directions
-from src.eval.detector_metrics import classify, detector_stats, mcnemar_exact
+from src.eval.detector_metrics import classify, delong_auc_test, detector_stats, mcnemar_exact
 from src.sae.qwen_scope import load_sae
 
 MODEL_LABEL = "Qwen3-8B"
@@ -72,7 +72,7 @@ def main() -> None:
     features = load_top_features(k=sae_k)
     saes = {layer: load_sae(layer) for layer in sae_layers}
 
-    print("Loading GPT-Neo-1.3B for perplexity scoring")
+    print("Loading Olmo-3-1025-7B (4-bit) for perplexity scoring")
     ppl_model, ppl_tok = load_perplexity_model()
 
     def score_all(idx_mask: torch.Tensor) -> dict[str, list[float]]:
@@ -95,6 +95,14 @@ def main() -> None:
     results["test_overall"] = {
         name: detector_stats(scores, test_labels, thresholds[name]) for name, scores in test_scores.items()
     }
+
+    # dense-direction (AUROC 0.983) vs SAE-feature (0.975) on TEST-overall is
+    # close enough to be worth a formal paired test rather than eyeballing
+    # the gap -- DeLong's test is the right tool for two AUROCs measured on
+    # the same items (see DECISIONS.md's significance-testing entry).
+    results["test_overall_delong_dense_vs_sae"] = delong_auc_test(
+        test_scores["dense_direction"], test_scores["sae_feature"], test_labels
+    )
 
     print("Scoring TEST's XSTest-safe subset (false-positive check)")
     is_xstest_safe = torch.tensor(
@@ -174,6 +182,11 @@ def main() -> None:
 
     print("\n=== Head-to-head detector comparison ===")
     print_condition("test_overall", results["test_overall"])
+    dl = results["test_overall_delong_dense_vs_sae"]
+    print(
+        f"\n  DeLong test (dense-direction vs SAE-feature AUROC, TEST-overall): "
+        f"auc_a={dl['auc_a']} auc_b={dl['auc_b']} diff={dl['diff']} p={dl['p_value']}"
+    )
     if "xstest_safe_false_positive_check" in results:
         print_condition("xstest_safe_false_positive_check", results["xstest_safe_false_positive_check"])
     print_condition("adversarial_paraphrase (pooled)", results["adversarial_paraphrase"])
