@@ -1078,3 +1078,42 @@ code), causal ranking via attribution patching, and causal validation via
 suppression -- the compute-heavy, generation-based steps that redo Phase
 3's methodology per model. Not started; this session only de-risked the
 SAE-loading foundation both models will need.
+
+## Phase 6 Wave 2, step 2: GemmaScope loader, another verified-not-assumed correction (2026-07-12)
+
+`google/gemma-scope-9b-pt-res` lays out checkpoints as
+`layer_{n}/width_{w}/average_l0_{l0}/params.npz` (numpy archive, not
+safetensors) with a near-empty `hparams.json` (just `sparsity_lambda` --
+unlike LlamaScope's, it does not carry the JumpReLU threshold at all).
+
+**Checkpoint choice**: only `width_16k` (~4.5x expansion) and `width_131k`
+(~36.6x, confirmed via Gemma-2-9B's real `hidden_size: 3584` from its own
+`config.json`) are available for the layers this project needs.
+`width_131k` was chosen to match the "~expansion 32" GemmaScope config the
+arXiv:2505.23556 paper (Phase 3's own methodology source, see
+LITERATURE.md) used -- `width_16k` is a clearly worse match. Within
+`width_131k`, `average_l0_51` was chosen to match this project's own
+Qwen-Scope precedent (`...W64K-L0_50`) as closely as an available option
+allows (candidates were 10/17/30/51/89/163).
+
+**Second real convention mismatch found by checking the actual checkpoint
+instead of assuming it matches LlamaScope/Qwen-Scope's layout**:
+GemmaScope's own `params.npz` stores `W_enc` as (d_model, d_sae) and
+`W_dec` as (d_sae, d_model) -- the *opposite* of this project's
+established convention (`W_enc`: (d_sae, d_model), `W_dec`: (d_model,
+d_sae), used by `TopKSAE` and `JumpReLUSAE`). `src/sae/gemma_scope.py`
+transposes both on load; a test
+(`test_download_sae_checkpoint_raw_shapes_are_transposed_from_jumprelu_convention`)
+pins the raw (untransposed) shapes down explicitly so a future GemmaScope
+release changing this convention doesn't silently break the loader.
+`threshold` here is confirmed to be a genuine `(d_sae,)` per-feature array
+(unlike LlamaScope's scalar) -- exactly why `JumpReLUSAE.threshold` was
+designed to accept either shape.
+
+**Verified end-to-end** the same way as LlamaScope: computed a TRAIN
+direction at layer 34 (Gemma-2-9B's Wave 1 best-separation layer) from
+already-cached activations, loaded the real GemmaScope SAE for that layer,
+ran `top_k0_by_cosine_similarity` successfully with no errors. Both
+providers' SAE-loading foundations are now confirmed working; the
+remaining Wave 2 work (causal ranking + causal validation per model) is
+unchanged from the step-1 entry above.
