@@ -1,17 +1,19 @@
-"""Cochran's Q test for the 3-model dense-direction PAIR-paraphrase
-comparison (scripts/12's cross-model extension) -- the same repeated-
-measures structure as `mcnemar_exact`, generalized from 2 to 3 classifiers
-scored on the SAME 21 PAIR prompts. Replaces the informal "non-overlapping
-Wilson CIs" argument for "SmolLM2 is significantly more robust to PAIR
-paraphrase than Qwen2.5/Qwen3-8B" with a real, formal significance test --
-the same discipline already applied once this session (McNemar's for
-dense-direction vs SAE-feature) to a claim that had only been argued from
-eyeballing confidence intervals.
+"""Cochran's Q test for the 5-model dense-direction PAIR-paraphrase
+comparison (scripts/12 and scripts/14's cross-model extensions) -- the same
+repeated-measures structure as `mcnemar_exact`, generalized from 2 to *k*
+classifiers scored on the SAME 21 PAIR prompts. Replaces the informal
+"non-overlapping Wilson CIs" argument for cross-model PAIR-robustness
+differences with a real, formal significance test -- the same discipline
+already applied once this session (McNemar's for dense-direction vs
+SAE-feature) to a claim that had only been argued from eyeballing
+confidence intervals.
 
 Reuses cached activations where possible: Qwen3-8B's PAIR prompts already
-have activations cached (`scripts/09`); Qwen2.5-1.5B/SmolLM2-1.7B need a
-fresh (cheap, forward-pass-only) extraction since scripts/12 didn't persist
-per-prompt scores, only aggregate stats.
+have activations cached (`scripts/09`); every other model needs a fresh
+(cheap, forward-pass-only) extraction since scripts/12/14 didn't persist
+per-prompt scores, only aggregate stats. Llama-3.1-8B-Instruct and
+Gemma-2-9B-it need `load_in_4bit=True` (8-9B params on a 6GB GPU);
+Qwen2.5-1.5B/SmolLM2-1.7B don't.
 
 Usage: python scripts/13_cross_model_significance.py
 """
@@ -43,6 +45,11 @@ SMALL_MODELS = {
     "SmolLM2-1.7B-Instruct": "HuggingFaceTB/SmolLM2-1.7B-Instruct",
 }
 
+LARGE_MODELS = {
+    "Llama-3.1-8B-Instruct": "meta-llama/Llama-3.1-8B-Instruct",
+    "gemma-2-9b-it": "google/gemma-2-9b-it",
+}
+
 
 def _train_direction(cache_label: str, layer: int) -> torch.Tensor:
     cache = load_cache(cache_label)
@@ -68,14 +75,16 @@ def qwen3_pair_predictions(pair_indices: list[int]) -> list[bool]:
     return classify(scores, threshold)
 
 
-def small_model_pair_predictions(cache_label: str, hf_model_name: str, pair_texts: list[str]) -> list[bool]:
+def model_pair_predictions(
+    cache_label: str, hf_model_name: str, pair_texts: list[str], load_in_4bit: bool = False
+) -> list[bool]:
     with open(CROSS_MODEL_RESULTS_PATH) as fh:
         cross_model = json.load(fh)
     layer = cross_model[cache_label]["layer"]
     threshold = cross_model[cache_label]["threshold"]
     direction = _train_direction(cache_label, layer)
 
-    model = load_model(hf_model_name)
+    model = load_model(hf_model_name, load_in_4bit=load_in_4bit)
     pair_acts = get_last_token_resid_acts(model, pair_texts)[layer]
     del model
     if torch.cuda.is_available():
@@ -97,12 +106,17 @@ def main() -> None:
 
     for cache_label, hf_model_name in SMALL_MODELS.items():
         print(f"Scoring {cache_label}")
-        preds_matrix.append(small_model_pair_predictions(cache_label, hf_model_name, pair_texts))
+        preds_matrix.append(model_pair_predictions(cache_label, hf_model_name, pair_texts))
+        model_names.append(cache_label)
+
+    for cache_label, hf_model_name in LARGE_MODELS.items():
+        print(f"Scoring {cache_label} (4-bit)")
+        preds_matrix.append(model_pair_predictions(cache_label, hf_model_name, pair_texts, load_in_4bit=True))
         model_names.append(cache_label)
 
     result = cochrans_q(preds_matrix)
 
-    print("\n=== Cochran's Q: 3-model dense-direction PAIR comparison ===")
+    print("\n=== Cochran's Q: 5-model dense-direction PAIR comparison ===")
     for name, preds in zip(model_names, preds_matrix):
         rate = sum(preds) / len(preds)
         print(f"  {name:24s} detection rate: {rate:.3f} ({sum(preds)}/{len(preds)})")
