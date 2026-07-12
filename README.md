@@ -58,9 +58,11 @@ Open-weight, via Hugging Face: `Qwen2.5-1.5B-Instruct`, `SmolLM2-1.7B-Instruct`
 for fast iteration on the single-direction reproduction; `Qwen3-8B` (4-bit
 quantized to fit a 6GB local GPU) for the SAE-feature detector, paired with
 [Qwen-Scope](https://arxiv.org/pdf/2605.11887)'s pretrained sparse
-autoencoders. A larger cross-model set (`Llama-3-8B-Instruct`, `Gemma-2-9B-it`)
-is planned for the cross-model generalization question above, pending HF
-gating approval.
+autoencoders. The dense-direction detector additionally runs on
+`Llama-3.1-8B-Instruct` and `Gemma-2-9B-it` (both 4-bit quantized) for the
+cross-model generalization question above; extending the SAE-feature
+detector to these two (LlamaScope/GemmaScope both have pretrained SAE
+suites, unlike Qwen2.5/SmolLM2) is a larger follow-up, not yet done.
 
 ## Repo layout
 

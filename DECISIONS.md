@@ -980,3 +980,58 @@ User asked to keep looking for a newer model immediately after OLMo-2-0425-1B wa
 **Empirical result: the non-monotonic pattern got more extreme, not less.** Full five-backbone sequence on XSTest-safe correctly-not-flagged rate: GPT-2 (2019, 124M) 13.5% -> GPT-Neo-1.3B (2021, 1.3B) 75.7% -> Phi-4-mini-instruct (2025, 3.8B) 40.5% -> OLMo-2-0425-1B (2025, 1B) 24.3% -> Olmo-3-1025-7B (2025, 7B) **13.5%** -- the newest and largest model in the entire sequence ties the oldest and smallest one exactly, down to the confidence interval ([5.9%, 28.0%] both times). GCG detection (100%) and PAIR detection (0.0%) are unchanged yet again, now confirmed across four independent replacement backbones instead of three.
 
 **Decision: stop here.** Five real, independently verified and run backbones is enough to establish the finding conclusively: recency, parameter count, and base-vs-instruct status do not predict XSTest false-positive behavior under perplexity scoring in any way this project can act on. Chasing a sixth model would have diminishing scientific return -- the point (this is idiosyncratic to each model's training distribution, not a capability gap fixable by picking a better model) is now about as well-evidenced as it can get from this angle. **Olmo-3-1025-7B is the final backbone**, chosen for the same reason OLMo-2-0425-1B was (genuine base model, independent family, fully open/reproducible, current as of this session) -- not because it produced the best number, since by this point it's clear no backbone choice will.
+
+## Phase 6 Wave 1: dense-direction extension to Llama-3.1-8B-Instruct and Gemma-2-9B-it (2026-07-12)
+
+**Gating resolved**: both models were gated on Hugging Face (verified via
+real `hf_hub_download` attempts, not just `model_info` -- confirmed
+`model_info` succeeds even without access, so it's not a reliable check).
+User requested access directly. Took several rounds to actually unblock:
+license acceptance alone wasn't sufficient -- the account's fine-grained
+API token had `canReadGatedRepos: false` even after the Gemma license was
+accepted, a separate permission from the general "read access to contents
+of all repos" toggle. Editing the existing token's permissions didn't take
+effect even after multiple attempts (unclear whether this was a genuine
+propagation delay or a real platform quirk where permission edits on an
+already-issued fine-grained token don't reliably apply) -- re-checking
+after enough time had passed showed the edit finally took. Documented here
+since this is exactly the kind of environment/access friction worth a
+record for future sessions: **when `hf_hub_download` 403s with "Please
+enable access to public gated repositories in your fine-grained token
+settings," check the token's specific `canReadGatedRepos` scope via
+`HfApi().whoami()["auth"]["accessToken"]["fineGrained"]`, not just whether
+the model's license was accepted -- these are two independent gates.**
+
+**Wave 1 execution**: reused `scripts/03_extract_all_activations.py`
+unchanged (fully generic, no new extraction code needed) for both models,
+`--4bit` (8-9B params on a 6GB GPU). Full-corpus extraction took ~1h45m
+(Llama-3.1-8B-Instruct) and ~2h08m (Gemma-2-9B-it). New
+`scripts/14_extend_dense_direction_llama_gemma.py` mirrors
+`scripts/12`'s pattern exactly (same `select_layer_and_calibrate`,
+`detector_stats`, adversarial-set reuse), merging results into the
+existing `results/dense_direction_cross_model.json` rather than
+overwriting Phase 4's Qwen2.5/SmolLM2 entries.
+
+**Real numbers** (full table in RESULTS.md): Llama-3.1-8B-Instruct has the
+best TEST-split accuracy/AUROC of any model tried in this project so far
+(93.1%, AUROC 0.989) -- even better than Qwen3-8B. Both new models land in
+the upper-middle of the XSTest false-positive range (97.3%/89.2%
+correctly-not-flagged for Llama/Gemma respectively). On PAIR paraphrase,
+adding two more models sharpens the cross-model story from "one anomaly"
+to a real spread: SmolLM2 (90.5%) > Llama-3.1-8B (66.7%) > Gemma-2-9B
+(47.6%) > Qwen3-8B (42.9%) > Qwen2.5-1.5B (38.1%).
+
+**Extended `scripts/13_cross_model_significance.py` from 3 to 5 models**
+(added `load_in_4bit` support to `model_pair_predictions`, generalizing
+what was `small_model_pair_predictions`) rather than leaving the
+significance test at 3 models while RESULTS.md now reports 5. Result:
+**Cochran's Q = 19.52, df = 4, p = 0.0006** -- still clearly significant
+with the two new models included, confirming the cross-model PAIR-
+robustness spread is real and not just SmolLM2-vs-everyone-else.
+
+**SAE-feature extension (Wave 2) is explicitly deferred, not attempted
+here** -- per the approved plan, it requires a new JumpReLU SAE class for
+GemmaScope (different architecture from Qwen-Scope/LlamaScope's TopK) and
+a LlamaScope-specific checkpoint loader, then repeating Phase 3's full
+causal-ranking/validation methodology per model. Scoped as substantial,
+comparable to Phase 3 itself, and deliberately left for a separate pass.

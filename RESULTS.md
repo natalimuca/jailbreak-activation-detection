@@ -460,25 +460,31 @@ breakdown" discipline as the moralize-vs-comply finding above.
   models), so it's excluded there. The dense-direction detector and both
   baselines *are* extended to those two models below.
 
-## Dense-direction detector: cross-model comparison (Qwen2.5-1.5B, SmolLM2-1.7B)
+## Dense-direction detector: cross-model comparison (5 models)
 
 Extends the dense-direction detector (not the SAE-feature detector, which
-has no trained SAE for these models) to Phase 1's two smaller models, using
-the same protocol as the Qwen3-8B comparison above: layer selection and
-threshold calibration both on VAL (`src.detectors.dense_direction_detector
-.select_layer_and_calibrate` -- see METHODOLOGY.md for why this is cleaner
-than reusing a TEST-selected layer), final metrics on TEST, same 35-prompt
-adversarial paraphrase set (activations freshly extracted per model, real
-JailbreakBench prompts reused unchanged from the Qwen3-8B run). Keyword and
-perplexity baselines are **not** re-run here -- they score prompt text only,
-independent of target model, so their Qwen3-8B numbers above apply
-unchanged to every model.
+only has a trained SAE for Qwen3-8B) to four more models across Phase 4
+(Qwen2.5-1.5B, SmolLM2-1.7B) and Phase 6 (Llama-3.1-8B-Instruct,
+Gemma-2-9B-it -- the two families named in the original roadmap
+specifically because pretrained SAE suites, LlamaScope/GemmaScope, exist
+for both, unlike Qwen2.5/SmolLM2). Same protocol throughout: layer
+selection and threshold calibration both on VAL
+(`src.detectors.dense_direction_detector.select_layer_and_calibrate` --
+see METHODOLOGY.md for why this is cleaner than reusing a TEST-selected
+layer), final metrics on TEST, same 35-prompt adversarial paraphrase set
+(activations freshly extracted per model, real JailbreakBench prompts
+reused unchanged from the Qwen3-8B run). Keyword and perplexity baselines
+are **not** re-run per model -- they score prompt text only, independent
+of target model, so their Qwen3-8B numbers above apply unchanged to every
+model. Llama-3.1-8B-Instruct and Gemma-2-9B-it were gated on Hugging Face;
+access was requested and confirmed before running anything (see
+DECISIONS.md).
 
-Note: the layer selected here (20 for Qwen2.5-1.5B, 14 for SmolLM2-1.7B) is
-chosen on the full 4-dataset corpus's VAL split, not Phase 1's original
-small-scale AdvBench/Alpaca-only calibration split -- so it differs from
-Phase 1's reported "best layer" (23 and 20 respectively) by construction,
-not by error; the two layer-selection procedures are answering different
+Note: the layer selected here (e.g. 20 for Qwen2.5-1.5B, 27 for
+Llama-3.1-8B) is chosen on the full 4-dataset corpus's VAL split, not
+Phase 1's original small-scale AdvBench/Alpaca-only calibration split --
+so it can differ from Phase 1's reported "best layer" by construction, not
+by error; the two layer-selection procedures are answering different
 questions (best layer for this classifier vs. best layer for causal
 ablation on a narrower dataset).
 
@@ -487,52 +493,59 @@ ablation on a narrower dataset).
 | Qwen2.5-1.5B-Instruct | 20 | 89.6% [85.5%, 92.6%] | 0.970 | 75.7% [59.9%, 86.6%] | 42.9% [28.0%, 59.1%] | 50.0% [26.8%, 73.2%] | 38.1% [20.7%, 59.1%] |
 | SmolLM2-1.7B-Instruct | 14 | 87.8% [83.6%, 91.1%] | 0.945 | **100.0%** [90.6%, 100%] | **91.4%** [77.6%, 97.0%] | **92.9%** [68.5%, 98.7%] | **90.5%** [71.1%, 97.4%] |
 | Qwen3-8B (from above) | 23 | 88.9% [84.7%, 92.0%] | 0.983 | 94.6% [82.3%, 98.5%] | 62.9% [46.3%, 76.8%] | 92.9% [68.5%, 98.7%] | 42.9% [24.5%, 63.4%] |
+| **Llama-3.1-8B-Instruct** | 27 | **93.1%** [89.5%, 95.5%] | **0.989** | 97.3% [86.2%, 99.5%] | 80.0% [64.1%, 90.0%] | **100.0%** [78.5%, 100%] | 66.7% [45.4%, 82.8%] |
+| Gemma-2-9B-it | 34 | 93.1% [89.5%, 95.5%] | 0.984 | 89.2% [75.3%, 95.7%] | 68.6% [52.0%, 81.5%] | **100.0%** [78.5%, 100%] | 47.6% [28.3%, 67.6%] |
 
-**All three models achieve comparably strong TEST-split accuracy** (87.8-89.6%,
-AUROC 0.94-0.98) -- the dense-direction approach isn't fragile to model
-choice on clean, in-distribution prompts.
+**All five models achieve comparably strong TEST-split accuracy**
+(87.8-93.1%, AUROC 0.94-0.99) -- the dense-direction approach isn't
+fragile to model choice on clean, in-distribution prompts.
+**Llama-3.1-8B-Instruct has the best TEST accuracy and AUROC of any model
+tried in this project so far**, including Qwen3-8B.
 
-**Striking, unexplained cross-model difference on PAIR paraphrase**:
-SmolLM2's dense-direction detector holds up dramatically better under PAIR
-(90.5%) than either Qwen model (Qwen2.5: 38.1%, Qwen3-8B: 42.9%). Tested
-formally with Cochran's Q (`src.eval.detector_metrics.cochrans_q` --
-generalizes McNemar's paired test from two to three related classifiers
-scored on the same 21 items, the correct tool here instead of eyeballing
-three pairwise CIs): **Q = 13.06, df = 2, p = 0.0015** -- clearly
-significant, not just non-overlapping-CIs-shaped. This is not explained by
-this project's data alone. One
-plausible connection (not established, just a candidate hypothesis worth
-testing later): Phase 1 found SmolLM2's baseline refusal behavior itself is
-weaker and less "linear" than Qwen's -- lower baseline AdvBench refusal
-rate (63% vs. Qwen2.5's 100%), and its activation-addition sufficiency
-effect capped at 42% instead of reaching Qwen's ~97-100% (see this
-document's "Cross-model comparison" section above). A refusal
+**PAIR-paraphrase robustness now shows a clear ranking across five
+models, not just an isolated SmolLM2 anomaly**: SmolLM2 (90.5%) >
+Llama-3.1-8B (66.7%) > Gemma-2-9B (47.6%) > Qwen3-8B (42.9%) > Qwen2.5-1.5B
+(38.1%). Tested formally with Cochran's Q across all five
+(`src.eval.detector_metrics.cochrans_q` -- generalizes McNemar's paired
+test to *k* related classifiers scored on the same 21 items, the correct
+tool instead of eyeballing pairwise CIs): **Q = 19.52, df = 4, p = 0.0006**
+-- clearly significant, confirming this spread is real across all five
+models, not just a SmolLM2-vs-everyone-else artifact. This is not
+explained by this project's data alone. One plausible connection (not
+established, just a candidate
+hypothesis worth testing later): Phase 1 found SmolLM2's baseline refusal
+behavior itself is weaker and less "linear" than Qwen's -- lower baseline
+AdvBench refusal rate (63% vs. Qwen2.5's 100%), and its activation-addition
+sufficiency effect capped at 42% instead of reaching Qwen's ~97-100% (see
+this document's "Cross-model comparison" section above). A refusal
 representation that's less cleanly linear to begin with might, for reasons
 this project hasn't investigated, end up less disrupted by surface-level
 paraphrasing specifically -- or this could be unrelated model-specific
-noise. **Not claimed as established** -- flagged as a concrete, testable
-hypothesis for Phase 6's cross-model generalization work, not asserted as
-an explanation.
+noise, and it doesn't explain why Llama-3.1-8B (a strong, "linear"-looking
+refusal model per its high TEST/XSTest numbers) is also comparatively
+robust. **Not claimed as established** -- flagged as a concrete, testable
+open question, not asserted as an explanation.
 
 **XSTest-safe false-positive rates also vary substantially by model**
-(75.7% / 94.6% / 100.0% correctly-not-flagged for Qwen2.5 / Qwen3-8B /
-SmolLM2 respectively) -- Qwen2.5-1.5B's dense-direction detector flags
-roughly 1 in 4 safe-but-scary-looking prompts as harmful, a real
-practical difference in "safety tax" across models using the exact same
-detection method.
+(75.7% / 94.6% / 100.0% / 97.3% / 89.2% correctly-not-flagged for Qwen2.5 /
+Qwen3-8B / SmolLM2 / Llama-3.1-8B / Gemma-2-9B respectively) -- Qwen2.5-1.5B's
+dense-direction detector flags roughly 1 in 4 safe-but-scary-looking
+prompts as harmful, a real practical difference in "safety tax" across
+models using the exact same detection method. Both new models
+(Llama-3.1-8B, Gemma-2-9B) sit in the upper-middle of this range, not at
+either extreme.
 
 ### Known limitations (cross-model dense-direction comparison)
 
-- **n=35 adversarial prompts (21 PAIR), shared across all three models** --
-  the same small-sample caveat from the Qwen3-8B section applies here too,
-  and more so for the striking SmolLM2-vs-Qwen gap above: formally
-  significant (Cochran's Q, p = 0.0015) at this sample size, but not yet
-  understood mechanistically.
-- **The SmolLM2 hypothesis above is untested.** Confirming or ruling it out
-  would need, at minimum, checking whether the same pattern holds on a
-  larger/different adversarial set, and probably a deeper look at how
-  SmolLM2's refusal direction differs geometrically (e.g. via the
-  "different but functionally similar directions" framing in
+- **n=35 adversarial prompts (21 PAIR), shared across all five models** --
+  large enough for a formally significant Cochran's Q result (see
+  DECISIONS.md) but not yet understood mechanistically.
+- **The SmolLM2 hypothesis above is untested, and now also doesn't cover
+  Llama-3.1-8B's comparatively strong PAIR robustness.** Confirming or
+  ruling either out would need, at minimum, checking whether the pattern
+  holds on a larger/different adversarial set, and probably a deeper look
+  at how each model's refusal direction differs geometrically (e.g. via
+  the "different but functionally similar directions" framing in
   arXiv:2602.02132, surveyed in LITERATURE.md).
 - **Baselines are asserted, not re-verified, to be model-agnostic.** This is
   true by construction (keyword/perplexity scores never touch model
