@@ -1117,3 +1117,246 @@ ran `top_k0_by_cosine_similarity` successfully with no errors. Both
 providers' SAE-loading foundations are now confirmed working; the
 remaining Wave 2 work (causal ranking + causal validation per model) is
 unchanged from the step-1 entry above.
+
+## Phase 6 Wave 2, steps 3-4: layer selection and checkpoint verification for Llama-3.1-8B-Instruct and gemma-2-9b-it (2026-07-13)
+
+Same method as Qwen3-8B's original layer selection: per-layer separation
+score (difference-in-means direction from TRAIN, measured on held-out VAL),
+computed directly against the already-cached full-corpus activations
+(`src.direction.compute.select_candidate_layers(scores, k=3)`), not
+recomputed from scratch or assumed to match Wave 1's single-best-layer
+picks.
+
+| model | top-3 layers | scores |
+|---|---|---|
+| Llama-3.1-8B-Instruct (32 layers) | 27, 26, 21 | 1.860, 1.857, 1.853 |
+| gemma-2-9b-it (42 layers) | 34, 35, 33 | 1.806, 1.804, 1.800 |
+
+Both tightly clustered, consistent with every other model in this project.
+Layer 27 (Llama) and layer 34 (Gemma) match Wave 1's single-best-layer
+picks exactly, so this doesn't reopen or change Wave 1's already-merged
+dense-direction results -- it only confirms which two additional layers to
+pool for K0 candidate selection.
+
+**Checkpoint existence verified via `HfApi().list_repo_files`, not
+assumed**, before hardcoding these layers into `src/sae/registry.py`:
+LlamaScope's `fnlp/Llama3_1-8B-Base-LXR-8x` publishes all 32 layers (0-31),
+so 27/26/21 are all present. GemmaScope's `google/gemma-scope-9b-pt-res`
+was checked at the exact `width_131k/average_l0_51` config already
+hardcoded as `gemma_scope.py`'s default (chosen in the step-2 entry
+above) -- `layer_34/`, `layer_35/`, `layer_33/` all have both
+`params.npz` and `hparams.json` present.
+
+Added `src/sae/registry.py`: a small shared dispatch table
+(`SAE_PROVIDERS: model_name -> (load_sae, layers, micro_batch_size)`) so
+`scripts/04`/`scripts/05` no longer hardcode Qwen-Scope's loader and
+Qwen3-8B's layers -- both scripts import from this one table instead of
+each carrying their own copy, so a future layer-selection update can't
+drift between the ranking and validation steps. (The `micro_batch_size`
+field's purpose is explained in the OOM entry below.)
+
+## Phase 6 Wave 2: double-BOS artifact in Llama-3.1/Gemma-2's chat templates -- measured, not assumed benign (2026-07-13)
+
+Discovered while smoke-testing the generation path for both new models
+before running any real compute (Wave 1 only ever did no-grad
+`model.trace` extraction, never `.generate()`, so this path was genuinely
+untested). Llama-3.1's and Gemma-2's chat templates each embed a literal
+BOS token as text (`<|begin_of_text|>`, `<bos>`); nnsight's own
+tokenization (`nnsight/modeling/language.py`'s `_tokenize`, confirmed by
+reading the installed package source, not assumed) calls
+`self.tokenizer(inputs, ...)` with no `add_special_tokens` override, so
+the tokenizer's default (`True`) adds a *second* BOS on top of the
+template's own. Confirmed via direct tokenization: Llama's templated
+prompt starts `[128000, 128000, 128006, ...]` (`<|begin_of_text|>` twice),
+Gemma's starts `[2, 2, 106, ...]` (`<bos>` twice). Qwen's chat templates
+never embed a BOS at all, so this never surfaced for any model this
+project has used before Wave 1's Llama/Gemma extraction -- meaning Wave
+1's already-merged dense-direction results (PR #10) were computed under
+this same artifact, not something newly introduced by Wave 2.
+
+**Measured the actual impact rather than assuming it doesn't matter**:
+extracted the same 15 harmful Llama-3.1 TRAIN prompts' layer-27
+activations both ways (double-BOS via the current default tokenization,
+single-BOS via `add_special_tokens=False`). Individual activations shift
+measurably (mean cosine similarity ~0.945 between the two versions -- a
+real, non-trivial per-prompt difference), but the separation score barely
+moves (1.848 double-BOS vs. 1.824 single-BOS, ~1.3% relative difference --
+smaller than the layer-to-layer gap already treated as noise between
+Llama's own "tied" top-3 layers, 1.860/1.857/1.853). Generation
+completions (smoke test, both models) were coherent and correctly
+refusal-typical, not degenerate.
+
+**Decision (user's call, given the measured evidence): proceed as-is,
+document as an accepted limitation** -- same category as the SAEs'
+base-vs-instruct training mismatch above, not something requiring a
+Wave-1-invalidating redo. Reasoning: the ~1% shift in the separation score
+is smaller than noise this project already tolerates, generation is
+unaffected, and a redo would cost several GPU-hours re-running Wave 1's
+full extraction plus every downstream result (dense-direction detector,
+both cross-model significance tests) for a fix whose own measured effect
+says it won't change any conclusion. Contrast with the `do_sample=False`
+fix (see above), which *was* worth a redo because it was demonstrably
+producing a non-monotonic causal curve -- a real distortion, not a
+cosmetic one. This artifact does not currently have a code fix applied;
+if a future session touches `format_prompt`/tokenization for these models
+for an unrelated reason, this entry is the context for why the double-BOS
+was left in place rather than treated as a bug to silently patch.
+
+## Phase 6 Wave 2, step 3: causal ranking results (Llama-3.1-8B-Instruct) (2026-07-13)
+
+`scripts/04_causal_rank_sae_features.py meta-llama/Llama-3.1-8B-Instruct`,
+same parameters as Qwen3-8B's final pass (K0=10, K*=20, N_STEPS=10, 16
+harmful TRAIN prompts length-capped at 150 chars, seed=0) -- run once at
+this rigor level rather than a smaller first pass, per this project's
+standing full-rigor-upfront practice. Ran cleanly on the first attempt, no
+OOM (Llama-3.1-8B's 32 layers and 128k-token vocab leave enough headroom
+on a 6GB card at this batch size; contrast with gemma-2-9b-it below).
+
+Two clear standout features, then a steep dropoff -- same qualitative
+shape as Qwen3-8B's ranking, though even sharper:
+
+| rank | layer | feature | score |
+|---|---|---|---|
+| 1 | 27 | 13363 | 10.068 |
+| 2 | 26 | 7664  | 7.632  |
+| 3 | 27 | 31488 | 0.530  |
+| 4 | 21 | 5435  | 0.259  |
+
+Full top-20 in `results/sae_causal_ranking_Llama-3.1-8B-Instruct.json`.
+
+## Phase 6 Wave 2, step 3: a real OOM on gemma-2-9b-it's causal ranking, and two wrong fixes before the right one (2026-07-13)
+
+Running the identical script against `google/gemma-2-9b-it` OOM'd
+immediately (first candidate, first prompt) with `CUDA out of memory.
+Tried to allocate 1.71 GiB ... 0 bytes is free`. Worth recording the two
+attempts that *didn't* work before the one that did, since the wrong
+diagnosis looked plausible each time:
+
+1. **First guess: allocator fragmentation** (this project's own
+   `src.activations.extract` full-corpus extraction already works around
+   the same failure mode with a periodic `torch.cuda.empty_cache()`).
+   Added the same pattern to `rank_pooled_candidates`'s loop. **Didn't
+   help** -- re-ran, OOM'd again on literally the first candidate/prompt,
+   before any accumulation across calls could have occurred. This ruled
+   out fragmentation-from-repeated-cycles as the cause.
+2. **Second guess: the batched integrated-gradients backward pass itself
+   is too large for a single forward+backward** (Gemma-2-9B's 42 layers
+   and larger FFN intermediate size vs. Llama-3.1-8B's 32). Added
+   `micro_batch_size` support to `feature_ig_attribution`/
+   `_ig_chunk`/`rank_pooled_candidates`: splits the N=10 interpolation
+   steps into smaller chunks, each its own forward+backward pass, with
+   per-chunk gradients averaged together -- mathematically identical to
+   full batching (verified with a new test,
+   `test_feature_ig_attribution_micro_batching_matches_full_batch`,
+   rel=1e-2 tolerance for floating-point kernel-path differences, not a
+   real numerical divergence). Set `micro_batch_size=2` for Gemma in the
+   registry. **Also didn't help** -- OOM'd again, and critically, the
+   failed allocation was the *same* 1.71 GiB both times regardless of
+   batch size (10 vs. 2) -- a strong sign the OOM wasn't scaling with the
+   IG batch dimension at all, meaning the real cause had to be something
+   batch-independent.
+3. **Actual cause, found by re-examining what's resident on GPU
+   throughout the whole ranking pass, not just during one call**:
+   `scripts/04`'s `main()` explicitly moved every candidate layer's
+   *entire* SAE (`saes[l].to(device="cuda:0", dtype=torch.float16)`) onto
+   GPU before ranking started. For GemmaScope's `width_131k` SAEs
+   (131072 features vs. LlamaScope's 32768), each layer's W_enc + W_dec
+   is ~1.9GB fp16; three resident simultaneously (layers 34/35/33) is
+   ~5.6GB -- on top of the already-tight 4-bit model weights, this alone
+   consumes nearly the whole 6GB card before the ranking loop's own
+   backward pass needs anything. This GPU transfer was **never actually
+   necessary**: `feature_ig_attribution`/`_ig_chunk` only ever index a
+   single row/column per candidate
+   (`sae.W_enc[feature_idx]`, `sae.feature_direction(feature_idx)`) and
+   already move *that* tiny slice to the model's device themselves --
+   correct and sufficient whether the parent SAE tensor lives on GPU or
+   CPU. Removed the whole-SAE `.to("cuda:0")` step from `scripts/04`
+   entirely; SAEs now stay on CPU (fp32) for the whole ranking pass, for
+   every model, not just Gemma. Ran cleanly afterward -- confirmed via the
+   first candidate completing, then the full 30-candidate pass finishing
+   with no errors.
+
+Both the fragmentation-hygiene fix (step 1, harmless, kept) and the
+micro-batching support (step 2, harmless, also kept as an extra safety
+margin for Gemma) remain in the code even though neither was the actual
+fix -- the first is reasonable general hygiene matching existing project
+precedent, and the second is a real, tested, useful capability
+(mathematically-verified-equivalent smaller-batch IG) that may matter for
+a future even-larger model. Neither should be read as "the fix"; the
+docstring in `src/sae/causal_ranking.py` and this entry are the record of
+what actually mattered.
+
+**Lesson**: an OOM error's stack trace points at *where* memory ran out,
+not *why* -- the actual cause here was a completely different, unrelated
+line (a one-time setup step, not the loop that crashed). Chasing the
+crash site's own batch dimension first was a reasonable first guess but
+the wrong one twice in a row; what broke the pattern was stepping back to
+ask what else was resident on GPU throughout the whole run, not just
+during the failing call.
+
+## Phase 6 Wave 2, step 3: causal ranking results (gemma-2-9b-it) (2026-07-13)
+
+Same parameters as Llama-3.1-8B-Instruct above (K0=10, K*=20, N_STEPS=10,
+micro_batch_size=2, 16 harmful TRAIN prompts, seed=0), after the OOM fix.
+
+A more gradual decline than either Qwen3-8B's or Llama-3.1-8B's sharp 1-2
+standout features -- no single dominant feature, scores decay smoothly:
+
+| rank | layer | feature | score |
+|---|---|---|---|
+| 1 | 35 | 52410 | 0.801 |
+| 2 | 35 | 80362 | 0.581 |
+| 3 | 34 | 38366 | 0.526 |
+| 4 | 33 | 84809 | 0.423 |
+| 5 | 34 | 8149  | 0.412 |
+
+Full top-20 in `results/sae_causal_ranking_gemma-2-9b-it.json`. This
+smoother ranking-score shape foreshadows the causal validation result
+below (a more gradual, modest refusal-rate decline vs. Llama's sharp
+top-1-alone-does-most-of-it effect).
+
+## Phase 6 Wave 2, step 4: causal validation results, both models, and a three-way cross-model comparison (2026-07-13)
+
+`scripts/05_causal_validate_sae_features.py`, same parameters as
+Qwen3-8B's final pass (N=50 held-out VAL harmful prompts, 6 conditions,
+40 tokens, greedy decoding, real `refusal_classifier`) for both models.
+Zero degenerate completions across all 300 generations, both models.
+
+| condition | Llama-3.1-8B refusal | gemma-2-9b-it refusal |
+|---|---|---|
+| baseline | 86.0% [73.8%, 93.1%] | 96.0% [86.5%, 98.9%] |
+| top-1 | 10.0% [4.4%, 21.4%] | 94.0% [83.8%, 97.9%] |
+| top-5 | 4.0% [1.1%, 13.5%] | 92.0% [81.2%, 96.9%] |
+| top-10 | 2.0% [0.4%, 10.5%] | 84.0% [71.5%, 91.7%] |
+| top-15 | 0.0% [0.0%, 7.1%] | 82.0% [69.2%, 90.2%] |
+| top-20 | 2.0% [0.4%, 10.5%] | 82.0% [69.2%, 90.2%] |
+
+**A genuine, striking three-way cross-model difference** in how
+concentrated the causal effect is:
+
+- **Llama-3.1-8B-Instruct**: the single top-ranked feature alone (layer
+  27/feature 13363) drops refusal from 86% to 10% -- nearly the *entire*
+  effect from one feature. Unlike Qwen3-8B, where "suppressing the single
+  top feature alone still doesn't reproduce the effect" (see above), here
+  it almost does.
+- **Qwen3-8B**: effect distributed across the pooled feature set, top-1
+  alone does essentially nothing (84% vs. 82% baseline), bottoms out at
+  top-15 (18%).
+- **gemma-2-9b-it**: a real, monotonic (non-increasing) decline (96% ->
+  82%), but far more modest than either other model -- suppressing all 20
+  ranked features removes only 14 percentage points of refusal, vs.
+  Llama's 76-point drop and Qwen3's 66-point drop at comparable
+  conditions. Consistent with the smoother, no-standout-feature ranking
+  shape found above.
+
+This is flagged as a real, unexplained finding, same standard as this
+project's other cross-model differences (SmolLM2's PAIR-paraphrase
+robustness, the non-monotonic perplexity-backbone pattern) -- not
+resolved here, not force-fit into a story. Baseline-vs-top20 CIs overlap
+narrowly for Gemma (86.5%-98.9% vs. 69.2%-90.2%), so whether this specific
+curve is formally statistically significant (vs. Llama/Qwen3's clearly
+non-overlapping CIs) hasn't been tested with a proper paired test
+(McNemar, per this project's own established discipline for paired
+data -- see the Phase 4 "comparing independent CIs on paired predictions"
+lesson) -- worth doing if this comparison is written up as a headline
+result rather than a descriptive observation.

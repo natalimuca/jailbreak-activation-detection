@@ -20,7 +20,7 @@ for degeneracy (src.direction.refusal_classifier.is_degenerate) alongside
 the refusal rate, since a refusal-rate drop caused by incoherent garbage
 output isn't a real causal finding.
 
-Usage: python scripts/05_causal_validate_sae_features.py
+Usage: python scripts/05_causal_validate_sae_features.py [model]
 """
 
 from __future__ import annotations
@@ -39,10 +39,9 @@ from src.activations.cache import load_cache
 from src.activations.extract import load_model
 from src.direction.interventions import generate_baseline, generate_with_feature_suppression
 from src.direction.refusal_classifier import is_degenerate, refusal_stats
-from src.sae.qwen_scope import load_sae
+from src.sae.registry import SAE_PROVIDERS
 
 DEFAULT_MODEL = "Qwen/Qwen3-8B"
-RANKING_PATH = Path(__file__).resolve().parents[1] / "results" / "sae_causal_ranking_Qwen3-8B.json"
 RESULTS_DIR = Path(__file__).resolve().parents[1] / "results"
 N_VAL_PROMPTS = 50
 MAX_PROMPT_CHARS = 150  # consistent with scripts/04's ranking-pass cap; see DECISIONS.md
@@ -67,8 +66,10 @@ def features_by_layer_for(ranked: list[dict], saes: dict, top_n: int) -> dict:
 def main() -> None:
     args = parse_args()
     model_name = args.model
+    load_sae, _, _ = SAE_PROVIDERS[model_name]
+    ranking_path = RESULTS_DIR / f"sae_causal_ranking_{model_name.split('/')[-1]}.json"
 
-    with open(RANKING_PATH) as fh:
+    with open(ranking_path) as fh:
         ranking = json.load(fh)
     ranked = ranking["ranked_features"]  # already sorted descending by score
     layers = sorted({f["layer"] for f in ranked})

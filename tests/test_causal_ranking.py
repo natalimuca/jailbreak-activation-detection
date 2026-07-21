@@ -47,6 +47,34 @@ def test_feature_ig_attribution_returns_a_finite_float(model):
     assert abs(score) < 1e6  # not exploded
 
 
+def test_feature_ig_attribution_micro_batching_matches_full_batch(model):
+    """micro_batch_size splits the N interpolation steps into smaller
+    forward+backward passes (needed for Gemma-2-9B, which OOMs at full
+    batch size on a 6GB GPU -- see DECISIONS.md); this only saves memory if
+    it's mathematically equivalent to the full-batch default."""
+    d_model = model.config.hidden_size
+    sae = _toy_sae(d_model)
+    refusal_id, compliance_id = refusal_compliance_token_ids(model.tokenizer)
+    mid_layer = len(model.model.layers) // 2
+    kwargs = dict(
+        model=model, sae=sae, feature_idx=0, layer_idx=mid_layer,
+        prompt="Tell me a fact about the ocean.",
+        refusal_id=refusal_id, compliance_id=compliance_id, n_steps=4,
+    )
+
+    full_batch_score = feature_ig_attribution(**kwargs, micro_batch_size=None)
+    chunked_score = feature_ig_attribution(**kwargs, micro_batch_size=2)
+    fully_sequential_score = feature_ig_attribution(**kwargs, micro_batch_size=1)
+
+    # rel=1e-2, not bit-exact: different batch sizes take different matmul
+    # kernel paths, so floating-point rounding differs slightly even though
+    # the underlying computation is the same (matches the "numerically
+    # identical" standard the module docstring's own full-vs-single-step
+    # probe used).
+    assert full_batch_score == pytest.approx(chunked_score, rel=1e-2)
+    assert full_batch_score == pytest.approx(fully_sequential_score, rel=1e-2)
+
+
 def test_rank_pooled_candidates_respects_k_star_and_sorts_descending(model):
     d_model = model.config.hidden_size
     L = len(model.model.layers)

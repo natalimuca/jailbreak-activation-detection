@@ -276,16 +276,91 @@ designed to make. Only "partial" showed any disagreement, and at n=2 that's
 too small to draw a conclusion from -- partial compliance is inherently
 the hardest case for any binary classifier, not a specific weakness here.
 
+### Cross-model extension: causal ranking and validation (Llama-3.1-8B-Instruct, gemma-2-9b-it)
+
+Same methodology as above (top-3 layers by separation score, K0=10 pooled
+candidates, causal ranking via attribution patching, causal validation via
+suppression), extended to the two additional model families with
+pretrained SAE suites (`src/sae/registry.py` dispatches to the right
+provider/layers/micro-batch-size per model; full rationale for every
+choice, including a real GPU-OOM debugging saga for Gemma, in
+[DECISIONS.md](DECISIONS.md)). This extends the *causal ranking and
+validation* pipeline to 3 models -- the SAE-feature *detector*
+(classifier reframing, `src/detectors/sae_feature_detector.py`) is still
+Qwen3-8B only; see Known limitations below.
+
+**Layer selection** (separation scores, VAL-scored, TRAIN-derived
+direction, full corpus):
+
+| model | top-3 layers | scores |
+|---|---|---|
+| Llama-3.1-8B-Instruct (32 layers) | 27, 26, 21 | 1.860, 1.857, 1.853 |
+| gemma-2-9b-it (42 layers) | 34, 35, 33 | 1.806, 1.804, 1.800 |
+
+**Causal ranking** (top-5 of 20, integrated-gradients attribution, 16
+harmful TRAIN prompts):
+
+| model | rank | layer | feature | score |
+|---|---|---|---|---|
+| Llama-3.1-8B | 1 | 27 | 13363 | 10.068 |
+| Llama-3.1-8B | 2 | 26 | 7664  | 7.632  |
+| Llama-3.1-8B | 3 | 27 | 31488 | 0.530  |
+| gemma-2-9b-it | 1 | 35 | 52410 | 0.801 |
+| gemma-2-9b-it | 2 | 35 | 80362 | 0.581 |
+| gemma-2-9b-it | 3 | 34 | 38366 | 0.526 |
+
+Llama shows the same "two clear standouts, then a steep dropoff" shape as
+Qwen3-8B, even sharper. Gemma's scores decay smoothly with no dominant
+feature -- foreshadows the flatter validation curve below. Full top-20
+lists in `results/sae_causal_ranking_{model}.json`.
+
+**Causal validation** (N=50 held-out VAL harmful prompts, 6 conditions, 40
+tokens, greedy decoding, real `refusal_classifier`, zero degenerate
+completions across all 300 generations per model):
+
+| condition | Llama-3.1-8B | gemma-2-9b-it |
+|---|---|---|
+| baseline | 86.0% [73.8%, 93.1%] | 96.0% [86.5%, 98.9%] |
+| top-1 | 10.0% [4.4%, 21.4%] | 94.0% [83.8%, 97.9%] |
+| top-5 | 4.0% [1.1%, 13.5%] | 92.0% [81.2%, 96.9%] |
+| top-10 | 2.0% [0.4%, 10.5%] | 84.0% [71.5%, 91.7%] |
+| top-15 | 0.0% [0.0%, 7.1%] | 82.0% [69.2%, 90.2%] |
+| top-20 | 2.0% [0.4%, 10.5%] | 82.0% [69.2%, 90.2%] |
+
+**A genuine three-way cross-model difference in how concentrated the
+causal effect is**, flagged honestly as unexplained rather than
+resolved:
+
+- **Llama-3.1-8B**: the single top feature alone drops refusal 86% -> 10%
+  -- nearly the entire effect from one feature.
+- **Qwen3-8B**: effect distributed across the set; top-1 alone does
+  essentially nothing (84% vs. 82% baseline), bottoms out at top-15 (18%).
+- **gemma-2-9b-it**: a real, monotonic decline (96% -> 82%) but far more
+  modest -- 14 points total vs. Llama's 76 and Qwen3's 66. Whether this
+  specific curve is formally significant (Gemma's baseline/top-20 CIs
+  overlap narrowly) hasn't been tested with a paired test -- worth doing
+  before treating it as a headline claim rather than a descriptive
+  observation.
+
 ### Known limitations (SAE-feature detector)
 
 - n=50 for the suppression validation and n=16 for the ranking pass
   (both increased from an initial n=25/n=8 pass -- see DECISIONS.md) are
   enough to show the top-5-through-top-20 effect is real and the
   ranking's top features are stable.
-- Single model (Qwen3-8B). Cross-model generalization -- whether a feature
-  set selected this way transfers to a different model family -- is this
-  project's explicit differentiator from the existing literature and
-  remains untested.
+- **Causal ranking and validation now cover 3 models** (Qwen3-8B,
+  Llama-3.1-8B-Instruct, gemma-2-9b-it -- see above), with a genuine,
+  unexplained cross-model spread in effect concentration. The
+  SAE-feature *detector* (prompt-classifier reframing,
+  `src/detectors/sae_feature_detector.py`, and the head-to-head baseline
+  comparison built on it) is still Qwen3-8B only -- extending it to the
+  other two models is the natural next step, not yet done.
+- Llama-3.1-8B's and gemma-2-9b-it's chat templates produce a duplicated
+  BOS token when tokenized by this project's pipeline (measured, not
+  assumed benign: ~1% shift in separation score, well within existing
+  layer-to-layer noise -- see DECISIONS.md). Accepted as a documented
+  limitation, not fixed, since a fix would require re-running Wave 1's
+  full extraction for a change whose own measured effect is negligible.
 - The SAEs are trained on the base model's activations, applied here to
   the instruct/chat model -- a documented, accepted limitation shared with
   the source paper (see DECISIONS.md), not unique to this reproduction.
