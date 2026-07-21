@@ -1,9 +1,11 @@
 """SAE-detector feature selection: attribution-patching causal ranking.
 
 Pipeline (see DECISIONS.md for the layer/prompt-count/length-cap rationale):
-  1. Load the cached Qwen3-8B activations, compute per-layer difference-in-
-     means directions on TRAIN.
-  2. Load the top-3-by-separation-score layers' SAE checkpoints (23, 25, 24).
+  1. Load the cached activations for the given model, compute per-layer
+     difference-in-means directions on TRAIN.
+  2. Load the model's top-3-by-separation-score layers' SAE checkpoints
+     (per src.sae.registry.SAE_PROVIDERS -- 23/25/24 for Qwen3-8B, 27/26/21
+     for Llama-3.1-8B-Instruct, 34/35/33 for gemma-2-9b-it).
   3. Restrict each layer's SAE to its top K0=10 features by cosine
      similarity to that layer's direction, pool into ~30 candidates.
   4. Rank the pooled candidates by attribution-patching causal effect
@@ -11,7 +13,7 @@ Pipeline (see DECISIONS.md for the layer/prompt-count/length-cap rationale):
      diff, averaged over a length-capped sample of harmful TRAIN prompts.
   5. Save the top K*=20 to results/sae_causal_ranking_<model>.json.
 
-Usage: python scripts/04_causal_rank_sae_features.py
+Usage: python scripts/04_causal_rank_sae_features.py [model]
 """
 
 from __future__ import annotations
@@ -32,10 +34,9 @@ from src.direction.compute import compute_directions
 from src.direction.refusal_metric import refusal_compliance_token_ids
 from src.sae.causal_ranking import rank_pooled_candidates
 from src.sae.feature_selection import pool_top_k0_across_layers
-from src.sae.qwen_scope import load_sae
+from src.sae.registry import SAE_PROVIDERS
 
 DEFAULT_MODEL = "Qwen/Qwen3-8B"
-LAYERS = [23, 25, 24]
 K0 = 10
 K_STAR = 20
 N_STEPS = 10
@@ -54,6 +55,7 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     model_name = args.model
+    load_sae, LAYERS, MICRO_BATCH_SIZE = SAE_PROVIDERS[model_name]
 
     cache = load_cache(model_name)
     acts = cache["activations"]
@@ -81,15 +83,21 @@ def main() -> None:
 
     print(f"Loading model: {model_name} (4-bit)")
     model = load_model(model_name, load_in_4bit=True)
-    for l in LAYERS:
-        saes[l].to(device="cuda:0", dtype=torch.float16)
+    # SAEs stay on CPU (fp32) here -- feature_ig_attribution only ever
+    # indexes a single row/column per candidate (sae.W_enc[feature_idx],
+    # sae.feature_direction(feature_idx)) and moves *that* tiny slice to
+    # GPU itself, so keeping the full W_enc/W_dec matrices resident on GPU
+    # for the whole ranking pass was pure waste -- confirmed as the actual
+    # cause of a real OOM on gemma-2-9b-it (its width_131k SAEs are ~1.9GB
+    # each; three of them left almost no headroom on a 6GB card). See
+    # DECISIONS.md.
     refusal_id, compliance_id = refusal_compliance_token_ids(model.tokenizer)
 
     print(f"Ranking {len(candidates)} candidates over {len(eval_prompts)} prompts "
-          f"(n_steps={N_STEPS})...")
+          f"(n_steps={N_STEPS}, micro_batch_size={MICRO_BATCH_SIZE})...")
     ranked = rank_pooled_candidates(
         model, saes, candidates, eval_prompts, refusal_id, compliance_id,
-        k_star=K_STAR, n_steps=N_STEPS,
+        k_star=K_STAR, n_steps=N_STEPS, micro_batch_size=MICRO_BATCH_SIZE,
     )
 
     print(f"\nTop-{K_STAR} SAE features by causal (IG) effect:")
@@ -102,6 +110,7 @@ def main() -> None:
         "k0": K0,
         "k_star": K_STAR,
         "n_steps": N_STEPS,
+        "micro_batch_size": MICRO_BATCH_SIZE,
         "n_eval_prompts": N_EVAL_PROMPTS,
         "max_prompt_chars": MAX_PROMPT_CHARS,
         "seed": args.seed,

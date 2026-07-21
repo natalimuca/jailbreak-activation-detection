@@ -263,6 +263,37 @@ interpretable (this pipeline validates the *set*, not each member); or a
 comparison against the dense single-direction approach on equal footing
 (that comparison is below).
 
+### Cross-model extension (Llama-3.1-8B-Instruct, gemma-2-9b-it)
+
+Same recipe as above -- top-3 layers by separation score, K0=10 pooled
+candidates, causal ranking via attribution patching, causal validation via
+suppression -- rerun per model using the already-merged JumpReLU SAE
+loaders (`src.sae.llama_scope`, `src.sae.gemma_scope`). `src/sae/registry.py`
+dispatches `load_sae`/layers/(for Gemma) an integrated-gradients
+micro-batch size per model, so `scripts/04`/`scripts/05` no longer
+hardcode Qwen-Scope specifically. This is "extend the recipe to new
+models," the same choice already made for the dense-direction detector's
+cross-model extension -- not the literal transfer question above (does a
+feature set found on one model do anything applied to another), which
+remains untested for both the dense-direction and SAE-feature methods.
+
+One real implementation difference needed for gemma-2-9b-it: its
+`width_131k` SAEs are far larger than LlamaScope's or Qwen-Scope's (131072
+features vs. 32768/65536), so keeping three full SAEs resident on GPU
+throughout ranking -- harmless for the other two models -- left too little
+memory for the integrated-gradients backward pass on a 6GB card. Fixed by
+no longer moving the full SAE to GPU at all; `feature_ig_attribution`
+only ever needs one row/column per candidate and already moves that slice
+to-device itself. See DECISIONS.md for the full debugging account
+(including two plausible-looking fixes that didn't address the actual
+cause).
+
+Result: a genuine, three-way cross-model difference in how concentrated
+the causal effect is (Llama: nearly all of it from one feature; Qwen3:
+distributed, no single feature sufficient; Gemma: real but much more
+modest overall effect) -- flagged as unexplained, not resolved. Full
+numbers in RESULTS.md.
+
 ## Baseline detectors and adversarial evaluation
 
 Phases 1 and 3 above validate *causal mechanisms* (does ablating/suppressing
