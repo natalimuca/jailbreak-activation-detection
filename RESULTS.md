@@ -513,14 +513,54 @@ breakdown" discipline as the moralize-vs-comply finding above.
    reversal of it. (Unaffected by the perplexity-backbone switch -- this
    comparison never involved perplexity.)
 
+### Cross-model extension: SAE-feature detector head-to-head (Llama-3.1-8B-Instruct, gemma-2-9b-it)
+
+Same four-detector protocol as Qwen3-8B above, extended to the two other
+models with pretrained SAE suites (K=15 reused for all three -- each
+model's own causal-validation curve independently bottoms out at top-15,
+see DECISIONS.md). Both new models' dense-direction/SAE-feature AUROC
+land in the same high-0.9x range as Qwen3-8B's (0.983/0.975): Llama
+0.989/0.978, Gemma 0.984/0.966 -- confirms nothing broke in the
+generalization before looking at the finer comparisons.
+
+| | TEST AUROC (dense/SAE) | DeLong p | PAIR detect (dense/SAE) | pooled adversarial McNemar p |
+|---|---|---|---|---|
+| Qwen3-8B | 0.983 / 0.975 | 0.068 (n.s.) | 42.9% / 33.3% | 0.5 (n.s.) |
+| Llama-3.1-8B | 0.989 / 0.978 | **0.024** | 66.7% / **80.9%** | 0.25 (n.s.) |
+| gemma-2-9b-it | 0.984 / 0.966 | **0.0063** | **47.6%** / 23.8% | **0.0156** |
+
+**A genuinely different story per model**, flagged as unresolved rather
+than forced into a pattern:
+
+- **Qwen3-8B**: dense-direction and SAE-feature statistically
+  indistinguishable everywhere tested.
+- **Llama-3.1-8B**: dense-direction significantly better overall
+  (p=0.024) -- but on PAIR specifically, SAE-feature numerically *beats*
+  dense-direction (80.9% vs 66.7%, McNemar p=0.25, not significant at
+  n=21). The one case in this project where SAE-feature out-robusts dense
+  direction on paraphrase, the direction arXiv:2505.23556 originally
+  claimed -- still not formally significant, but the first time this
+  project's own numbers point that way at all.
+- **gemma-2-9b-it**: dense-direction significantly better both overall
+  (p=0.0063) and on the pooled adversarial set (p=0.0156, all 7
+  discordant pairs favor dense) -- the strongest, most one-sided result
+  for dense-direction of any model tested.
+
+Full per-model numbers (TEST-overall, XSTest-safe, adversarial pooled +
+by-method) in `results/detector_head_to_head_{Llama-3.1-8B-Instruct,
+gemma-2-9b-it}.json`; methodology and infrastructure changes in
+DECISIONS.md's Phase 6 Wave 3 entry.
+
 ### Known limitations (baseline detectors and adversarial evaluation)
 
 - **Adversarial set is small** (n=35, spanning only 11 of TEST's JBB-sourced
   goals) -- large enough to show all four detectors degrade under PAIR
   paraphrase, not large enough to statistically distinguish dense-direction
-  from SAE-feature on that degradation (point 4 above). A larger set (more
-  JBB goals landing in TEST, or matching against AdvBench/HarmBench-sourced
-  artifacts if JailbreakBench publishes them) would sharpen this.
+  from SAE-feature on that degradation in every model (significant for
+  gemma-2-9b-it, not for Qwen3-8B/Llama-3.1-8B -- see the cross-model
+  table above). A larger set (more JBB goals landing in TEST, or matching
+  against AdvBench/HarmBench-sourced artifacts if JailbreakBench publishes
+  them) would sharpen this.
 - **Keyword lexicon coverage is corpus-dependent.** Its poor GCG/PAIR
   numbers partly reflect that this project's TEST-split JBB goals lean
   toward categories (defamation, harassment, extortion) the curated lexicon
@@ -529,11 +569,13 @@ breakdown" discipline as the moralize-vs-comply finding above.
   project's own models** -- they're real successful jailbreaks against
   their original target models (Vicuna, Llama-2, GPT-3.5/4), reused here
   purely as disguised-harmful *prompt text* for a classifier-robustness
-  test, not a claim about Qwen3-8B's own jailbreak susceptibility.
-- **Detector comparison in this section is Qwen3-8B only** -- the SAE-feature
-  detector can't run on Qwen2.5-1.5B/SmolLM2 (no SAE trained for those
-  models), so it's excluded there. The dense-direction detector and both
-  baselines *are* extended to those two models below.
+  test, not a claim about any of this project's models' own jailbreak
+  susceptibility.
+- **Full four-detector comparison now covers 3 models** (Qwen3-8B,
+  Llama-3.1-8B-Instruct, gemma-2-9b-it -- the three with pretrained SAE
+  suites). Qwen2.5-1.5B/SmolLM2 still can't run the SAE-feature detector
+  (no SAE trained for those models); the dense-direction detector and both
+  baselines are extended to those two below.
 
 ## Dense-direction detector: cross-model comparison (5 models)
 

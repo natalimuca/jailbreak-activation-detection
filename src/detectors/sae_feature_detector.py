@@ -3,9 +3,13 @@ sum of the selected top-K features' encoded activations (across their
 respective layers) as a harmfulness score, thresholded the same way as the
 dense-direction detector (`src.detectors.dense_direction_detector`).
 
-Reuses the exact (layer, feature) list already selected by Phase 3's causal
-ranking (`results/sae_causal_ranking_Qwen3-8B.json`) -- this module doesn't
-rerun ranking, it's a different downstream use of the same result.
+Reuses the exact (layer, feature) list already selected by causal ranking
+(`results/sae_causal_ranking_<model>.json`, default Qwen3-8B, override via
+`load_top_features`'s `path` arg for other models) -- this module doesn't
+rerun ranking, it's a different downstream use of the same result. `saes`
+values may be `TopKSAE` (Qwen-Scope) or `JumpReLUSAE` (LlamaScope/
+GemmaScope) -- both only need `.encode()`, so this module works unchanged
+across every model with a pretrained SAE suite.
 """
 
 from __future__ import annotations
@@ -16,7 +20,10 @@ from pathlib import Path
 import torch
 
 from src.eval.detector_metrics import youden_threshold
+from src.sae.jumprelu_sae import JumpReLUSAE
 from src.sae.qwen_scope import TopKSAE
+
+AnySAE = TopKSAE | JumpReLUSAE
 
 RANKING_RESULTS_PATH = Path(__file__).resolve().parents[2] / "results" / "sae_causal_ranking_Qwen3-8B.json"
 
@@ -32,7 +39,7 @@ def load_top_features(k: int = 15, path: Path = RANKING_RESULTS_PATH) -> list[tu
 
 def score(
     activations_by_layer: dict[int, torch.Tensor],
-    saes: dict[int, TopKSAE],
+    saes: dict[int, AnySAE],
     features: list[tuple[int, int]],
 ) -> torch.Tensor:
     """activations_by_layer: {layer: (n_prompts, d_model)} residual-stream
@@ -51,7 +58,7 @@ def score(
 def calibrate(
     val_activations_by_layer: dict[int, torch.Tensor],
     val_labels: list[bool],
-    saes: dict[int, TopKSAE],
+    saes: dict[int, AnySAE],
     features: list[tuple[int, int]],
 ) -> float:
     """Calibrates the decision threshold on a labeled split (VAL, per Phase

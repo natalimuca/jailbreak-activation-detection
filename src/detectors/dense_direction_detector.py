@@ -11,10 +11,17 @@ labeled split) rather than a layer-selection diagnostic.
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 import torch
 
 from src.direction.compute import compute_directions, select_candidate_layers, separation_score
 from src.eval.detector_metrics import youden_threshold
+
+RESULTS_DIR = Path(__file__).resolve().parents[2] / "results"
+QWEN3_ABLATION_LAYER_PATH = RESULTS_DIR / "dense_direction_ablation_Qwen3-8B.json"
+CROSS_MODEL_RESULTS_PATH = RESULTS_DIR / "dense_direction_cross_model.json"
 
 
 def project(activations: torch.Tensor, direction: torch.Tensor) -> torch.Tensor:
@@ -61,3 +68,26 @@ def select_layer_and_calibrate(
     direction = directions[layer]
     threshold = calibrate(acts[layer, is_val, :], labels[is_val].tolist(), direction)
     return layer, direction, threshold
+
+
+def resolve_layer_for_model(model_name: str) -> int:
+    """Looks up the already-selected dense-direction layer for a model,
+    rather than recomputing it. Two genuinely different sources, not a
+    uniform lookup table:
+
+    - Qwen3-8B: `dense_direction_ablation_Qwen3-8B.json`'s `ablation_layer`
+      -- a TEST-split-selected layer, a known/accepted leakage pattern
+      specific to this original Phase 4 run (see DECISIONS.md's "Found
+      (and fixed going forward) a mild leakage pattern" entry, which fixed
+      the discipline for future models via `select_layer_and_calibrate`
+      above but deliberately left Qwen3-8B's already-merged numbers as-is
+      since it makes no practical difference there -- layer 23 either way).
+    - Every other model: `dense_direction_cross_model.json`'s per-model
+      `layer` field -- VAL-selected via `select_layer_and_calibrate`, the
+      correct discipline used for every model added after that fix."""
+    cache_label = model_name.split("/")[-1]
+    if cache_label == "Qwen3-8B":
+        with open(QWEN3_ABLATION_LAYER_PATH) as fh:
+            return json.load(fh)["ablation_layer"]
+    with open(CROSS_MODEL_RESULTS_PATH) as fh:
+        return json.load(fh)[cache_label]["layer"]
