@@ -1476,3 +1476,84 @@ fluctuation. Doesn't change the three-way cross-model story (Gemma's
 effect is still the smallest of the three), just upgrades it from
 "descriptive, significance untested" to "descriptive, and now formally
 confirmed."
+
+## Cross-model direction transfer: does Qwen3-8B's direction do anything on Llama-3.1-8B, and vice versa? (2026-07-23)
+
+Closes this project's longest-standing gap: every prior phase fit and
+tested a refusal direction only within the model it came from. Scoped to
+Qwen3-8B <-> Llama-3.1-8B-Instruct (both d_model=4096, so a raw direction
+vector is dimensionally injectable into either model) -- gemma-2-9b-it
+(d_model=3584) excluded rather than attempting a learned cross-dimension
+mapping, which would confound "does it transfer" with "is the mapping any
+good" (user's explicit choice when offered both options). Necessity
+(ablation) only, not sufficiency (addition) -- addition needs a calibrated
+alpha for a foreign direction on a different target's residual-stream
+scale, real additional scope, deferred. SAE-feature transfer also out of
+scope -- an SAE's feature basis is specific to that trained autoencoder,
+not a well-posed transfer question the way a single vector is.
+`scripts/17_cross_model_direction_transfer.py`, branch
+`cross-model-direction-transfer`.
+
+**Test 1 (separation score, cache-only, no generation)**: broadcast each
+model's own direction across the *other* model's layers, score against
+its VAL activations. Own-direction controls reproduce known values exactly
+(Qwen3-8B 1.7831 vs. known 1.783 at layer 23; Llama-3.1-8B 1.8597 vs.
+known 1.860 at layer 27) -- confirms the harness before trusting the
+foreign numbers. **Both foreign scores are negative**, not just weak:
+Llama's direction on Qwen3-8B's activations scores -0.6454; Qwen's
+direction on Llama's activations scores -0.7218. Not noise near zero --
+a real anti-correlated signal in both directions.
+
+**Test 2 (causal ablation, the definitive test)**: N=50 harmful VAL
+prompts, same prompt text reused for both models (`assert_caches_consistent`
+confirms identical corpus ordering), three conditions each (baseline,
+own-direction ablation, foreign-direction ablation), `do_sample=False`,
+`max_new_tokens=40` -- matching every prior causal-validation script's
+convention. Three paired McNemar tests per model
+(baseline-vs-foreign, baseline-vs-own, own-vs-foreign) for a clear verdict.
+
+| | baseline | own-ablation | foreign-ablation | own vs baseline p | own vs foreign p |
+|---|---|---|---|---|---|
+| Qwen3-8B (foreign = Llama's direction) | 84% | 8% | 84% | **0.0** | **0.0** |
+| Llama-3.1-8B (foreign = Qwen's direction) | 80% | 86% | 80% | 0.4531 | 0.4531 |
+
+**Qwen3-8B: a clean, unambiguous no-transfer result.** Own-direction
+ablation crashes refusal (84%->8%, matching this project's established
+Phase 1 result almost exactly -- a real, working control). Llama's
+foreign direction does *nothing at all* -- refusal identical to baseline
+to the percentage point, p=1.0 vs. baseline. Combined with Test 1's
+negative separation score, this is the cleanest possible negative result:
+the intervention mechanism clearly *can* produce a dramatic effect at this
+scale (proven by the own-direction control), and the foreign direction
+produces none of it.
+
+**Llama-3.1-8B: inconclusive, not a clean no-transfer result -- and a
+bigger, unplanned finding underneath it.** Llama's *own* dense-direction
+ablation barely moved refusal at all (80%->86%, not even a decrease,
+p=0.4531). This has never been tested before in this project: Wave 1
+only ever used Llama's dense direction as a *classifier* (projection,
+AUROC 0.989 in Wave 3's head-to-head), never as a causal ablation
+intervention -- Wave 2's causal ablation work on Llama used *SAE features*
+(which worked dramatically: 86%->10% from a single top feature), not the
+dense direction. So this is the first real test of whether Llama's dense
+direction is causally load-bearing, and the answer is no, even though
+the identical direction is an excellent passive linear classifier.
+**Manually inspected 5 completions per condition to rule out a bug before
+trusting this** (`results/cross_model_direction_transfer.json`) -- all
+coherent, on-topic refusals across baseline/own/foreign, zero degenerate
+completions, not garbage output from a broken intervention.
+
+Because the "own" control didn't establish a real causal effect for this
+specific intervention type on Llama, the "own vs. foreign, not
+significant" result **cannot be read as evidence of no transfer** the way
+Qwen3-8B's can -- it's confounded by "own" itself not working. The honest
+summary: **one clean negative transfer result (Llama's direction has zero
+causal effect on Qwen3-8B), one inconclusive result (Llama's own dense
+direction isn't causally necessary for its refusal behavior, so nothing
+can be concluded about whether Qwen's direction transfers to it)**, plus
+a genuinely new, unplanned finding -- detection accuracy and causal
+necessity are not the same property, and can diverge for a given model
+even when the same recipe produces both a great classifier and a real
+causal effect in a different model. Not smoothed into a single "directions
+don't transfer" headline -- the two models' results say different things
+for different reasons, and both are reported as found.

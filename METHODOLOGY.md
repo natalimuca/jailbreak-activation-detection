@@ -487,3 +487,59 @@ Result: a genuinely different dense-vs-SAE-feature comparison per model
 wins on PAIR specifically; gemma-2-9b-it: dense wins everywhere tested,
 most one-sidedly of the three) -- not resolved into one pattern, reported
 as a real cross-model difference. Full numbers in RESULTS.md.
+
+## Cross-model direction transfer
+
+Every prior section above fits and tests a direction *within* the model
+it came from. This asks the literal transfer question instead: does a
+direction found on model A do anything applied to model B? A raw copied
+vector is only "the same direction" if the two models' residual-stream
+bases happen to be meaningfully aligned dimension-for-dimension -- not
+guaranteed a priori for two independently-trained models, even ones that
+happen to share `d_model`. That alignment (or its absence) is the
+hypothesis under test, not an assumption the experiment depends on; a
+negative result is informative, not a failed experiment.
+
+Scoped to Qwen3-8B <-> Llama-3.1-8B-Instruct (both d_model=4096, so a raw
+direction vector is dimensionally injectable into either model's residual
+stream) -- gemma-2-9b-it (d_model=3584) is excluded rather than
+attempting a learned cross-dimension mapping, which would confound "does
+it transfer" with "is the mapping any good," an unanswerable ambiguity
+for a negative result. Necessity (ablation) only: sufficiency (addition)
+would need its own alpha calibration for a foreign direction on a
+different target's residual-stream scale, real additional scope, not
+attempted. SAE-feature transfer is out of scope for a different reason --
+an SAE's feature basis is specific to that particular trained
+autoencoder, not a shared object across independently-trained SAEs the
+way a single residual-stream vector is.
+
+`scripts/17_cross_model_direction_transfer.py`, two tests:
+
+1. **Separation score** (cheap, no generation): broadcast a foreign
+   direction across the target model's layers (sound because
+   `separation_score`'s math is linear in the direction's scale) and
+   score it against the target's own VAL activations, at the target's
+   own already-selected layer -- not whichever layer scores highest in a
+   full sweep, which would be uncontrolled post-hoc layer selection.
+2. **Causal ablation** (the definitive test): same 50 harmful VAL prompts
+   for both models (`assert_caches_consistent` guarantees identical
+   corpus ordering across caches), three conditions per model (baseline,
+   own-direction ablation, foreign-direction ablation), same
+   `do_sample=False`/40-token convention as every prior causal-validation
+   script. Three paired McNemar tests per model turn the raw numbers into
+   a verdict: baseline-vs-own sanity-checks the own-direction control
+   still works on this sample; own-vs-foreign is the headline comparison
+   -- not significant means the foreign direction is statistically
+   indistinguishable from the model's own (transfer), significant means
+   it isn't.
+
+**A result that resists a single headline**: Qwen3-8B gave a clean
+no-transfer result (own-direction ablation works dramatically, foreign
+does nothing at all, matching a negative separation score). Llama-3.1-8B
+gave an inconclusive result for a more interesting reason -- its own
+dense-direction ablation didn't reduce refusal either, the first time
+this project has causally tested Llama's dense direction (previously
+only used as a classifier). That splits detection accuracy from causal
+necessity, a distinction this project hadn't found evidence for before.
+Full numbers and the manual-inspection sanity check (ruling out a bug)
+in RESULTS.md and DECISIONS.md.
