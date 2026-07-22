@@ -1,9 +1,13 @@
+import json
+
 import torch
 
+from src.detectors import dense_direction_detector
 from src.detectors.dense_direction_detector import (
     calibrate,
     is_flagged,
     project,
+    resolve_layer_for_model,
     select_layer_and_calibrate,
 )
 
@@ -60,3 +64,24 @@ def test_select_layer_and_calibrate_picks_the_separating_layer_using_val_not_tes
     # `classify`'s own s >= threshold rule) while the harmless side must be
     # strictly below it.
     assert val_scores[val_labels].min() >= threshold > val_scores[~val_labels].max()
+
+
+def test_resolve_layer_for_model_uses_ablation_file_for_qwen3_8b(tmp_path, monkeypatch):
+    ablation_path = tmp_path / "dense_direction_ablation_Qwen3-8B.json"
+    ablation_path.write_text(json.dumps({"ablation_layer": 23}))
+    monkeypatch.setattr(dense_direction_detector, "QWEN3_ABLATION_LAYER_PATH", ablation_path)
+
+    assert resolve_layer_for_model("Qwen/Qwen3-8B") == 23
+    assert resolve_layer_for_model("Qwen3-8B") == 23
+
+
+def test_resolve_layer_for_model_uses_cross_model_file_for_other_models(tmp_path, monkeypatch):
+    cross_model_path = tmp_path / "dense_direction_cross_model.json"
+    cross_model_path.write_text(json.dumps({
+        "Llama-3.1-8B-Instruct": {"layer": 27, "threshold": 0.5},
+        "gemma-2-9b-it": {"layer": 34, "threshold": 0.4},
+    }))
+    monkeypatch.setattr(dense_direction_detector, "CROSS_MODEL_RESULTS_PATH", cross_model_path)
+
+    assert resolve_layer_for_model("meta-llama/Llama-3.1-8B-Instruct") == 27
+    assert resolve_layer_for_model("google/gemma-2-9b-it") == 34

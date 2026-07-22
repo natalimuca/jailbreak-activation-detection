@@ -452,3 +452,38 @@ above); it happened to make no practical difference for Qwen3-8B (layer 23
 is selected whether scored on VAL or TEST -- verified directly, see
 DECISIONS.md) but the VAL-only approach is the correct one to use going
 forward, including here.
+
+### Cross-model extension: SAE-feature detector (Llama-3.1-8B-Instruct, gemma-2-9b-it)
+
+Completes the 3-model SAE-feature comparison: reframes Wave 2's
+causally-validated feature sets (Llama-3.1-8B, gemma-2-9b-it) as prompt
+classifiers, same four-detector head-to-head protocol as Qwen3-8B's
+original run above. `scripts/10`/`scripts/11` generalized with a `model`
+CLI arg (mirroring Wave 2's pattern for `scripts/04`/`05`): SAE loading
+via `src/sae/registry.py`, K=15 reused for all three models (each
+model's own causal-validation curve independently bottoms out at top-15
+-- see DECISIONS.md), keyword/perplexity thresholds reused from Qwen3-8B
+(prompt-text-only, VAL-split membership is prompt-manifest-based and
+identical across every model's cache) rather than recomputed.
+
+Dense-direction's layer/threshold source differs by model, not a uniform
+lookup: Qwen3-8B keeps its original TEST-selected layer (frozen legacy
+value, see the "mild leakage pattern" entry above and in DECISIONS.md),
+Llama-3.1-8B/gemma-2-9b-it use the VAL-selected layer already computed by
+Wave 1's dense-direction extension
+(`results/dense_direction_cross_model.json`) -- `resolve_layer_for_model`
+(`src.detectors.dense_direction_detector`) branches on this rather than
+papering over the two genuinely different provenances with one table.
+
+New adversarial-activation caches (`scripts/15`, `results/activations/
+{model}_adversarial.pt`) were built for both models -- Wave 1's
+dense-direction extension computed these on the fly since it only needed
+one layer's projection; the SAE-feature detector needs all 3 of a
+model's ranked-feature layers, so this time the extraction is cached
+properly rather than recomputed per script.
+
+Result: a genuinely different dense-vs-SAE-feature comparison per model
+(Qwen3-8B: indistinguishable; Llama-3.1-8B: dense wins overall but SAE
+wins on PAIR specifically; gemma-2-9b-it: dense wins everywhere tested,
+most one-sidedly of the three) -- not resolved into one pattern, reported
+as a real cross-model difference. Full numbers in RESULTS.md.

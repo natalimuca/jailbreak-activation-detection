@@ -6,19 +6,20 @@ filter, dense-direction, SAE-feature), evaluated on:
   (b) TEST's XSTest-safe subset -- false-positive / over-refusal check (this
       project's "safety tax" angle): these are harmless-but-scary-looking
       prompts, so a good detector should NOT flag them.
-  (c) the adversarial paraphrase set (scripts/09) -- real published jailbreak
-      prompts, all harmful by construction, so the relevant number is
-      detection/flag rate (recall), not full precision/AUROC (no negatives
-      in this set).
+  (c) the adversarial paraphrase set (scripts/09, extended to Llama/Gemma by
+      scripts/15) -- real published jailbreak prompts, all harmful by
+      construction, so the relevant number is detection/flag rate (recall),
+      not full precision/AUROC (no negatives in this set).
 
 Thresholds are loaded from scripts/10's VAL-only calibration, never re-tuned
 here.
 
-Usage: python scripts/11_head_to_head_detectors.py
+Usage: python scripts/11_head_to_head_detectors.py [model]
 """
 
 from __future__ import annotations
 
+import argparse
 import json
 import sys
 from pathlib import Path
@@ -35,23 +36,36 @@ from src.detectors.sae_feature_detector import load_top_features
 from src.detectors.sae_feature_detector import score as sae_score
 from src.direction.compute import compute_directions
 from src.eval.detector_metrics import classify, delong_auc_test, detector_stats, mcnemar_exact
-from src.sae.qwen_scope import load_sae
+from src.sae.registry import SAE_PROVIDERS
 
-MODEL_LABEL = "Qwen3-8B"
+DEFAULT_MODEL = "Qwen/Qwen3-8B"
 RESULTS_DIR = Path(__file__).resolve().parents[1] / "results"
-THRESHOLDS_PATH = RESULTS_DIR / "detector_thresholds_Qwen3-8B.json"
-ADVERSARIAL_CACHE_PATH = RESULTS_DIR / "activations" / "Qwen3-8B_adversarial.pt"
+
+
+def parse_args() -> argparse.Namespace:
+    p = argparse.ArgumentParser()
+    p.add_argument("model", nargs="?", default=DEFAULT_MODEL)
+    return p.parse_args()
 
 
 def main() -> None:
-    with open(THRESHOLDS_PATH) as fh:
+    args = parse_args()
+    model_name = args.model
+    cache_label = model_name.split("/")[-1]
+    load_sae, _, _ = SAE_PROVIDERS[model_name]
+
+    thresholds_path = RESULTS_DIR / f"detector_thresholds_{cache_label}.json"
+    adversarial_cache_path = RESULTS_DIR / "activations" / f"{cache_label}_adversarial.pt"
+    ranking_path = RESULTS_DIR / f"sae_causal_ranking_{cache_label}.json"
+
+    with open(thresholds_path) as fh:
         calib = json.load(fh)
     thresholds = calib["thresholds"]
     dense_layer = calib["dense_direction_layer"]
     sae_layers = calib["sae_feature_layers"]
     sae_k = calib["sae_feature_k"]
 
-    cache = load_cache(MODEL_LABEL)
+    cache = load_cache(model_name)
     acts = cache["activations"]
     labels_bool = [l == "harmful" for l in cache["labels"]]
     sources = cache["sources"]
@@ -69,7 +83,7 @@ def main() -> None:
         acts[dense_layer : dense_layer + 1, is_train & ~labels_t, :],
     )[0]
 
-    features = load_top_features(k=sae_k)
+    features = load_top_features(k=sae_k, path=ranking_path)
     saes = {layer: load_sae(layer) for layer in sae_layers}
 
     print("Loading Olmo-3-1025-7B (4-bit) for perplexity scoring")
@@ -120,7 +134,7 @@ def main() -> None:
         print("  WARNING: no XSTest-safe prompts found in TEST -- skipping this condition")
 
     print("Scoring adversarial paraphrase set")
-    adv_cache = torch.load(ADVERSARIAL_CACHE_PATH, weights_only=False)
+    adv_cache = torch.load(adversarial_cache_path, weights_only=False)
     adv_acts = adv_cache["activations"]
     adv_records = adv_cache["records"]
     adv_texts = [r["text"] for r in adv_records]
@@ -201,7 +215,7 @@ def main() -> None:
             f"(dense-only={mc['only_a']}, sae-only={mc['only_b']})  p={mc['p_value']}"
         )
 
-    out_path = RESULTS_DIR / "detector_head_to_head_Qwen3-8B.json"
+    out_path = RESULTS_DIR / f"detector_head_to_head_{cache_label}.json"
     with open(out_path, "w") as fh:
         json.dump(results, fh, indent=2)
     print(f"\nSaved full results to {out_path}")

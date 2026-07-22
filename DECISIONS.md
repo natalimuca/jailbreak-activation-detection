@@ -1360,3 +1360,87 @@ non-overlapping CIs) hasn't been tested with a proper paired test
 data -- see the Phase 4 "comparing independent CIs on paired predictions"
 lesson) -- worth doing if this comparison is written up as a headline
 result rather than a descriptive observation.
+
+## Phase 6 Wave 3: SAE-feature detector extension to Llama-3.1-8B-Instruct and gemma-2-9b-it (2026-07-22)
+
+The last piece needed to complete the 3-model SAE-feature comparison:
+reframing Wave 2's causally-validated feature sets as prompt classifiers
+(mirroring Phase 4's Qwen3-8B work) and running the same head-to-head
+evaluation against baselines. Branch `sae-detector-cross-model` off
+`master` (`a7bb983`).
+
+**K=15 reused for all three models, not re-tuned per model**: each
+model's own causal-validation curve (Wave 2 entry above) independently
+reaches its minimum refusal rate at top-15 -- Qwen3-8B 24% (Phase 4's
+original choice), Llama-3.1-8B 0% (strict minimum), gemma-2-9b-it 82%
+(tied with top-20). Empirically justified by data already collected, not
+an arbitrary carry-over.
+
+**New infrastructure, mirroring Wave 2's registry-based generalization**:
+- `scripts/15_extend_sae_adversarial_cache_llama_gemma.py` (new) --
+  Wave 1's dense-direction extension (`scripts/14`) computed adversarial
+  activations on the fly and discarded them (only needed one layer's
+  projection); the SAE-feature detector needs 3 layers per model, so
+  this time the cache is saved to disk (`results/activations/
+  {model}_adversarial.pt`), mirroring Qwen3-8B's own cached file exactly.
+  Reuses the existing `adversarial_paraphrase_manifest.json`, doesn't
+  rebuild it -- same real JailbreakBench artifacts as every other model.
+- `src/detectors/dense_direction_detector.py::resolve_layer_for_model` --
+  a small per-model branch, not a uniform registry lookup, since the two
+  source files have genuinely different schemas/provenance: Qwen3-8B's
+  dense-direction layer comes from `dense_direction_ablation_Qwen3-8B.json`
+  (a frozen, TEST-selected legacy value -- see the earlier "mild leakage
+  pattern" entry, deliberately not retroactively changed), while
+  Llama-3.1-8B/gemma-2-9b-it's come from `dense_direction_cross_model.json`
+  (VAL-selected, the corrected discipline used for every model added
+  after that fix).
+- `scripts/10_calibrate_detector_thresholds.py`/
+  `scripts/11_head_to_head_detectors.py` generalized with a `model` CLI
+  arg (mirroring `scripts/04`/`05`'s pattern from Wave 2): SAE loading via
+  `src/sae/registry.py` (already built), keyword/perplexity thresholds
+  reused from Qwen3-8B's own calibration rather than recomputed (both are
+  prompt-text-only and VAL-split membership is prompt-manifest-based,
+  identical across every model's cache -- confirmed via
+  `assert_caches_consistent`), output paths parametrized per model.
+- `src/detectors/sae_feature_detector.py`'s `saes` type hint updated from
+  `dict[int, TopKSAE]` to `dict[int, TopKSAE | JumpReLUSAE]` -- cosmetic,
+  not a functional bug (the module only ever calls `.encode()`, which both
+  classes implement identically), but was stale now that two of three
+  models load `JumpReLUSAE` checkpoints.
+
+**Results** (full numbers in RESULTS.md; `results/detector_head_to_head_
+{Llama-3.1-8B-Instruct,gemma-2-9b-it}.json`), both models' dense-direction
+and SAE-feature AUROC land in the same high-0.9x range as Qwen3-8B's
+(0.983/0.975) -- Llama 0.989/0.978, Gemma 0.984/0.966 -- confirming
+nothing broke in the generalization before looking at the more granular
+comparisons:
+
+| | TEST AUROC (dense/SAE) | DeLong p | PAIR detect (dense/SAE) | pooled adversarial McNemar p |
+|---|---|---|---|---|
+| Qwen3-8B | 0.983 / 0.975 | 0.068 (n.s.) | 42.9% / 33.3% | 0.5 (n.s.) |
+| Llama-3.1-8B | 0.989 / 0.978 | **0.024** | 66.7% / **80.9%** | 0.25 (n.s.) |
+| gemma-2-9b-it | 0.984 / 0.966 | **0.0063** | **47.6%** / 23.8% | **0.0156** |
+
+**A genuinely different story per model, not a clean pattern**:
+- **Qwen3-8B**: dense-direction and SAE-feature are statistically
+  indistinguishable everywhere tested (this project's original finding).
+- **Llama-3.1-8B**: dense-direction is *significantly better* on
+  TEST-overall (p=0.024) -- but on PAIR specifically, SAE-feature
+  numerically *beats* dense-direction (80.9% vs 66.7%, though the
+  McNemar test on only 21 paired items doesn't reach significance,
+  p=0.25). This is the one case in the whole project where SAE-feature
+  outperforms dense-direction on paraphrase robustness, the direction
+  arXiv:2505.23556 originally claimed -- still not formally significant,
+  but the first time this project's own numbers have pointed that way at
+  all.
+- **gemma-2-9b-it**: dense-direction significantly better on TEST-overall
+  (p=0.0063) *and* on the pooled adversarial set (p=0.0156, all 7
+  discordant pairs favor dense) -- the strongest, most one-sided result
+  for dense-direction of any model tested.
+
+No attempt made to explain *why* this varies by model -- flagged
+honestly as a real, unresolved cross-model difference, consistent with
+this project's standing practice (SmolLM2's PAIR robustness, the
+perplexity-backbone non-monotonicity, Wave 2's causal-effect-
+concentration spread above). This completes the project's 3-model
+SAE-feature comparison; Phase 6 (cross-model generalization) is now done.
