@@ -669,3 +669,81 @@ either extreme.
 - **Baselines are asserted, not re-verified, to be model-agnostic.** This is
   true by construction (keyword/perplexity scores never touch model
   activations), but wasn't independently re-run per model as a sanity check.
+
+## Cross-model direction transfer
+
+Distinct from the cross-model comparison above (which extends the same
+*recipe* independently per model) -- this tests literal transfer: does a
+direction found on one model do anything applied to a *different* model's
+activations/generation? Scoped to Qwen3-8B <-> Llama-3.1-8B-Instruct (both
+d_model=4096, dimensionally compatible); gemma-2-9b-it (d_model=3584)
+excluded rather than attempting a learned cross-dimension mapping, which
+would confound "does it transfer" with "is the mapping any good."
+Methodology and full account in
+[METHODOLOGY.md](METHODOLOGY.md#cross-model-direction-transfer) and
+[DECISIONS.md](DECISIONS.md); full results in
+`results/cross_model_direction_transfer.json`.
+
+**Separation score** (foreign direction evaluated against the target's own
+VAL activations, at the target's own already-selected layer):
+
+| | own score | foreign score |
+|---|---|---|
+| Qwen3-8B (foreign = Llama's direction) | 1.7831 | **-0.6454** |
+| Llama-3.1-8B (foreign = Qwen's direction) | 1.8597 | **-0.7218** |
+
+Both foreign scores are negative, not merely weak -- a real anti-correlated
+signal, not noise near zero.
+
+**Causal ablation** (N=50 harmful VAL prompts, greedy decoding, same
+prompts for both models):
+
+| | baseline | own-ablation | foreign-ablation |
+|---|---|---|---|
+| Qwen3-8B | 84% | **8%** | 84% |
+| Llama-3.1-8B | 80% | 86% | 80% |
+
+**Qwen3-8B: a clean, unambiguous no-transfer result.** Own-direction
+ablation crashes refusal (84%->8%, matching this project's established
+Phase 1 result). Llama's foreign direction produces zero effect --
+refusal identical to baseline to the percentage point (paired McNemar
+p=1.0 vs. baseline, p=0.0 vs. own). The intervention mechanism clearly
+*can* work at this scale; the foreign direction just doesn't do anything
+in this model.
+
+**Llama-3.1-8B: inconclusive, plus a bigger unplanned finding.** Llama's
+own dense-direction ablation barely moved refusal at all (80%->86%, not
+even a decrease, p=0.4531 vs. baseline) -- manually inspected completions
+confirm this isn't a bug (coherent, on-topic refusals in every condition,
+zero degenerate). This is the first time this project has causally
+ablated Llama's *dense* direction (Wave 1 only used it as a classifier;
+Wave 2's causal ablation work on Llama used SAE features, which worked
+dramatically -- 86%->10% from a single feature). **Detection accuracy and
+causal necessity turn out not to be the same property**: the same dense
+direction is an excellent linear classifier for Llama (AUROC 0.989) but
+isn't causally load-bearing for its refusal behavior. Because the "own"
+control didn't establish a real effect, "own vs. foreign not significant"
+here cannot be read as evidence of no transfer the way Qwen3-8B's can --
+it's confounded by "own" itself not working.
+
+**Not smoothed into one headline.** One clean negative-transfer result
+(Llama's direction has zero effect on Qwen3-8B) and one inconclusive
+result for a different, more interesting reason (Llama's own dense
+direction isn't causally necessary at all, so nothing can be concluded
+about whether a foreign direction would "transfer" to it) -- reported as
+found, not forced into a single "directions don't transfer" narrative.
+
+### Known limitations (cross-model direction transfer)
+
+- **Only one model pair tested** (Qwen3-8B <-> Llama-3.1-8B) -- the only
+  pair with matching `d_model`. Whether the "own dense-direction ablation
+  doesn't work" finding is Llama-specific or would recur in other models
+  with mismatched dimensions (requiring a learned mapping to even test) is
+  unknown.
+- **Necessity (ablation) only** -- sufficiency (activation addition) with
+  a foreign direction was not attempted; would need its own alpha
+  calibration for the foreign direction on the target's residual-stream
+  scale, real additional scope.
+- **The Llama dense-direction-ablation-doesn't-work finding is itself
+  new and unreplicated** -- discovered as a side effect of this transfer
+  test, not independently re-verified with a second sample or seed.
