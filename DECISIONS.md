@@ -1444,3 +1444,35 @@ this project's standing practice (SmolLM2's PAIR robustness, the
 perplexity-backbone non-monotonicity, Wave 2's causal-effect-
 concentration spread above). This completes the project's 3-model
 SAE-feature comparison; Phase 6 (cross-model generalization) is now done.
+
+## Closing a Wave 2 gap: is gemma-2-9b-it's suppression curve actually significant? (2026-07-22)
+
+Wave 2's write-up reported gemma-2-9b-it's causal-validation curve (96%
+baseline -> 82% at top-15/top-20) descriptively but flagged that, unlike
+Qwen3-8B (non-overlapping Wilson CIs) or Llama-3.1-8B (an unambiguous 0%
+floor), whether this specific curve was formally significant hadn't been
+tested. `scripts/16_test_gemma_suppression_significance.py` closes this
+with no new GPU compute -- `scripts/05`'s validation run already saved
+every completion per condition, so this just reclassifies each of the 50
+VAL prompts with `is_refusal` and runs McNemar's exact test (paired,
+baseline vs. each condition, on the same 50 prompts) rather than eyeballing
+Wilson CI overlap.
+
+| condition | refusal (of 50) | discordant vs baseline | p-value |
+|---|---|---|---|
+| top-1 | 47 | 1 | 1.0 |
+| top-5 | 46 | 2 | 0.5 |
+| top-10 | 42 | 6 | **0.0312** |
+| top-15 | 41 | 7 | **0.0156** |
+| top-20 | 41 | 7 | **0.0156** |
+
+**The effect is real and statistically significant from top-10 onward** --
+resolves the open question in Gemma's favor: the modest-looking 14-point
+decline is a genuine causal effect, not noise, even though it's far
+smaller than Llama's or Qwen3's. Every discordant pair favors suppression
+reducing refusal (baseline-only, zero condition-only) at every threshold,
+consistent with a real monotonic effect rather than a symmetric coin-flip
+fluctuation. Doesn't change the three-way cross-model story (Gemma's
+effect is still the smallest of the three), just upgrades it from
+"descriptive, significance untested" to "descriptive, and now formally
+confirmed."

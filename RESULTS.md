@@ -336,11 +336,13 @@ resolved:
 - **Qwen3-8B**: effect distributed across the set; top-1 alone does
   essentially nothing (84% vs. 82% baseline), bottoms out at top-15 (18%).
 - **gemma-2-9b-it**: a real, monotonic decline (96% -> 82%) but far more
-  modest -- 14 points total vs. Llama's 76 and Qwen3's 66. Whether this
-  specific curve is formally significant (Gemma's baseline/top-20 CIs
-  overlap narrowly) hasn't been tested with a paired test -- worth doing
-  before treating it as a headline claim rather than a descriptive
-  observation.
+  modest -- 14 points total vs. Llama's 76 and Qwen3's 66. **Confirmed
+  statistically significant from top-10 onward** via a paired McNemar's
+  exact test on the same 50 prompts (baseline vs. top-15: 7/50 discordant,
+  all favoring suppression, p=0.0156 -- `scripts/16_test_gemma_
+  suppression_significance.py`, full table in DECISIONS.md): a genuine
+  causal effect, not noise, even though it's the smallest of the three
+  models.
 
 ### Known limitations (SAE-feature detector)
 
