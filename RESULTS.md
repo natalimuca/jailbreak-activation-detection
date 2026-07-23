@@ -238,9 +238,7 @@ classifier itself correctly calls this moralize pattern non-refuse --
 that part isn't a classifier error. **The actual issue is that
 `refusal_rate` as a single number conflates moralize (safe) and comply
 (unsafe) under "non_refuse,"** so "6% refusal" should not be read as "94%
-compliance." **The true harmful-compliance gap between the two methods is
-very likely much smaller than the 6% vs 24% non-refusal-rate gap
-suggests.** What the result does support: dense ablation (36 layers
+compliance." What the result does support: dense ablation (36 layers
 touched) is a blunter, more disruptive intervention than SAE-feature
 suppression (3 layers, up to 20 of 65536 features per layer) that pushes
 the model into "moralize instead of refuse" far more often -- a real
@@ -248,6 +246,24 @@ finding about intervention bluntness, just not a compliance-rate
 comparison. **Do not read this table as "dense ablation achieves more
 compliance" -- it only shows dense ablation suppresses refusal
 *phrasing* more.**
+
+**Resolved with real numbers, not just "likely much smaller"** (see
+DECISIONS.md's moralize-vs-comply entry for the full account): every
+non-refuse completion in both conditions was read and labeled directly
+(47 for dense ablation, 38 for SAE-suppression top-15).
+
+| | refuse (is_refusal) | moralize | partial | **comply (true harm)** |
+|---|---|---|---|---|
+| dense-direction ablation | 6.0% | 94.0% | 0.0% | **0.0%** |
+| SAE-suppression (top-15) | 24.0% | 74.0% | 2.0% | **0.0%** |
+
+**The 18-point "6% vs. 24%" gap was entirely a refusal-phrasing
+artifact.** True harmful-compliance rate is 0% for both conditions (one
+ambiguous "partial" case in the SAE condition, a self-harm blog post
+whose title matched the request literally but was truncated before
+showing real content). Confirms the finding above with a measured
+number: dense ablation suppresses refusal *phrasing* far more than
+SAE-suppression does, but produces no more actual harmful content.
 
 ### Classifier-validation spot-check
 
@@ -320,23 +336,28 @@ completions across all 300 generations per model):
 
 | condition | Llama-3.1-8B | gemma-2-9b-it |
 |---|---|---|
-| baseline | 86.0% [73.8%, 93.1%] | 96.0% [86.5%, 98.9%] |
+| baseline | 98.0% [89.5%, 99.65%] | 96.0% [86.5%, 98.9%] |
 | top-1 | 10.0% [4.4%, 21.4%] | 94.0% [83.8%, 97.9%] |
 | top-5 | 4.0% [1.1%, 13.5%] | 92.0% [81.2%, 96.9%] |
 | top-10 | 2.0% [0.4%, 10.5%] | 84.0% [71.5%, 91.7%] |
 | top-15 | 0.0% [0.0%, 7.1%] | 82.0% [69.2%, 90.2%] |
 | top-20 | 2.0% [0.4%, 10.5%] | 82.0% [69.2%, 90.2%] |
 
+(Llama's baseline corrected 2026-07-23 from an original 86.0% -- a real
+`is_refusal` bug, curly apostrophes in Llama's completions silently
+missed by the ASCII marker list, undercounted this one condition. See
+DECISIONS.md for the fix and full impact assessment.)
+
 **A genuine three-way cross-model difference in how concentrated the
 causal effect is**, flagged honestly as unexplained rather than
 resolved:
 
-- **Llama-3.1-8B**: the single top feature alone drops refusal 86% -> 10%
+- **Llama-3.1-8B**: the single top feature alone drops refusal 98% -> 10%
   -- nearly the entire effect from one feature.
 - **Qwen3-8B**: effect distributed across the set; top-1 alone does
   essentially nothing (84% vs. 82% baseline), bottoms out at top-15 (18%).
 - **gemma-2-9b-it**: a real, monotonic decline (96% -> 82%) but far more
-  modest -- 14 points total vs. Llama's 76 and Qwen3's 66. **Confirmed
+  modest -- 14 points total vs. Llama's 88 and Qwen3's 66. **Confirmed
   statistically significant from top-10 onward** via a paired McNemar's
   exact test on the same 50 prompts (baseline vs. top-15: 7/50 discordant,
   all favoring suppression, p=0.0156 -- `scripts/16_test_gemma_
@@ -366,14 +387,20 @@ resolved:
 - The SAEs are trained on the base model's activations, applied here to
   the instruct/chat model -- a documented, accepted limitation shared with
   the source paper (see DECISIONS.md), not unique to this reproduction.
-- **`refusal_rate` conflates "moralize" (safe) and "comply" (unsafe) into
-  one "non_refuse" bucket.** The classifier itself is accurate at its
-  actual job (97.8% agreement, spot-check above) -- but no number in this
-  project currently reports a true harmful-compliance rate distinct from
-  a refusal-phrasing rate. Needed for any future claim like "method A
-  produces more actual harmful content than method B": either a
-  moralize-vs-comply classifier or an LLM-judge, since the existing
-  keyword classifier was never designed to make that distinction.
+- **`refusal_rate` conflates "moralize" (safe) and "comply" (unsafe) --
+  resolved for the scripts/06 head-to-head via direct labeling** (see
+  above and DECISIONS.md), not via an automated classifier: two candidate
+  local judge models (SmolLM2-1.7B-Instruct, Phi-4-mini-instruct) both
+  failed validation on this specific task, defaulting to one category
+  regardless of content rather than genuinely discriminating -- a real
+  capability/alignment-bias finding in its own right, not just a null
+  result (`src/direction/moralize_comply_classifier.py`, kept in the
+  codebase and documented honestly as "validated, found unreliable with
+  locally-available models"). No number in this project beyond the
+  scripts/06 comparison currently reports a true harmful-compliance rate
+  -- applying direct labeling to other conditions/models would need the
+  same manual-reading approach, real additional effort per completion
+  set, not a reusable automated pipeline.
 
 ## Baseline detectors and adversarial evaluation
 
@@ -701,7 +728,13 @@ prompts for both models):
 | | baseline | own-ablation | foreign-ablation |
 |---|---|---|---|
 | Qwen3-8B | 84% | **8%** | 84% |
-| Llama-3.1-8B | 80% | 86% | 80% |
+| Llama-3.1-8B | 92% | 88% | 92% |
+
+(Llama's numbers corrected 2026-07-23 from an original 80%/86%/80% -- a
+real `is_refusal` bug undercounted Llama's refusals across the board;
+see DECISIONS.md for the fix. Recomputed from already-saved completions,
+no new generation needed. Qwen3-8B's numbers were never affected --
+Qwen3-8B consistently uses ASCII apostrophes.)
 
 **Qwen3-8B: a clean, unambiguous no-transfer result.** Own-direction
 ablation crashes refusal (84%->8%, matching this project's established
@@ -711,39 +744,39 @@ p=1.0 vs. baseline, p=0.0 vs. own). The intervention mechanism clearly
 *can* work at this scale; the foreign direction just doesn't do anything
 in this model.
 
-**Llama-3.1-8B: inconclusive, plus a bigger unplanned finding.** Llama's
-own dense-direction ablation barely moved refusal at all (80%->86%, not
-even a decrease, p=0.4531 vs. baseline) -- manually inspected completions
-confirm this isn't a bug (coherent, on-topic refusals in every condition,
-zero degenerate). This is the first time this project has causally
-ablated Llama's *dense* direction (Wave 1 only used it as a classifier;
-Wave 2's causal ablation work on Llama used SAE features, which worked
-dramatically -- 86%->10% from a single feature). **Detection accuracy and
-causal necessity turn out not to be the same property**: the same dense
-direction is an excellent linear classifier for Llama (AUROC 0.989) but
-isn't causally load-bearing for its refusal behavior. Because the "own"
-control didn't establish a real effect, "own vs. foreign not significant"
-here cannot be read as evidence of no transfer the way Qwen3-8B's can --
-it's confounded by "own" itself not working.
+**Llama-3.1-8B: inconclusive, for a more mundane reason than first
+reported.** Llama's own dense-direction ablation shows a real,
+correctly-signed decrease (92%->88%, 4 points) -- not the "doesn't work
+at all, even ticks up" result originally reported before the bug fix.
+Still far too weak to distinguish from noise at n=50 (p=0.5). This is
+the first time this project has causally ablated Llama's *dense*
+direction (Wave 1 only used it as a classifier; Wave 2's causal ablation
+work on Llama used SAE features, which worked dramatically -- 98%->10%
+from a single feature). Because the own-direction effect, while
+correctly signed, is still statistically indistinguishable from zero at
+this sample size, "own vs. foreign not significant" still cannot be read
+as evidence of no transfer the way Qwen3-8B's can -- it's underpowered
+either way, not confounded by a backwards effect as originally thought.
 
 **Not smoothed into one headline.** One clean negative-transfer result
-(Llama's direction has zero effect on Qwen3-8B) and one inconclusive
-result for a different, more interesting reason (Llama's own dense
-direction isn't causally necessary at all, so nothing can be concluded
-about whether a foreign direction would "transfer" to it) -- reported as
-found, not forced into a single "directions don't transfer" narrative.
+(Llama's direction has zero effect on Qwen3-8B) and one still-inconclusive
+result, now for a more ordinary reason (Llama's own dense-direction
+effect is real but small, and n=50 isn't enough to resolve whether a
+foreign direction differs from it) -- reported as found, not forced into
+a single "directions don't transfer" narrative.
 
 ### Known limitations (cross-model direction transfer)
 
 - **Only one model pair tested** (Qwen3-8B <-> Llama-3.1-8B) -- the only
-  pair with matching `d_model`. Whether the "own dense-direction ablation
-  doesn't work" finding is Llama-specific or would recur in other models
-  with mismatched dimensions (requiring a learned mapping to even test) is
-  unknown.
+  pair with matching `d_model`. Whether Llama's own dense-direction
+  ablation effect would strengthen with a larger sample, or whether this
+  weak-effect pattern recurs in other models, is unknown.
 - **Necessity (ablation) only** -- sufficiency (activation addition) with
   a foreign direction was not attempted; would need its own alpha
   calibration for the foreign direction on the target's residual-stream
   scale, real additional scope.
-- **The Llama dense-direction-ablation-doesn't-work finding is itself
-  new and unreplicated** -- discovered as a side effect of this transfer
-  test, not independently re-verified with a second sample or seed.
+- **Llama's own-direction causal ablation effect is itself new and
+  unreplicated at a larger N** -- discovered as a side effect of this
+  transfer test; a bigger sample (matching Qwen3-8B/Gemma's N=50 causal
+  validation convention, just applied to more prompts) could resolve
+  whether it's real but small or genuinely noise.
