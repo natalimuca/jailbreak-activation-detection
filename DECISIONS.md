@@ -1577,6 +1577,75 @@ direction transfers to it. Not smoothed into a single "directions don't
 transfer" headline -- the two models' results still say different things,
 just less dramatically different than first reported.
 
+## Independent replication of Llama's own-direction ablation at n=75 (2026-07-23)
+
+Picked up as a gap explicitly flagged above: "Llama's own-direction
+causal ablation effect is itself new and unreplicated at a larger N."
+`scripts/22_llama_own_ablation_larger_n.py` draws a fresh, independent
+sample (not an extension of the original 50 prompts, new seed) and
+re-runs only the two conditions this needed (baseline, own-ablation --
+not the full 3-condition cross-model transfer test, which isn't in
+question here).
+
+**Sample size note**: originally attempted at n=150 (3x). Killed after
+running far slower than expected -- plain baseline generation (no hooks
+at all) measured at roughly 2 tokens/sec on this hardware, meaning even
+the cheap phase alone would have taken the better part of an hour, with
+the heavier per-layer ablation phase still to come. Not a good use of
+wall-clock time for a bounded gap-fill, so re-run at n=75 (1.5x the
+original, still a real power increase, a fraction of the runtime).
+
+**Result: does not confirm a real small effect.** Baseline 96.0% [88.9%,
+98.6%] vs. own-ablation 94.7% [87.1%, 97.9%], only 3 discordant pairs out
+of 75, McNemar's exact test p=1.0. This is *weaker* than the original
+n=50's 92%->88%, not a sharper measurement of the same real effect. Read
+honestly, this points toward the original observation being sample noise
+rather than a real-but-small causal effect -- the correct conclusion is
+"Llama's dense direction's causal necessity for its own refusal remains
+unresolved by this project's data," not "confirmed real but small." See
+RESULTS.md's cross-model-direction-transfer section for the full writeup.
+
+## Sufficiency (activation addition) extended to 7-9B scale (2026-07-24)
+
+The other half of the same "only tested at small scale" gap: necessity
+(ablation) had reached 7-9B models via Wave 2 and the cross-model-transfer
+test, but sufficiency (activation addition) was still only ever measured
+on Phase 1's two small models. `scripts/23_sufficiency_7b_9b_scale.py`
+extends it to Qwen3-8B and Llama-3.1-8B-Instruct.
+
+**Split-discipline choice**: Phase 1's original methodology used a
+dedicated 3-way train/calib/val split; this project's later full-corpus
+work only has train/val/test. Rather than inventing a 4th split (which
+this project has deliberately avoided everywhere else), alpha-sweep
+calibration runs on a VAL-split harmless sample (n=12, matching Phase 1's
+calib-split size) and the final causal-validation generation test runs on
+a disjoint TEST-split harmless sample (n=50, this project's standing
+validation-sample convention) -- mirrors how layer selection and
+threshold calibration already both live on VAL elsewhere in this project,
+TEST reserved for final reporting only.
+
+**Result: real for both models, but not a clean scale-up.** Qwen3-8B
+replicates Phase 1's clean pattern almost exactly (baseline 6.0% ->
+addition 70.0%, alpha=1.0, non-overlapping CIs, stayed non-degenerate
+through alpha=2.0 in the sweep). Llama-3.1-8B-Instruct is real but far
+weaker and messier: its alpha-sweep never reached the 80% calibration
+target at any alpha (peaked 67% refusal at alpha=1.5, but 33% of those
+completions were degenerate -- over the 10% cutoff, so rejected as
+non-viable), started fully degenerating from alpha=2.0, and calibration
+fell back to the highest-refusal *viable* alpha (1.0, 58% on the calib
+set) -- the fallback branch already existed in the calibration logic
+(shared with scripts/02) but had never actually been exercised by any
+model until Llama here. Final validated effect: 10.0% -> 34.0%, real
+(barely non-overlapping CIs) but much smaller than Qwen3-8B's.
+
+**Not written up as "sufficiency confirmed at scale."** Necessity
+generalizes more robustly across these two models than sufficiency does
+-- the same qualitative pattern Phase 1 already found between Qwen2.5 and
+SmolLM2 (addition is architecture-dependent, ablation isn't), now showing
+up again at 8-9B scale with a different model pair. Reported as an open,
+unexplained architecture difference, not forced into a single "it works
+at scale" headline. See RESULTS.md's dedicated section for full numbers.
+
 ## Found and fixed a real `is_refusal` bug: curly apostrophes, Llama-3.1-8B-specific (2026-07-23)
 
 Discovered while building ground truth for the moralize-vs-comply

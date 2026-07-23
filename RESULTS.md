@@ -105,6 +105,53 @@ behavior before degenerating. SmolLM2 never has a wide clean window --
 refusal rate rises only as far as 42% before the model starts collapsing
 into repeated-token garbage at higher alpha.
 
+## Sufficiency (activation addition) at 7-9B scale (2026-07-24)
+
+Closes a gap flagged below: necessity (ablation) was tested at 7-9B scale
+via Wave 2/the cross-model-transfer test, but sufficiency (activation
+addition) had only ever been tested on the two small Phase 1 models
+above. `scripts/23_sufficiency_7b_9b_scale.py` extends the same
+methodology (alpha-sweep calibration, then a held-out causal-validation
+generation test) to Qwen3-8B and Llama-3.1-8B-Instruct, reusing each
+model's already-selected layer and the already-cached full-corpus
+activations -- no new activation extraction, only new generation.
+Alpha-sweep on 12 VAL-split harmless prompts, final validation on 50
+TEST-split harmless prompts (disjoint from the sweep); both models given
+identical sampled prompt texts (same corpus, same seed).
+
+| model | layer | calibrated alpha | baseline refusal | addition refusal |
+|---|---|---|---|---|
+| Qwen3-8B | 23 | 1.0 | 6.0% [2.1%, 16.2%] | **70.0%** [56.3%, 80.9%] |
+| Llama-3.1-8B-Instruct | 27 | 1.0 | 10.0% [4.4%, 21.4%] | **34.0%** [22.4%, 47.9%] |
+
+**Sufficiency replicates cleanly for Qwen3-8B** -- a strong,
+non-overlapping-CI effect matching the pattern from Phase 1's small
+models (Qwen2.5-1.5B: 0%->97%). **For Llama-3.1-8B-Instruct it's real
+but markedly weaker and messier**, not a clean scale-up:
+
+- Llama's alpha-sweep never reached the 80% target refusal rate at any
+  alpha tested (peaked at 67% refusal, alpha=1.5 -- but 33% of those
+  completions were degenerate, over this project's 10% degenerate-
+  fraction cutoff, so not usable). Calibration fell back to the
+  highest-refusal *viable* (non-degenerate) alpha instead (1.0, 58%
+  refusal on the calib set) -- the same fallback path Phase 1's
+  calibration logic already has, just actually exercised here for the
+  first time on any model.
+- Llama starts producing fully-degenerate output (100% degenerate
+  fraction) from alpha=2.0 onward -- a much narrower clean window than
+  Qwen3-8B, which stayed non-degenerate through alpha=2.0.
+- The final validated effect (10%->34%) is real (barely non-overlapping
+  CIs) but far smaller than Qwen3-8B's (6%->70%).
+
+**Not smoothed into "sufficiency confirmed at scale."** The honest
+finding is that necessity generalizes more robustly across these two
+8-9B models than sufficiency does -- echoing, in spirit, this project's
+original SmolLM2 finding (Cross-model comparison, above) that addition
+is architecture-dependent in a way ablation isn't, now observed again at
+a much larger model scale with a different model pair. Why Llama's
+residual stream tolerates addition so much less gracefully than
+Qwen3-8B's is an open question this data doesn't answer.
+
 ## Known limitations
 
 - The refusal classifier is a keyword/phrase matcher (see
@@ -121,12 +168,15 @@ into repeated-token garbage at higher alpha.
 - n=30 per condition is enough to show the effect is real (non-overlapping
   CIs) but not enough for fine-grained comparisons between conditions.
 - Only two small models tested (1.5B, 1.7B params) for this Phase 1
-  reproduction specifically. **Updated: necessity (ablation) has since
-  been tested at 7-9B scale** (Qwen3-8B, Llama-3.1-8B-Instruct, via Wave 2
-  and the cross-model-transfer test) -- **sufficiency (activation
-  addition) has not**, and remains untested past these two small models;
-  a foreign-direction addition test would also need its own alpha
-  calibration (see the cross-model-transfer section's scope notes).
+  reproduction specifically. **Updated: both necessity and sufficiency
+  have since been tested at 7-9B scale** (Qwen3-8B, Llama-3.1-8B-Instruct
+  -- necessity via Wave 2/the cross-model-transfer test, sufficiency via
+  the dedicated section above). Necessity generalizes robustly; sufficiency
+  does not -- Qwen3-8B replicates cleanly (6%->70%) but Llama-3.1-8B is
+  real-but-much-weaker (10%->34%) with a narrower clean-generation window
+  before degenerate collapse. A *foreign*-direction addition test (the
+  cross-model-transfer section's sufficiency side) would still need its
+  own alpha calibration, real additional scope, and remains untested.
 
 ## SAE-feature detector (Qwen3-8B)
 
@@ -775,18 +825,33 @@ effect is real but small, and n=50 isn't enough to resolve whether a
 foreign direction differs from it) -- reported as found, not forced into
 a single "directions don't transfer" narrative.
 
+**Independent replication at n=75 (2026-07-23,
+`scripts/22_llama_own_ablation_larger_n.py`) does not confirm a real
+small effect.** A fresh, independently-sampled set of 75 harmful VAL
+prompts (not an extension of the original 50, seed=7) found baseline
+refusal 96.0% [88.9%, 98.6%] vs. own-ablation 94.7% [87.1%, 97.9%] -- an
+even smaller gap than the original n=50's 92%->88%, with only 3
+discordant pairs out of 75 and McNemar's exact test p=1.0. Read honestly:
+this does not look like a real small effect that just needed more power
+to detect -- it looks like the original 92%->88% observation was itself
+noise from a small sample. Own-direction ablation's causal necessity for
+Llama-3.1-8B's refusal, via the *dense* direction specifically, remains
+genuinely unresolved by this project's own data (contrast with SAE
+features, which do ablate Llama's refusal dramatically -- 98%->10% from
+a single feature, see Wave 2).
+
 ### Known limitations (cross-model direction transfer)
 
 - **Only one model pair tested** (Qwen3-8B <-> Llama-3.1-8B) -- the only
-  pair with matching `d_model`. Whether Llama's own dense-direction
-  ablation effect would strengthen with a larger sample, or whether this
-  weak-effect pattern recurs in other models, is unknown.
+  pair with matching `d_model`. Whether this weak-effect pattern recurs
+  in other models is unknown.
 - **Necessity (ablation) only** -- sufficiency (activation addition) with
   a foreign direction was not attempted; would need its own alpha
   calibration for the foreign direction on the target's residual-stream
   scale, real additional scope.
-- **Llama's own-direction causal ablation effect is itself new and
-  unreplicated at a larger N** -- discovered as a side effect of this
-  transfer test; a bigger sample (matching Qwen3-8B/Gemma's N=50 causal
-  validation convention, just applied to more prompts) could resolve
-  whether it's real but small or genuinely noise.
+- ~~Llama's own-direction causal ablation effect is itself new and
+  unreplicated at a larger N~~ -- **replicated at n=75 (independent
+  sample), does NOT confirm a real effect** (96.0% vs. 94.7%, McNemar
+  p=1.0 -- see the dedicated section above). The dense direction's causal
+  necessity for Llama's refusal remains genuinely unresolved, not
+  established as "real but small."
