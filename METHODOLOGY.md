@@ -546,3 +546,36 @@ classifier); whether the weak effect is real or would strengthen at a
 larger N is unresolved. Full numbers and the manual-inspection sanity
 check (ruling out a generation bug, as opposed to the classifier bug)
 in RESULTS.md and DECISIONS.md.
+
+## Moralize-vs-comply distinction
+
+`is_refusal` (`src.direction.refusal_classifier`) detects refusal
+*phrasing* only -- its own docstring already flagged an "LLM-judge eval"
+as the eventual next step. `src.direction.moralize_comply_classifier`
+is that attempt: a second-stage classifier, only ever run on completions
+`is_refusal` already called non-refuse, distinguishing moralize (lectures
+about why a request is wrong, zero harmful content) from comply
+(genuinely provides the harmful content) and partial (hedged compliance).
+
+Two local judge models were tried and validated against a real,
+expanded ground-truth set (the original 45-row human-labeled worksheet
+plus 53 more rows sampled specifically from previously-uncovered sources
+-- Llama/Gemma's suppression results and the cross-model-transfer
+completions, `scripts/18`) -- both failed: SmolLM2-1.7B-Instruct
+defaulted to "moralize" for the large majority of rows regardless of
+content (a real capability ceiling, not a prompt issue, confirmed after
+fixing two real execution bugs first); Phi-4-mini-instruct (after working
+around real `transformers`-version incompatibilities in its remote code
+by loading it via plain `transformers` instead of nnsight) defaulted to a
+different single category depending on prompt phrasing, most likely its
+own safety alignment overriding the meta-level labeling task. Full
+account, including the specific bugs found and fixed along the way, in
+DECISIONS.md.
+
+Given two genuine, principled attempts both failed, the actual
+application (resolving `scripts/06`'s "6% vs. 24%" ambiguity,
+`scripts/20`) used direct human (Claude) labeling instead -- the same
+methodology this project already validated at 97.8% agreement (Phase 3's
+original spot-check), not a downgrade. The classifier module is kept in
+the codebase, tested, and documented as a real negative finding rather
+than deleted.

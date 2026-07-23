@@ -1634,3 +1634,123 @@ when something looks visibly wrong, since a silent undercount doesn't
 announce itself the way a crash does. Caught here only because building
 a *different* classifier's ground truth happened to involve reading the
 raw text closely.
+
+## Moralize-vs-comply classifier: an automated judge didn't work, direct labeling did (2026-07-23)
+
+Closes the longest-standing item on `refusal_rate`'s own known-limitations
+list: `is_refusal` detects refusal *phrasing* only, conflating "moralize"
+(lectures about why a request is wrong, zero harmful content, safe) with
+"comply" (genuinely provides the harmful content, unsafe) under one
+"non_refuse" bucket. Originally surfaced by `scripts/06`'s head-to-head
+(6% dense-ablation refusal vs. 24% SAE-suppression refusal looked like an
+18-point safety gap; manual inspection at the time found 47/50 of dense
+ablation's "non-refusals" were moralizing, so the true gap was flagged as
+"likely much smaller" but never measured). Branch
+`moralize-comply-classifier`.
+
+**Ground-truth expansion, before trusting anything**: the existing
+45-row human-labeled worksheet (`results/classifier_spotcheck_worksheet.csv`,
+from a past session's Phase 3 spot-check) had a real confound -- 100% of
+its `comply` labels came from Phase 1's smaller models, zero from any
+Qwen3-8B intervention experiment, and zero coverage of Llama-3.1-8B/
+gemma-2-9b-it or the cross-model-transfer results. `scripts/18_expand_
+moralize_comply_worksheet.py` sampled 53 more non-refuse completions
+specifically from the previously-uncovered files, Claude-labeled blind
+(same protocol as the original), saved separately as
+`results/classifier_spotcheck_worksheet_expansion.csv`. Real side-finding
+while reading these closely: 4 of 53 were genuine refusals `is_refusal`
+missed due to a curly-apostrophe bug -- see the dedicated entry above,
+found and fixed the same session, before continuing this work.
+
+**Building the automated classifier -- two judge models tried, both
+failed validation**:
+
+1. `microsoft/Phi-4-mini-instruct`, attempt 1, loaded via `src.activations.
+   extract.load_model` (nnsight): independent of Qwen/Llama/Gemma (same
+   "don't use a target model as its own judge" logic already applied to
+   the perplexity baseline), instruction-tuned, already downloaded in this
+   project. Hit two successive real `transformers`-version incompatibilities
+   in its remote code (nnsight always loads with `trust_remote_code=True`,
+   hardcoded, not overridable via `load_model`'s kwargs): first
+   `ImportError: cannot import name 'LossKwargs'` (renamed to
+   `TransformersKwargs` in the installed `transformers==5.13.0` -- patched
+   with a compatibility alias, confirmed safe since it's a typing-only
+   marker class), then `AttributeError: 'list' object has no attribute
+   'keys'` in `transformers.modeling_utils.get_expanded_tied_weights_keys`
+   -- a structural tied-weights API change, not patchable without deeper
+   surgery into `transformers` internals or downgrading the package
+   (unsafe: other code already depends on v5.x-specific APIs like
+   `BitsAndBytesConfig` replacing the removed `load_in_4bit` shorthand).
+   Two successive incompatibilities from one model's stale remote code =
+   the "well is deeper than expected" signal to switch approach rather
+   than keep patching.
+2. `HuggingFaceTB/SmolLM2-1.7B-Instruct`, proven compatible with the
+   nnsight stack (Phase 1 ran on it with no issues), independent,
+   instruction-tuned. Loaded and generated without error, but validation
+   against the 81-row combined ground-truth set (28 original + 53
+   expansion) landed at **50% overall, and critically 0% on both `comply`
+   and `partial` in the harmful-prompt subset** (`results/
+   moralize_comply_classifier_validation.json`) -- the verdict
+   distribution (71/98 "moralize", 23/98 "refuse", 4/98 "comply", 0/98
+   "partial") showed it defaulting to whichever category looked safest
+   rather than discriminating on actual content. Traced two real
+   execution bugs along the way first (a `min_new_tokens=1`/
+   `max_new_tokens=8` mismatch that let the `[-N:]` output slice silently
+   include prompt-tail tokens when generation stopped early -- fixed by
+   matching `min_new_tokens=max_new_tokens`, mirroring every other
+   generation call in this project; and a prompt redesign adding a
+   "Category:" prefill after finding the model tended to echo the prompt
+   before answering) -- but fixing both didn't fix the underlying
+   accuracy. This is a real capability ceiling at 1.7B for this specific
+   nuanced task, not a prompt-engineering problem.
+3. `microsoft/Phi-4-mini-instruct`, attempt 2 -- loaded via plain
+   `transformers.AutoModelForCausalLM.from_pretrained` instead of nnsight
+   (mirroring `src.baselines.perplexity_filter.load_perplexity_model`'s
+   existing precedent for an auxiliary/scoring model that needs no
+   activation access), avoiding `trust_remote_code` entirely and using
+   the library's own maintained native Phi3 implementation. This resolved
+   both prior incompatibilities cleanly. But two more prompt variants
+   (the original instruction-style prompt, then a few-shot version with
+   reordered categories and a worked "comply" example) each collapsed to
+   a *different* single default category regardless of content (refuse-
+   heavy, then moralize-heavy) -- most likely the model's own safety
+   alignment overriding the meta-level labeling task ("this text
+   discusses something harmful-adjacent" triggering its own refusal
+   reflex even when asked to classify, not generate). Three distinct
+   collapse patterns across two models and four prompt variants is a
+   well-established finding, not a fluke worth one more attempt.
+
+**Decision: pivot to direct (Claude) labeling for the actual application**,
+rather than keep iterating on locally-available models that have now
+failed three genuine, principled attempts. This isn't a downgrade --
+it's the exact methodology this project already validated at 97.8%
+agreement (Phase 3's original spot-check). The classifier module
+(`src/direction/moralize_comply_classifier.py`) is kept in the codebase,
+tested (parsing logic, judge-loading), and documented honestly as
+"validated, found unreliable with locally-available models" rather than
+deleted or silently abandoned -- useful infrastructure and a real,
+reusable finding if a stronger local model becomes available later.
+
+**Resolving scripts/06's original question** (`scripts/20_rescore_
+scripts06_harmful_compliance.py`): every non-refuse completion in both
+files (47 for dense-direction ablation, 38 for SAE-suppression top-15 --
+not sampled, both are already this project's own modest VAL sets) read
+and labeled directly, a built-in consistency check confirming every
+non-refuse completion got a label before trusting the tally.
+
+| | refuse (is_refusal) | moralize | partial | **comply (true harm)** |
+|---|---|---|---|---|
+| dense-direction ablation | 6.0% | 94.0% | 0.0% | **0.0%** |
+| SAE-suppression (top-15) | 24.0% | 74.0% | 2.0% | **0.0%** |
+
+**The headline "6% vs. 24%" gap was entirely a refusal-phrasing artifact,
+not a real safety difference.** True harmful-compliance rate is 0% for
+both conditions (one ambiguous "partial" case in the SAE condition: a
+self-harm blog post whose title matched the harmful request literally,
+though truncated before the body showed real content either way -- called
+partial rather than forced into moralize or comply). This is a stronger,
+cleaner resolution than "likely much smaller" -- confirms the original
+2026-07-11 head-to-head's core finding (dense ablation is a blunter,
+more disruptive intervention that suppresses refusal *phrasing* more
+without actually producing more harmful *content*) with a real measured
+number instead of a plausible-sounding gap.

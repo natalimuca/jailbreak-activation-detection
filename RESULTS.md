@@ -238,9 +238,7 @@ classifier itself correctly calls this moralize pattern non-refuse --
 that part isn't a classifier error. **The actual issue is that
 `refusal_rate` as a single number conflates moralize (safe) and comply
 (unsafe) under "non_refuse,"** so "6% refusal" should not be read as "94%
-compliance." **The true harmful-compliance gap between the two methods is
-very likely much smaller than the 6% vs 24% non-refusal-rate gap
-suggests.** What the result does support: dense ablation (36 layers
+compliance." What the result does support: dense ablation (36 layers
 touched) is a blunter, more disruptive intervention than SAE-feature
 suppression (3 layers, up to 20 of 65536 features per layer) that pushes
 the model into "moralize instead of refuse" far more often -- a real
@@ -248,6 +246,24 @@ finding about intervention bluntness, just not a compliance-rate
 comparison. **Do not read this table as "dense ablation achieves more
 compliance" -- it only shows dense ablation suppresses refusal
 *phrasing* more.**
+
+**Resolved with real numbers, not just "likely much smaller"** (see
+DECISIONS.md's moralize-vs-comply entry for the full account): every
+non-refuse completion in both conditions was read and labeled directly
+(47 for dense ablation, 38 for SAE-suppression top-15).
+
+| | refuse (is_refusal) | moralize | partial | **comply (true harm)** |
+|---|---|---|---|---|
+| dense-direction ablation | 6.0% | 94.0% | 0.0% | **0.0%** |
+| SAE-suppression (top-15) | 24.0% | 74.0% | 2.0% | **0.0%** |
+
+**The 18-point "6% vs. 24%" gap was entirely a refusal-phrasing
+artifact.** True harmful-compliance rate is 0% for both conditions (one
+ambiguous "partial" case in the SAE condition, a self-harm blog post
+whose title matched the request literally but was truncated before
+showing real content). Confirms the finding above with a measured
+number: dense ablation suppresses refusal *phrasing* far more than
+SAE-suppression does, but produces no more actual harmful content.
 
 ### Classifier-validation spot-check
 
@@ -371,14 +387,20 @@ resolved:
 - The SAEs are trained on the base model's activations, applied here to
   the instruct/chat model -- a documented, accepted limitation shared with
   the source paper (see DECISIONS.md), not unique to this reproduction.
-- **`refusal_rate` conflates "moralize" (safe) and "comply" (unsafe) into
-  one "non_refuse" bucket.** The classifier itself is accurate at its
-  actual job (97.8% agreement, spot-check above) -- but no number in this
-  project currently reports a true harmful-compliance rate distinct from
-  a refusal-phrasing rate. Needed for any future claim like "method A
-  produces more actual harmful content than method B": either a
-  moralize-vs-comply classifier or an LLM-judge, since the existing
-  keyword classifier was never designed to make that distinction.
+- **`refusal_rate` conflates "moralize" (safe) and "comply" (unsafe) --
+  resolved for the scripts/06 head-to-head via direct labeling** (see
+  above and DECISIONS.md), not via an automated classifier: two candidate
+  local judge models (SmolLM2-1.7B-Instruct, Phi-4-mini-instruct) both
+  failed validation on this specific task, defaulting to one category
+  regardless of content rather than genuinely discriminating -- a real
+  capability/alignment-bias finding in its own right, not just a null
+  result (`src/direction/moralize_comply_classifier.py`, kept in the
+  codebase and documented honestly as "validated, found unreliable with
+  locally-available models"). No number in this project beyond the
+  scripts/06 comparison currently reports a true harmful-compliance rate
+  -- applying direct labeling to other conditions/models would need the
+  same manual-reading approach, real additional effort per completion
+  set, not a reusable automated pipeline.
 
 ## Baseline detectors and adversarial evaluation
 
