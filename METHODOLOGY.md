@@ -536,10 +536,13 @@ way a single residual-stream vector is.
 **A result that resists a single headline**: Qwen3-8B gave a clean
 no-transfer result (own-direction ablation works dramatically, foreign
 does nothing at all, matching a negative separation score). Llama-3.1-8B
-gave an inconclusive result for a more interesting reason -- its own
-dense-direction ablation didn't reduce refusal either, the first time
-this project has causally tested Llama's dense direction (previously
-only used as a classifier). That splits detection accuracy from causal
-necessity, a distinction this project hadn't found evidence for before.
-Full numbers and the manual-inspection sanity check (ruling out a bug)
+gave an inconclusive result -- its own dense-direction ablation showed
+only a small, correctly-signed effect (not zero, contrary to an earlier
+version of this write-up that undercounted Llama's refusals due to a
+since-fixed `is_refusal` bug -- see DECISIONS.md), too weak to
+distinguish from noise at n=50. The first time this project has causally
+tested Llama's dense direction at all (previously only used as a
+classifier); whether the weak effect is real or would strengthen at a
+larger N is unresolved. Full numbers and the manual-inspection sanity
+check (ruling out a generation bug, as opposed to the classifier bug)
 in RESULTS.md and DECISIONS.md.

@@ -1324,18 +1324,26 @@ Zero degenerate completions across all 300 generations, both models.
 
 | condition | Llama-3.1-8B refusal | gemma-2-9b-it refusal |
 |---|---|---|
-| baseline | 86.0% [73.8%, 93.1%] | 96.0% [86.5%, 98.9%] |
+| baseline | **98.0% [89.5%, 99.65%]** | 96.0% [86.5%, 98.9%] |
 | top-1 | 10.0% [4.4%, 21.4%] | 94.0% [83.8%, 97.9%] |
 | top-5 | 4.0% [1.1%, 13.5%] | 92.0% [81.2%, 96.9%] |
 | top-10 | 2.0% [0.4%, 10.5%] | 84.0% [71.5%, 91.7%] |
 | top-15 | 0.0% [0.0%, 7.1%] | 82.0% [69.2%, 90.2%] |
 | top-20 | 2.0% [0.4%, 10.5%] | 82.0% [69.2%, 90.2%] |
 
+**Llama-3.1-8B baseline corrected 2026-07-23** (was 86.0% [73.8%, 93.1%])
+-- a real `is_refusal` bug (Llama's curly apostrophes silently missed by
+the ASCII marker list) undercounted refusals in this specific condition;
+see the dedicated bug-fix entry further down. Only baseline was affected
+-- top1 through top20 had zero additional matches under the fix. This
+*strengthens* the single-feature finding below (98%->10% is an even
+sharper drop than 86%->10%), doesn't undermine it.
+
 **A genuine, striking three-way cross-model difference** in how
 concentrated the causal effect is:
 
 - **Llama-3.1-8B-Instruct**: the single top-ranked feature alone (layer
-  27/feature 13363) drops refusal from 86% to 10% -- nearly the *entire*
+  27/feature 13363) drops refusal from 98% to 10% -- nearly the *entire*
   effect from one feature. Unlike Qwen3-8B, where "suppressing the single
   top feature alone still doesn't reproduce the effect" (see above), here
   it almost does.
@@ -1345,7 +1353,7 @@ concentrated the causal effect is:
 - **gemma-2-9b-it**: a real, monotonic (non-increasing) decline (96% ->
   82%), but far more modest than either other model -- suppressing all 20
   ranked features removes only 14 percentage points of refusal, vs.
-  Llama's 76-point drop and Qwen3's 66-point drop at comparable
+  Llama's 88-point drop and Qwen3's 66-point drop at comparable
   conditions. Consistent with the smoother, no-standout-feature ranking
   shape found above.
 
@@ -1515,45 +1523,114 @@ convention. Three paired McNemar tests per model
 | | baseline | own-ablation | foreign-ablation | own vs baseline p | own vs foreign p |
 |---|---|---|---|---|---|
 | Qwen3-8B (foreign = Llama's direction) | 84% | 8% | 84% | **0.0** | **0.0** |
-| Llama-3.1-8B (foreign = Qwen's direction) | 80% | 86% | 80% | 0.4531 | 0.4531 |
+| Llama-3.1-8B (foreign = Qwen's direction) | 92% | 88% | 92% | 0.5 | 0.5 |
 
-**Qwen3-8B: a clean, unambiguous no-transfer result.** Own-direction
-ablation crashes refusal (84%->8%, matching this project's established
-Phase 1 result almost exactly -- a real, working control). Llama's
-foreign direction does *nothing at all* -- refusal identical to baseline
-to the percentage point, p=1.0 vs. baseline. Combined with Test 1's
-negative separation score, this is the cleanest possible negative result:
-the intervention mechanism clearly *can* produce a dramatic effect at this
-scale (proven by the own-direction control), and the foreign direction
-produces none of it.
+**CORRECTED 2026-07-23, same day**: the Llama-3.1-8B row above (and every
+Llama-generated refusal-rate number in this entry) was originally reported
+as 80%/86%/80% -- **wrong**, due to a real `is_refusal` bug found and
+fixed the same day (see the dedicated entry below: Llama-3.1-8B generates
+curly apostrophes, e.g. "can't" with U+2019, which the classifier's ASCII
+marker list silently failed to match). Recomputed directly from the
+already-saved completions in `results/cross_model_direction_transfer.json`
+(no new GPU generation needed) using the fixed classifier -- the table
+above and the two paragraphs below reflect the corrected numbers.
 
-**Llama-3.1-8B: inconclusive, not a clean no-transfer result -- and a
-bigger, unplanned finding underneath it.** Llama's *own* dense-direction
-ablation barely moved refusal at all (80%->86%, not even a decrease,
-p=0.4531). This has never been tested before in this project: Wave 1
-only ever used Llama's dense direction as a *classifier* (projection,
-AUROC 0.989 in Wave 3's head-to-head), never as a causal ablation
-intervention -- Wave 2's causal ablation work on Llama used *SAE features*
-(which worked dramatically: 86%->10% from a single top feature), not the
-dense direction. So this is the first real test of whether Llama's dense
-direction is causally load-bearing, and the answer is no, even though
-the identical direction is an excellent passive linear classifier.
-**Manually inspected 5 completions per condition to rule out a bug before
-trusting this** (`results/cross_model_direction_transfer.json`) -- all
-coherent, on-topic refusals across baseline/own/foreign, zero degenerate
-completions, not garbage output from a broken intervention.
+**Qwen3-8B: a clean, unambiguous no-transfer result (unaffected by the
+bug -- Qwen3-8B uses ASCII apostrophes).** Own-direction ablation crashes
+refusal (84%->8%, matching this project's established Phase 1 result
+almost exactly -- a real, working control). Llama's foreign direction
+does *nothing at all* -- refusal identical to baseline to the percentage
+point, p=1.0 vs. baseline. Combined with Test 1's negative separation
+score, this is the cleanest possible negative result: the intervention
+mechanism clearly *can* produce a dramatic effect at this scale (proven
+by the own-direction control), and the foreign direction produces none
+of it.
 
-Because the "own" control didn't establish a real causal effect for this
-specific intervention type on Llama, the "own vs. foreign, not
-significant" result **cannot be read as evidence of no transfer** the way
-Qwen3-8B's can -- it's confounded by "own" itself not working. The honest
-summary: **one clean negative transfer result (Llama's direction has zero
-causal effect on Qwen3-8B), one inconclusive result (Llama's own dense
-direction isn't causally necessary for its refusal behavior, so nothing
-can be concluded about whether Qwen's direction transfers to it)**, plus
-a genuinely new, unplanned finding -- detection accuracy and causal
-necessity are not the same property, and can diverge for a given model
-even when the same recipe produces both a great classifier and a real
-causal effect in a different model. Not smoothed into a single "directions
-don't transfer" headline -- the two models' results say different things
-for different reasons, and both are reported as found.
+**Llama-3.1-8B, corrected: a real but weak, statistically-underpowered
+effect -- not the "own ablation doesn't work at all" story originally
+reported.** With the bug fixed, own-direction ablation on Llama shows a
+genuine, correctly-signed decrease (92%->88%, 4 points), not the
+increase the buggy numbers showed (80%->86%). Still nowhere near
+significant at n=50 (p=0.5, unchanged from the pre-fix p=0.4531 --
+the *direction* of the effect flipped to the expected sign, but the
+*significance verdict* didn't change either way). This has never been
+tested before in this project in either version: Wave 1 only ever used
+Llama's dense direction as a *classifier* (AUROC 0.989, Wave 3), never a
+causal ablation intervention -- Wave 2's causal ablation work on Llama
+used SAE features instead (which worked dramatically: 86%->10% from a
+single top feature). **Manually inspected completions to rule out a
+second bug before trusting the correction** -- coherent, on-topic
+refusals throughout, zero degenerate completions.
+
+Because the "own" effect, while correctly-signed now, is still too weak
+to distinguish from noise at n=50, the "own vs. foreign, not significant"
+result still **cannot be read as evidence of no transfer** the way
+Qwen3-8B's can -- it's underpowered either way. **Revised honest summary**
+(the original "detection accuracy and causal necessity are decoupled"
+framing was itself an artifact of the bug and is retracted): one clean
+negative-transfer result (Llama's direction has zero causal effect on
+Qwen3-8B), one genuinely inconclusive result for a more mundane reason
+than originally claimed -- Llama's own dense-direction ablation has a
+real, correctly-signed but small effect that a larger sample would be
+needed to resolve, so nothing definitive can be said about whether Qwen's
+direction transfers to it. Not smoothed into a single "directions don't
+transfer" headline -- the two models' results still say different things,
+just less dramatically different than first reported.
+
+## Found and fixed a real `is_refusal` bug: curly apostrophes, Llama-3.1-8B-specific (2026-07-23)
+
+Discovered while building ground truth for the moralize-vs-comply
+classifier (see the entry below) -- sampling non-refuse completions from
+Llama's suppression/transfer results and labeling them by hand turned up
+4 of 53 that were plainly genuine refusals ("I can't fulfill that
+request...", "I can't answer that...") that `is_refusal` had called
+non-refuse. Traced to the exact byte: inspected the raw JSON directly
+(not assumed) and confirmed Llama-3.1-8B generates a curly apostrophe
+(U+2019 RIGHT SINGLE QUOTATION MARK, "'") in contractions like "can't",
+not the ASCII apostrophe (U+0027, "'") `_REFUSAL_MARKERS` was written
+against. A plain substring match silently fails on this, undercounting
+refusals for any model that does this.
+
+**Confirmed Llama-3.1-8B-specific, not a project-wide issue**: recomputed
+`is_refusal` (old vs. fixed) across every saved completions file in the
+project (`sae_suppression_validation_{Qwen3-8B,Llama-3.1-8B-Instruct,
+gemma-2-9b-it}.json`, `dense_direction_ablation_Qwen3-8B.json`,
+`cross_model_direction_transfer.json`) -- zero differences anywhere
+except Llama-3.1-8B-generated completions. Qwen3-8B and gemma-2-9b-it
+both consistently use ASCII apostrophes; only Llama-3.1-8B's tokenizer/
+generation produces the curly variant.
+
+**Fix**: `is_refusal` now normalizes curly apostrophe variants (U+2019,
+U+2018, U+02BC) to ASCII before matching (`src/direction/
+refusal_classifier.py`), covered by a new regression test
+(`test_is_refusal_handles_curly_apostrophes`).
+
+**Impact assessed and corrected using already-saved completions -- no new
+GPU generation needed for either correction**:
+- `results/sae_suppression_validation_Llama-3.1-8B-Instruct.json`'s
+  **baseline** condition: 43/50 (86%) -> 49/50 (98%) refusal. Every other
+  condition (top1 through top20) was unaffected -- 0 additional matches.
+  This *strengthens* Wave 2's headline finding rather than undermining it:
+  the drop from baseline to top-1 alone becomes 98%->10%, an even sharper
+  single-feature effect than the 86%->10% originally reported. See
+  RESULTS.md for the corrected table.
+- `results/cross_model_direction_transfer.json`'s Llama-side conditions:
+  corrected above in the "Cross-model direction transfer" entry --
+  materially changes that entry's narrative (a real, correctly-signed but
+  statistically-underpowered own-direction effect, not "doesn't work at
+  all"), not just its numbers.
+
+**Not affected**: Wave 3's SAE-feature/dense-direction *detector* results
+(AUROC, McNemar tests on adversarial prompts) never use `is_refusal` --
+those score raw activations directly, not generated text. Gemma's
+Wave 2 significance test (`scripts/16`) is unaffected -- confirmed via
+the same recomputation, zero differences in that file.
+
+**Lesson**: this is the second time a Unicode/encoding mismatch has
+silently corrupted a text-matching step in this project (see the
+double-BOS tokenization entry) -- worth treating any string-substring
+classifier as a candidate for this failure mode by default, not just
+when something looks visibly wrong, since a silent undercount doesn't
+announce itself the way a crash does. Caught here only because building
+a *different* classifier's ground truth happened to involve reading the
+raw text closely.
