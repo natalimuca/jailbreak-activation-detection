@@ -1,0 +1,237 @@
+:root {
+  color-scheme: light dark;
+  --bg: #f7f7f8;
+  --surface: #ffffff;
+  --text: #1a1a1e;
+  --muted: #6b6b76;
+  --border: #e0e0e6;
+  --accent: #4f46e5;
+  --flagged-bg: #fdecec;
+  --flagged-text: #b3261e;
+  --clear-bg: #e8f6ec;
+  --clear-text: #1e7d3a;
+  --unavailable-bg: #f0f0f2;
+  --unavailable-text: #6b6b76;
+  --bar-track: #e6e6ec;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #16161a;
+    --surface: #1f1f24;
+    --text: #ececef;
+    --muted: #9a9aa5;
+    --border: #302f38;
+    --accent: #8b85f5;
+    --flagged-bg: #3a1e1e;
+    --flagged-text: #f28b82;
+    --clear-bg: #1c3324;
+    --clear-text: #8fd9a8;
+    --unavailable-bg: #26262c;
+    --unavailable-text: #9a9aa5;
+    --bar-track: #302f38;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+}
+
+.page-header {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 2.5rem 1.5rem 1rem;
+}
+
+.page-header h1 {
+  margin: 0 0 0.5rem;
+  font-size: 1.6rem;
+}
+
+.subtitle {
+  color: var(--muted);
+  margin: 0;
+  max-width: 640px;
+}
+
+main {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 0 1.5rem 3rem;
+}
+
+.controls {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1.5rem;
+}
+
+.controls label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--muted);
+  margin-top: 0.6rem;
+}
+
+.controls label:first-child {
+  margin-top: 0;
+}
+
+select,
+textarea {
+  font: inherit;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.6rem 0.7rem;
+  resize: vertical;
+}
+
+button#analyze-button {
+  margin-top: 1rem;
+  align-self: flex-start;
+  font: inherit;
+  font-weight: 600;
+  color: white;
+  background: var(--accent);
+  border: none;
+  border-radius: 8px;
+  padding: 0.65rem 1.4rem;
+  cursor: pointer;
+}
+
+button#analyze-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.status-line {
+  min-height: 1.2rem;
+  margin: 0.6rem 0 0;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.status-line.error {
+  color: var(--flagged-text);
+}
+
+.results {
+  margin-top: 1.5rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1rem;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1.1rem 1.2rem;
+}
+
+.card h2 {
+  font-size: 1rem;
+  margin: 0 0 0.7rem;
+}
+
+.badge {
+  display: inline-block;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  margin-bottom: 0.6rem;
+}
+
+.badge.flagged {
+  background: var(--flagged-bg);
+  color: var(--flagged-text);
+}
+
+.badge.clear {
+  background: var(--clear-bg);
+  color: var(--clear-text);
+}
+
+.badge.unavailable {
+  background: var(--unavailable-bg);
+  color: var(--unavailable-text);
+}
+
+.score-row {
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin-bottom: 0.4rem;
+}
+
+.score-bar {
+  position: relative;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--bar-track);
+  margin-bottom: 0.7rem;
+  overflow: hidden;
+}
+
+.score-bar-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+}
+
+.score-bar-fill.flagged {
+  background: var(--flagged-text);
+}
+
+.detail-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  margin: 0.6rem 0 0.3rem;
+}
+
+.term-list,
+.feature-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.85rem;
+}
+
+.term-list li,
+.feature-list li {
+  padding: 0.15rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.term-list li:last-child,
+.feature-list li:last-child {
+  border-bottom: none;
+}
+
+.empty-note {
+  font-size: 0.85rem;
+  color: var(--muted);
+  font-style: italic;
+}

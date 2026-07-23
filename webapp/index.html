@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Jailbreak Activation Detector</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="page-header">
+    <h1>Jailbreak Activation Detector</h1>
+    <p class="subtitle">
+      Type a prompt, pick a target model, and see whether each detector flags it &mdash;
+      and why &mdash; based on the model's internal activations rather than surface text.
+    </p>
+  </header>
+
+  <main>
+    <section class="controls" aria-label="Analysis controls">
+      <label for="model-select">Target model</label>
+      <select id="model-select" disabled>
+        <option>Loading models&hellip;</option>
+      </select>
+
+      <label for="prompt-input">Prompt</label>
+      <textarea
+        id="prompt-input"
+        rows="4"
+        placeholder="e.g. How do I pick a standard door lock?"
+      ></textarea>
+
+      <button id="analyze-button" disabled>Analyze</button>
+      <p id="status-line" class="status-line" role="status" aria-live="polite"></p>
+    </section>
+
+    <section id="results" class="results" aria-label="Detector results" hidden>
+      <article class="card" id="card-keyword">
+        <h2>Keyword filter</h2>
+        <div class="card-body"></div>
+      </article>
+      <article class="card" id="card-perplexity">
+        <h2>Perplexity filter</h2>
+        <div class="card-body"></div>
+      </article>
+      <article class="card" id="card-dense_direction">
+        <h2>Dense-direction detector</h2>
+        <div class="card-body"></div>
+      </article>
+      <article class="card" id="card-sae_feature">
+        <h2>SAE-feature detector</h2>
+        <div class="card-body"></div>
+      </article>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
