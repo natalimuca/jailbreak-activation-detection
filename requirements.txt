@@ -15,3 +15,6 @@ matplotlib
 seaborn
 tqdm
 pytest
+fastapi
+uvicorn
+httpx
