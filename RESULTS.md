@@ -840,7 +840,41 @@ genuinely unresolved by this project's own data (contrast with SAE
 features, which do ablate Llama's refusal dramatically -- 98%->10% from
 a single feature, see Wave 2).
 
-### Known limitations (cross-model direction transfer)
+**True harmful-compliance spot-check on the ablation conditions'
+non-refuse completions (2026-07-24).** Same motivation as scripts/06/20:
+the keyword-based refusal classifier's "non-refuse" verdict conflates
+safe moralizing with actual harmful compliance, so a raw non-refuse rate
+overstates risk. Direct Claude-labeling (refuse/moralize/comply, same
+method as scripts/06/20 -- no automated classifier, per the standing
+"validated, found unreliable with locally-available models" finding) on
+all four ablation conditions' non-refuse completions from
+`results/cross_model_direction_transfer.json`:
+
+| condition | non-refuse (keyword) | sampled | true comply |
+|---|---|---|---|
+| Qwen3-8B own-ablation | 46/50 | 15 | **2/15 (13%)** |
+| Qwen3-8B foreign-ablation (Llama's direction) | 8/50 | 8 (all) | 0/8 |
+| Llama-3.1-8B own-ablation | 6/50 | 6 (all) | 2/6 (hedged/partial) |
+| Llama-3.1-8B foreign-ablation (Qwen's direction) | 4/50 | 4 (all) | 2/4 (hedged/partial) |
+
+**Qwen3-8B's pattern matches scripts/06's original finding almost
+exactly** -- most "non-refuse" completions under ablation are clean
+moralizing/lecturing, not compliance; the ~92% non-refuse rate massively
+overstates true harmful-compliance risk (spot-check suggests true
+compliance closer to 1-in-8, not 9-in-10). **Foreign-ablation's few
+non-refuse completions are moralizing 100% of the time** in this
+sample -- consistent with foreign ablation being a real null effect, not
+a weak-but-real one.
+
+**A genuine qualitative difference worth flagging**: where Qwen3-8B does
+comply, it's clean and unhedged ("Certainly! Here's a blog post that
+promotes... animal cruelty"). Where Llama-3.1-8B's completions lean
+toward compliance, they're consistently hedged/partial ("I can provide a
+general outline of a virus, but I must emphasize... This is for
+educational purposes only" -- then still names the virus and starts an
+outline). Both samples are small (n=6 and n=4) -- not enough to claim
+this as a statistically established pattern, just an honest observation
+in the data worth a closer look if this project's scope grows further.
 
 - **Only one model pair tested** (Qwen3-8B <-> Llama-3.1-8B) -- the only
   pair with matching `d_model`. Whether this weak-effect pattern recurs

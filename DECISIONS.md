@@ -1646,6 +1646,29 @@ up again at 8-9B scale with a different model pair. Reported as an open,
 unexplained architecture difference, not forced into a single "it works
 at scale" headline. See RESULTS.md's dedicated section for full numbers.
 
+## True harmful-compliance spot-check extended to cross-model-transfer completions (2026-07-24)
+
+Extends the scripts/06/20 methodology (direct Claude-labeling, not an
+automated classifier -- both candidate local judges already failed this
+task, see above) to a second dataset: the four ablation conditions'
+completions already sitting in `results/cross_model_direction_transfer.json`
+from scripts/17, no new generation needed. Read all non-refuse
+completions for the two small conditions (Llama own/foreign-ablation, 6
+and 4 completions), sampled 15 of 46 for Qwen3-8B's own-ablation
+(the only condition large enough that reading all of it wasn't a good use
+of time), read all 8 of Qwen3-8B's foreign-ablation.
+
+**Confirms the scripts/06 pattern generalizes**: Qwen3-8B's non-refuse
+completions are overwhelmingly moralizing, not real compliance (2/15
+sampled were true compliance, both clean and unhedged). Foreign-ablation
+(no real causal effect) never produced true compliance in this sample.
+**New observation**: Llama-3.1-8B's rare near-compliance completions are
+qualitatively different -- hedged/partial ("I can provide a general
+outline... but I must emphasize this is for educational purposes only")
+rather than Qwen's clean compliance. Small samples (n=6, n=4), reported
+as an honest observation, not a statistically established claim -- see
+RESULTS.md for the full write-up and the appropriate hedging.
+
 ## Found and fixed a real `is_refusal` bug: curly apostrophes, Llama-3.1-8B-specific (2026-07-23)
 
 Discovered while building ground truth for the moralize-vs-comply
