@@ -274,8 +274,12 @@ micro-batch size per model, so `scripts/04`/`scripts/05` no longer
 hardcode Qwen-Scope specifically. This is "extend the recipe to new
 models," the same choice already made for the dense-direction detector's
 cross-model extension -- not the literal transfer question above (does a
-feature set found on one model do anything applied to another), which
-remains untested for both the dense-direction and SAE-feature methods.
+feature set found on one model do anything applied to another). **Update:**
+the dense-direction version of that question was later tested (see
+"Cross-model direction transfer" below) -- SAE-feature transfer remains
+untested and out of scope (an SAE's feature basis is specific to that
+particular trained autoencoder, not a well-posed transfer question the
+way a single residual-stream vector is).
 
 One real implementation difference needed for gemma-2-9b-it: its
 `width_131k` SAEs are far larger than LlamaScope's or Qwen-Scope's (131072
