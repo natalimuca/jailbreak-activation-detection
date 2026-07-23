@@ -109,14 +109,24 @@ into repeated-token garbage at higher alpha.
 
 - The refusal classifier is a keyword/phrase matcher (see
   `src/direction/refusal_classifier.py`), the standard sanity-check metric
-  in this literature, not a validated final detector. It hasn't been
-  checked against human judgment or an LLM-judge baseline for
-  false-positive/false-negative rate on these specific completions.
+  in this literature, not a validated final detector. **Updated: this has
+  since been checked** -- against human (Claude) judgment at 97.8%
+  agreement (Phase 3's spot-check, see the SAE-feature detector section
+  below) and, separately, against two candidate automated LLM-judges
+  (both failed validation on the harder moralize-vs-comply distinction
+  specifically -- see DECISIONS.md). The classifier's own core job
+  (refuse vs. non-refuse) remains validated and accurate; a real
+  `is_refusal` bug (curly-apostrophe false negatives, Llama-3.1-8B-
+  specific) was found and fixed in a later session, see DECISIONS.md.
 - n=30 per condition is enough to show the effect is real (non-overlapping
   CIs) but not enough for fine-grained comparisons between conditions.
-- Only two small models tested (1.5B, 1.7B params). Whether the
-  necessity/sufficiency asymmetry holds at the 7-9B scale used later in
-  this project is untested.
+- Only two small models tested (1.5B, 1.7B params) for this Phase 1
+  reproduction specifically. **Updated: necessity (ablation) has since
+  been tested at 7-9B scale** (Qwen3-8B, Llama-3.1-8B-Instruct, via Wave 2
+  and the cross-model-transfer test) -- **sufficiency (activation
+  addition) has not**, and remains untested past these two small models;
+  a foreign-direction addition test would also need its own alpha
+  calibration (see the cross-model-transfer section's scope notes).
 
 ## SAE-feature detector (Qwen3-8B)
 
@@ -371,13 +381,13 @@ resolved:
   (both increased from an initial n=25/n=8 pass -- see DECISIONS.md) are
   enough to show the top-5-through-top-20 effect is real and the
   ranking's top features are stable.
-- **Causal ranking and validation now cover 3 models** (Qwen3-8B,
-  Llama-3.1-8B-Instruct, gemma-2-9b-it -- see above), with a genuine,
-  unexplained cross-model spread in effect concentration. The
-  SAE-feature *detector* (prompt-classifier reframing,
-  `src/detectors/sae_feature_detector.py`, and the head-to-head baseline
-  comparison built on it) is still Qwen3-8B only -- extending it to the
-  other two models is the natural next step, not yet done.
+- **Causal ranking, validation, AND the SAE-feature detector (prompt-
+  classifier reframing) now all cover 3 models** (Qwen3-8B,
+  Llama-3.1-8B-Instruct, gemma-2-9b-it -- Wave 3 extended the detector
+  itself and the head-to-head baseline comparison built on it, see
+  above), with a genuine, unexplained cross-model spread in both effect
+  concentration (Wave 2) and the dense-vs-SAE-feature comparison outcome
+  (Wave 3).
 - Llama-3.1-8B's and gemma-2-9b-it's chat templates produce a duplicated
   BOS token when tokenized by this project's pipeline (measured, not
   assumed benign: ~1% shift in separation score, well within existing
