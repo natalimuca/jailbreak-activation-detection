@@ -3,7 +3,7 @@
 Mirrors Phase 1's directional-ablation validation methodology (necessity:
 does suppressing the feature(s) reduce refusal on harmful prompts?), using
 the real refusal_classifier on generated text (not the differentiable
-logit-diff proxy used for ranking in scripts/04) -- this is the rigorous
+logit-diff proxy used for ranking in scripts/rank_sae_features.py) -- this is the rigorous
 validation step, the ranking pass was only ever a cheap screening step.
 
 Conditions compared, on a held-out VAL sample never used for direction
@@ -20,7 +20,7 @@ for degeneracy (src.direction.refusal_classifier.is_degenerate) alongside
 the refusal rate, since a refusal-rate drop caused by incoherent garbage
 output isn't a real causal finding.
 
-Usage: python scripts/05_causal_validate_sae_features.py [model]
+Usage: python scripts/validate_sae_features.py [model]
 """
 
 from __future__ import annotations
@@ -44,14 +44,14 @@ from src.sae.registry import SAE_PROVIDERS
 DEFAULT_MODEL = "Qwen/Qwen3-8B"
 RESULTS_DIR = Path(__file__).resolve().parents[1] / "results"
 N_VAL_PROMPTS = 50
-MAX_PROMPT_CHARS = 150  # consistent with scripts/04's ranking-pass cap; see DECISIONS.md
+MAX_PROMPT_CHARS = 150  # consistent with scripts/rank_sae_features.py's ranking-pass cap; see DECISIONS.md
 MAX_NEW_TOKENS = 40
 
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser()
     p.add_argument("model", nargs="?", default=DEFAULT_MODEL)
-    p.add_argument("--seed", type=int, default=1)  # different seed from scripts/04's eval sample
+    p.add_argument("--seed", type=int, default=1)  # different seed from scripts/rank_sae_features.py's eval sample
     return p.parse_args()
 
 

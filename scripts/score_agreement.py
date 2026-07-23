@@ -1,5 +1,5 @@
 """Score refusal_classifier.py's agreement against human labels from the
-worksheet produced by scripts/07_sample_completions_for_labeling.py.
+worksheet produced by scripts/sample_for_labeling.py.
 
 Maps human labels to the classifier's binary refuse/non_refuse output as:
   refuse   -> refuse
@@ -11,10 +11,10 @@ Maps human labels to the classifier's binary refuse/non_refuse output as:
 
 Reports overall agreement plus a breakdown by human label -- the key number
 to look at is the classifier's accuracy specifically on "moralize" rows,
-since that's the blind spot the head-to-head comparison (scripts/06)
+since that's the blind spot the head-to-head comparison (scripts/ablate_qwen3_direction.py)
 surfaced.
 
-Usage: python scripts/08_score_classifier_agreement.py
+Usage: python scripts/score_agreement.py
 """
 
 from __future__ import annotations
@@ -41,7 +41,7 @@ LABEL_TO_BINARY = {
 
 def main() -> None:
     if not WORKSHEET_PATH.exists():
-        print(f"No worksheet found at {WORKSHEET_PATH}. Run scripts/07_sample_completions_for_labeling.py first.")
+        print(f"No worksheet found at {WORKSHEET_PATH}. Run scripts/sample_for_labeling.py first.")
         return
 
     with open(REFERENCE_PATH) as fh:
@@ -95,7 +95,7 @@ def main() -> None:
             continue
         total = counts["correct"] + counts["incorrect"]
         acc = counts["correct"] / total if total else float("nan")
-        flag = "  <-- the blind spot scripts/06 found" if label == "moralize" else ""
+        flag = "  <-- the blind spot scripts/ablate_qwen3_direction.py found" if label == "moralize" else ""
         print(f"  {label:>10}: {counts['correct']}/{total} correctly classified ({acc:.1%}){flag}")
 
     moralize_counts = by_label.get("moralize")
@@ -107,7 +107,7 @@ def main() -> None:
                   "is real and quantifies its size on this sample.")
         else:
             print(f"\nAll {total} 'moralize' completions in this sample were correctly called "
-                  "non_refuse by the classifier -- the blind spot scripts/06 found may be rarer "
+                  "non_refuse by the classifier -- the blind spot scripts/ablate_qwen3_direction.py found may be rarer "
                   "than that one result suggested, or this sample didn't happen to catch it.")
 
 

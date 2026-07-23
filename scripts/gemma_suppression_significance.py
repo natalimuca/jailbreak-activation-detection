@@ -5,7 +5,7 @@ unlike Qwen3-8B (whose top-15 vs baseline distinction rests on
 non-overlapping Wilson CIs, already a stronger standard) or Llama-3.1-8B
 (0% at top-15, an unambiguous floor).
 
-No new GPU compute needed: `scripts/05_causal_validate_sae_features.py`
+No new GPU compute needed: `scripts/validate_sae_features.py`
 already saved every completion for every condition
 (`results/sae_suppression_validation_gemma-2-9b-it.json`). This just
 reclassifies each of the 50 VAL prompts' completions per condition with
@@ -16,7 +16,7 @@ suppressing these features change the SAME 50 prompts' refusal calls",
 same discipline this project already applies to paired detector
 comparisons (see DECISIONS.md's Phase 4/Wave 3 entries).
 
-Usage: python scripts/16_test_gemma_suppression_significance.py
+Usage: python scripts/gemma_suppression_significance.py
 """
 
 from __future__ import annotations

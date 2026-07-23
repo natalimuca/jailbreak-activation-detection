@@ -1,5 +1,5 @@
 """Expands the moralize-vs-comply ground-truth set beyond
-`scripts/07_sample_completions_for_labeling.py`'s original 45-row
+`scripts/sample_for_labeling.py`'s original 45-row
 worksheet, which predates the Llama-3.1-8B/gemma-2-9b-it suppression
 results and the cross-model-transfer results -- 100% of its `comply`
 labels come from Phase 1's smaller models, zero from any Qwen3-8B
@@ -10,11 +10,11 @@ DECISIONS.md).
 
 Samples non-refuse completions (via `is_refusal`) from the previously-
 uncovered files, stratified by (source, condition), same worksheet format
-as scripts/07 so the two can be concatenated for validation. Saved to a
+as scripts/sample_for_labeling.py so the two can be concatenated for validation. Saved to a
 SEPARATE file rather than appending to the original, so the original
 Qwen3-8B/Phase1 spot-check stays untouched.
 
-Usage: python scripts/18_expand_moralize_comply_worksheet.py [--n-per-source N] [--seed S]
+Usage: python scripts/expand_worksheet.py [--n-per-source N] [--seed S]
 """
 
 from __future__ import annotations
@@ -92,13 +92,13 @@ def stratified_sample(entries: list[dict], n_per_source: int, seed: int) -> list
 def main() -> None:
     p = argparse.ArgumentParser()
     p.add_argument("--n-per-source", type=int, default=N_PER_SOURCE_DEFAULT)
-    p.add_argument("--seed", type=int, default=1)  # different seed from scripts/07
+    p.add_argument("--seed", type=int, default=1)  # different seed from scripts/sample_for_labeling.py
     args = p.parse_args()
 
     entries = load_sources()
     print(f"Loaded {len(entries)} non-refuse completions across "
           f"{len({(e['source'], e['condition']) for e in entries})} source/condition groups "
-          f"(Llama/Gemma suppression + cross-model-transfer, not covered by scripts/07)")
+          f"(Llama/Gemma suppression + cross-model-transfer, not covered by scripts/sample_for_labeling.py)")
 
     sampled = stratified_sample(entries, args.n_per_source, args.seed)
     print(f"Sampled {len(sampled)} for labeling")

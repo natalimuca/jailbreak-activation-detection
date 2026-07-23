@@ -8,7 +8,7 @@ need ~8-9GB, so they can never be resident simultaneously -- `DetectorInferenceM
 keeps at most one of {target model, perplexity model} loaded, evicting
 the other before loading whichever is needed next. SAE weights are the
 exception: `src.sae.*`'s `load_sae` defaults to `device="cpu"` (this is
-already how scripts/04/05's causal ranking/validation avoid competing with
+already how scripts/rank_sae_features.py/05's causal ranking/validation avoid competing with
 the target model for VRAM), so SAE weights are cached on CPU per
 currently-resident target model and never touch this GPU-residency budget.
 

@@ -1,5 +1,5 @@
 """Cochran's Q test for the 5-model dense-direction PAIR-paraphrase
-comparison (scripts/12 and scripts/14's cross-model extensions) -- the same
+comparison (scripts/extend_qwen_smollm.py and scripts/extend_llama_gemma.py's cross-model extensions) -- the same
 repeated-measures structure as `mcnemar_exact`, generalized from 2 to *k*
 classifiers scored on the SAME 21 PAIR prompts. Replaces the informal
 "non-overlapping Wilson CIs" argument for cross-model PAIR-robustness
@@ -9,13 +9,13 @@ SAE-feature) to a claim that had only been argued from eyeballing
 confidence intervals.
 
 Reuses cached activations where possible: Qwen3-8B's PAIR prompts already
-have activations cached (`scripts/09`); every other model needs a fresh
-(cheap, forward-pass-only) extraction since scripts/12/14 didn't persist
+have activations cached (`scripts/build_adversarial_set.py`); every other model needs a fresh
+(cheap, forward-pass-only) extraction since scripts/extend_qwen_smollm.py/14 didn't persist
 per-prompt scores, only aggregate stats. Llama-3.1-8B-Instruct and
 Gemma-2-9B-it need `load_in_4bit=True` (8-9B params on a 6GB GPU);
 Qwen2.5-1.5B/SmolLM2-1.7B don't.
 
-Usage: python scripts/13_cross_model_significance.py
+Usage: python scripts/cross_model_significance.py
 """
 
 from __future__ import annotations

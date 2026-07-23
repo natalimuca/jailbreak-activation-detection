@@ -286,7 +286,7 @@ checkpoints -- none of 23/24/25 were among the previously-downloaded
 
 ## Causal validation via suppression -- results (2026-07-10)
 
-`scripts/05_causal_validate_sae_features.py`: baseline vs. suppressing the
+`scripts/validate_sae_features.py`: baseline vs. suppressing the
 top-1/top-5/top-20 causally-ranked features (from the corrected
 `sae_causal_ranking_Qwen3-8B.json`), on 25 held-out VAL harmful prompts
 (seed=1, disjoint from every prompt used anywhere upstream -- direction
@@ -331,14 +331,14 @@ n=8 for the ranking screen means the exact top-20 feature list itself
 carries real sampling noise. Decided to redo both, on user request, rather
 than leave the numbers at their first-pass strength:
 
-- **Ranking pass**: `N_EVAL_PROMPTS` 8 -> 16 (`scripts/04`). Doubles cost
+- **Ranking pass**: `N_EVAL_PROMPTS` 8 -> 16 (`scripts/rank_sae_features.py`). Doubles cost
   (~3.8hrs estimated vs the original ~2hrs) but tightens which exact
   features land in the top-20, not just the validation's confidence in
   them.
 - **Validation pass**: `N_VAL_PROMPTS` 25 -> 50, plus two intermediate
   conditions (`top10`, `top15`) added alongside the existing
   baseline/top1/top5/top20, for a smoother dose-response curve rather than
-  3 sparse points (`scripts/05`). ~1.75hrs estimated for 6 conditions x 50
+  3 sparse points (`scripts/validate_sae_features.py`). ~1.75hrs estimated for 6 conditions x 50
   prompts.
 
 Run sequentially (validation depends on the ranking's output), ~5.5hrs
@@ -453,8 +453,8 @@ project's core finding.
 
 Despite deciding above to defer Phase 1's redo to a future session, user
 asked for it the same session once the current job finished (cheap enough
-to just do). Re-ran `scripts/01_reproduce_refusal_direction.py` for both
-models and `scripts/02_calibrate_addition_alpha.py` for both, no code
+to just do). Re-ran `scripts/reproduce_direction.py` for both
+models and `scripts/calibrate_alpha.py` for both, no code
 changes needed (the `do_sample=False` fix in `interventions.py` already
 covers these functions).
 
@@ -480,7 +480,7 @@ worth just doing rather than deferring. RESULTS.md updated in place
 
 ## Head-to-head: dense-direction ablation vs SAE-feature suppression (2026-07-11)
 
-`scripts/06_dense_direction_ablation_qwen3.py`: Phase 1's ablation method
+`scripts/ablate_qwen3_direction.py`: Phase 1's ablation method
 (project the direction out at every layer, every token) run on Qwen3-8B,
 same 50 held-out VAL prompts as the SAE suppression validation, same
 `do_sample=False`. Ablation layer (23) selected via separation score on
@@ -534,12 +534,12 @@ Rather than spend more compute tightening CIs around a classifier of
 unknown accuracy (considered and rejected -- see below), built a
 human-labeling spot-check that costs no new GPU time: every experiment's
 completions are already saved in its results JSON, so
-`scripts/07_sample_completions_for_labeling.py` draws a stratified sample
+`scripts/sample_for_labeling.py` draws a stratified sample
 (3 per source/condition group, 45 total across all 15 groups from Phase 1,
 Phase 3, and the head-to-head) and writes a CSV worksheet with the
 classifier's own verdict deliberately hidden (saved separately to
 `results/classifier_spotcheck_reference.json`) to avoid anchoring the
-labeler's judgment. `scripts/08_score_classifier_agreement.py` joins the
+labeler's judgment. `scripts/score_agreement.py` joins the
 filled-in worksheet back against the classifier's calls once labeled,
 reporting overall agreement and a per-label breakdown -- the "moralize"
 row's accuracy is the number that matters most, since that's the specific
@@ -556,7 +556,7 @@ no GPU needed, reuses existing data) comes first; bigger samples are only
 worth it once the classifier is trusted.
 
 Worksheet/reference files are gitignored (`results/`, generated artifacts,
-not source) -- awaiting the user's labels before `scripts/08` can report
+not source) -- awaiting the user's labels before `scripts/score_agreement.py` can report
 real numbers.
 
 ## Classifier-validation spot-check: results (2026-07-11)
@@ -604,7 +604,7 @@ re-opening any split already used elsewhere in this project.
 
 **Decision**: TRAIN (already used for direction estimation and SAE ranking)
 is reused as-is; VAL becomes the threshold-calibration split for all four
-detectors (`scripts/10_calibrate_detector_thresholds.py`, via Youden's J --
+detectors (`scripts/calibrate_thresholds.py`, via Youden's J --
 `src.eval.detector_metrics.youden_threshold`); TEST is reserved entirely
 for final reporting and is also the only source pool for the adversarial
 paraphrase set.
@@ -623,7 +623,7 @@ dense direction and rank the SAE features -- picking a decision threshold
 on the same data used to derive the underlying score would be a second
 layer of fitting on the same split (mild optimism, even for a single 1D
 cutoff). VAL is disjoint from both TRAIN and TEST, so it's the correct
-choice: closest in spirit to how `scripts/02_calibrate_addition_alpha.py`
+choice: closest in spirit to how `scripts/calibrate_alpha.py`
 calibrates alpha on a split disjoint from the reported val in Phase 1.
 
 ## Baseline detector design choices (2026-07-11)
@@ -738,9 +738,9 @@ than assuming it and writing up whatever the actual numbers show.
 ## Found (and fixed going forward) a mild leakage pattern in the Qwen3-8B dense-direction pipeline (2026-07-11)
 
 While starting the Qwen2.5/SmolLM2 cross-model extension, noticed that the
-just-merged Qwen3-8B pipeline (`scripts/06` -> `scripts/10` -> `scripts/11`)
+just-merged Qwen3-8B pipeline (`scripts/ablate_qwen3_direction.py` -> `scripts/calibrate_thresholds.py` -> `scripts/compare_detectors.py`)
 selects the dense-direction detector's layer via **TEST**-split separation
-score (`scripts/06`'s docstring explains this was to avoid VAL, which was
+score (`scripts/ablate_qwen3_direction.py`'s docstring explains this was to avoid VAL, which was
 already used by Phase 3's causal validation at the time), then reports the
 detector's final classification metrics on that **same TEST split**. That's
 reusing one split for both layer selection and final reporting -- a mild
@@ -828,7 +828,7 @@ alternatives:
    (Alon & Kamfonas explicitly built this method around GPT-2 specifically
    for its ubiquity as a plain reference scorer).
 
-**Empirical outcome after rerunning `scripts/10`/`scripts/11`** (full
+**Empirical outcome after rerunning `scripts/calibrate_thresholds.py`/`scripts/compare_detectors.py`** (full
 numbers in RESULTS.md): confirmed the hypothesis behind the switch, but not
 in the way expected.
 - **XSTest-safe correctly-not-flagged rate: 13.5% -> 75.7%**, a large real
@@ -964,7 +964,7 @@ been argued from eyeballing Wilson CIs:
    null case, a clear-difference case, and an equal-marginal-rates case
    that forces Q to exactly 0 regardless of item-level pattern -- a
    property of the test worth checking explicitly since it's easy to get
-   the formula subtly wrong). `scripts/13_cross_model_significance.py`
+   the formula subtly wrong). `scripts/cross_model_significance.py`
    reuses Qwen3-8B's cached adversarial activations and does a fresh
    (cheap, forward-pass-only) extraction for Qwen2.5-1.5B/SmolLM2-1.7B on
    just the 21 PAIR prompts. Result: **Q = 13.06, df = 2, p = 0.0015** --
@@ -1002,12 +1002,12 @@ settings," check the token's specific `canReadGatedRepos` scope via
 `HfApi().whoami()["auth"]["accessToken"]["fineGrained"]`, not just whether
 the model's license was accepted -- these are two independent gates.**
 
-**Wave 1 execution**: reused `scripts/03_extract_all_activations.py`
+**Wave 1 execution**: reused `scripts/extract_activations.py`
 unchanged (fully generic, no new extraction code needed) for both models,
 `--4bit` (8-9B params on a 6GB GPU). Full-corpus extraction took ~1h45m
 (Llama-3.1-8B-Instruct) and ~2h08m (Gemma-2-9B-it). New
-`scripts/14_extend_dense_direction_llama_gemma.py` mirrors
-`scripts/12`'s pattern exactly (same `select_layer_and_calibrate`,
+`scripts/extend_llama_gemma.py` mirrors
+`scripts/extend_qwen_smollm.py`'s pattern exactly (same `select_layer_and_calibrate`,
 `detector_stats`, adversarial-set reuse), merging results into the
 existing `results/dense_direction_cross_model.json` rather than
 overwriting Phase 4's Qwen2.5/SmolLM2 entries.
@@ -1021,7 +1021,7 @@ adding two more models sharpens the cross-model story from "one anomaly"
 to a real spread: SmolLM2 (90.5%) > Llama-3.1-8B (66.7%) > Gemma-2-9B
 (47.6%) > Qwen3-8B (42.9%) > Qwen2.5-1.5B (38.1%).
 
-**Extended `scripts/13_cross_model_significance.py` from 3 to 5 models**
+**Extended `scripts/cross_model_significance.py` from 3 to 5 models**
 (added `load_in_4bit` support to `model_pair_predictions`, generalizing
 what was `small_model_pair_predictions`) rather than leaving the
 significance test at 3 models while RESULTS.md now reports 5. Result:
@@ -1149,7 +1149,7 @@ above) -- `layer_34/`, `layer_35/`, `layer_33/` all have both
 
 Added `src/sae/registry.py`: a small shared dispatch table
 (`SAE_PROVIDERS: model_name -> (load_sae, layers, micro_batch_size)`) so
-`scripts/04`/`scripts/05` no longer hardcode Qwen-Scope's loader and
+`scripts/rank_sae_features.py`/`scripts/validate_sae_features.py` no longer hardcode Qwen-Scope's loader and
 Qwen3-8B's layers -- both scripts import from this one table instead of
 each carrying their own copy, so a future layer-selection update can't
 drift between the ranking and validation steps. (The `micro_batch_size`
@@ -1204,7 +1204,7 @@ was left in place rather than treated as a bug to silently patch.
 
 ## Phase 6 Wave 2, step 3: causal ranking results (Llama-3.1-8B-Instruct) (2026-07-13)
 
-`scripts/04_causal_rank_sae_features.py meta-llama/Llama-3.1-8B-Instruct`,
+`scripts/rank_sae_features.py meta-llama/Llama-3.1-8B-Instruct`,
 same parameters as Qwen3-8B's final pass (K0=10, K*=20, N_STEPS=10, 16
 harmful TRAIN prompts length-capped at 150 chars, seed=0) -- run once at
 this rigor level rather than a smaller first pass, per this project's
@@ -1257,7 +1257,7 @@ diagnosis looked plausible each time:
    batch-independent.
 3. **Actual cause, found by re-examining what's resident on GPU
    throughout the whole ranking pass, not just during one call**:
-   `scripts/04`'s `main()` explicitly moved every candidate layer's
+   `scripts/rank_sae_features.py`'s `main()` explicitly moved every candidate layer's
    *entire* SAE (`saes[l].to(device="cuda:0", dtype=torch.float16)`) onto
    GPU before ranking started. For GemmaScope's `width_131k` SAEs
    (131072 features vs. LlamaScope's 32768), each layer's W_enc + W_dec
@@ -1270,7 +1270,7 @@ diagnosis looked plausible each time:
    (`sae.W_enc[feature_idx]`, `sae.feature_direction(feature_idx)`) and
    already move *that* tiny slice to the model's device themselves --
    correct and sufficient whether the parent SAE tensor lives on GPU or
-   CPU. Removed the whole-SAE `.to("cuda:0")` step from `scripts/04`
+   CPU. Removed the whole-SAE `.to("cuda:0")` step from `scripts/rank_sae_features.py`
    entirely; SAEs now stay on CPU (fp32) for the whole ranking pass, for
    every model, not just Gemma. Ran cleanly afterward -- confirmed via the
    first candidate completing, then the full 30-candidate pass finishing
@@ -1317,7 +1317,7 @@ top-1-alone-does-most-of-it effect).
 
 ## Phase 6 Wave 2, step 4: causal validation results, both models, and a three-way cross-model comparison (2026-07-13)
 
-`scripts/05_causal_validate_sae_features.py`, same parameters as
+`scripts/validate_sae_features.py`, same parameters as
 Qwen3-8B's final pass (N=50 held-out VAL harmful prompts, 6 conditions,
 40 tokens, greedy decoding, real `refusal_classifier`) for both models.
 Zero degenerate completions across all 300 generations, both models.
@@ -1385,8 +1385,8 @@ original choice), Llama-3.1-8B 0% (strict minimum), gemma-2-9b-it 82%
 an arbitrary carry-over.
 
 **New infrastructure, mirroring Wave 2's registry-based generalization**:
-- `scripts/15_extend_sae_adversarial_cache_llama_gemma.py` (new) --
-  Wave 1's dense-direction extension (`scripts/14`) computed adversarial
+- `scripts/extend_sae_adversarial.py` (new) --
+  Wave 1's dense-direction extension (`scripts/extend_llama_gemma.py`) computed adversarial
   activations on the fly and discarded them (only needed one layer's
   projection); the SAE-feature detector needs 3 layers per model, so
   this time the cache is saved to disk (`results/activations/
@@ -1402,9 +1402,9 @@ an arbitrary carry-over.
   Llama-3.1-8B/gemma-2-9b-it's come from `dense_direction_cross_model.json`
   (VAL-selected, the corrected discipline used for every model added
   after that fix).
-- `scripts/10_calibrate_detector_thresholds.py`/
-  `scripts/11_head_to_head_detectors.py` generalized with a `model` CLI
-  arg (mirroring `scripts/04`/`05`'s pattern from Wave 2): SAE loading via
+- `scripts/calibrate_thresholds.py`/
+  `scripts/compare_detectors.py` generalized with a `model` CLI
+  arg (mirroring `scripts/rank_sae_features.py`/`05`'s pattern from Wave 2): SAE loading via
   `src/sae/registry.py` (already built), keyword/perplexity thresholds
   reused from Qwen3-8B's own calibration rather than recomputed (both are
   prompt-text-only and VAL-split membership is prompt-manifest-based,
@@ -1459,8 +1459,8 @@ Wave 2's write-up reported gemma-2-9b-it's causal-validation curve (96%
 baseline -> 82% at top-15/top-20) descriptively but flagged that, unlike
 Qwen3-8B (non-overlapping Wilson CIs) or Llama-3.1-8B (an unambiguous 0%
 floor), whether this specific curve was formally significant hadn't been
-tested. `scripts/16_test_gemma_suppression_significance.py` closes this
-with no new GPU compute -- `scripts/05`'s validation run already saved
+tested. `scripts/gemma_suppression_significance.py` closes this
+with no new GPU compute -- `scripts/validate_sae_features.py`'s validation run already saved
 every completion per condition, so this just reclassifies each of the 50
 VAL prompts with `is_refusal` and runs McNemar's exact test (paired,
 baseline vs. each condition, on the same 50 prompts) rather than eyeballing
@@ -1499,7 +1499,7 @@ alpha for a foreign direction on a different target's residual-stream
 scale, real additional scope, deferred. SAE-feature transfer also out of
 scope -- an SAE's feature basis is specific to that trained autoencoder,
 not a well-posed transfer question the way a single vector is.
-`scripts/17_cross_model_direction_transfer.py`, branch
+`scripts/transfer_direction.py`, branch
 `cross-model-direction-transfer`.
 
 **Test 1 (separation score, cache-only, no generation)**: broadcast each
@@ -1581,7 +1581,7 @@ just less dramatically different than first reported.
 
 Picked up as a gap explicitly flagged above: "Llama's own-direction
 causal ablation effect is itself new and unreplicated at a larger N."
-`scripts/22_llama_own_ablation_larger_n.py` draws a fresh, independent
+`scripts/replicate_llama_ablation.py` draws a fresh, independent
 sample (not an extension of the original 50 prompts, new seed) and
 re-runs only the two conditions this needed (baseline, own-ablation --
 not the full 3-condition cross-model transfer test, which isn't in
@@ -1610,7 +1610,7 @@ RESULTS.md's cross-model-direction-transfer section for the full writeup.
 The other half of the same "only tested at small scale" gap: necessity
 (ablation) had reached 7-9B models via Wave 2 and the cross-model-transfer
 test, but sufficiency (activation addition) was still only ever measured
-on Phase 1's two small models. `scripts/23_sufficiency_7b_9b_scale.py`
+on Phase 1's two small models. `scripts/sufficiency_at_scale.py`
 extends it to Qwen3-8B and Llama-3.1-8B-Instruct.
 
 **Split-discipline choice**: Phase 1's original methodology used a
@@ -1634,7 +1634,7 @@ completions were degenerate -- over the 10% cutoff, so rejected as
 non-viable), started fully degenerating from alpha=2.0, and calibration
 fell back to the highest-refusal *viable* alpha (1.0, 58% on the calib
 set) -- the fallback branch already existed in the calibration logic
-(shared with scripts/02) but had never actually been exercised by any
+(shared with scripts/calibrate_alpha.py) but had never actually been exercised by any
 model until Llama here. Final validated effect: 10.0% -> 34.0%, real
 (barely non-overlapping CIs) but much smaller than Qwen3-8B's.
 
@@ -1648,17 +1648,17 @@ at scale" headline. See RESULTS.md's dedicated section for full numbers.
 
 ## True harmful-compliance spot-check extended to cross-model-transfer completions (2026-07-24)
 
-Extends the scripts/06/20 methodology (direct Claude-labeling, not an
+Extends the scripts/ablate_qwen3_direction.py/20 methodology (direct Claude-labeling, not an
 automated classifier -- both candidate local judges already failed this
 task, see above) to a second dataset: the four ablation conditions'
 completions already sitting in `results/cross_model_direction_transfer.json`
-from scripts/17, no new generation needed. Read all non-refuse
+from scripts/transfer_direction.py, no new generation needed. Read all non-refuse
 completions for the two small conditions (Llama own/foreign-ablation, 6
 and 4 completions), sampled 15 of 46 for Qwen3-8B's own-ablation
 (the only condition large enough that reading all of it wasn't a good use
 of time), read all 8 of Qwen3-8B's foreign-ablation.
 
-**Confirms the scripts/06 pattern generalizes**: Qwen3-8B's non-refuse
+**Confirms the scripts/ablate_qwen3_direction.py pattern generalizes**: Qwen3-8B's non-refuse
 completions are overwhelmingly moralizing, not real compliance (2/15
 sampled were true compliance, both clean and unhedged). Foreign-ablation
 (no real causal effect) never produced true compliance in this sample.
@@ -1715,7 +1715,7 @@ GPU generation needed for either correction**:
 **Not affected**: Wave 3's SAE-feature/dense-direction *detector* results
 (AUROC, McNemar tests on adversarial prompts) never use `is_refusal` --
 those score raw activations directly, not generated text. Gemma's
-Wave 2 significance test (`scripts/16`) is unaffected -- confirmed via
+Wave 2 significance test (`scripts/gemma_suppression_significance.py`) is unaffected -- confirmed via
 the same recomputation, zero differences in that file.
 
 **Lesson**: this is the second time a Unicode/encoding mismatch has
@@ -1733,7 +1733,7 @@ Closes the longest-standing item on `refusal_rate`'s own known-limitations
 list: `is_refusal` detects refusal *phrasing* only, conflating "moralize"
 (lectures about why a request is wrong, zero harmful content, safe) with
 "comply" (genuinely provides the harmful content, unsafe) under one
-"non_refuse" bucket. Originally surfaced by `scripts/06`'s head-to-head
+"non_refuse" bucket. Originally surfaced by `scripts/ablate_qwen3_direction.py`'s head-to-head
 (6% dense-ablation refusal vs. 24% SAE-suppression refusal looked like an
 18-point safety gap; manual inspection at the time found 47/50 of dense
 ablation's "non-refusals" were moralizing, so the true gap was flagged as
@@ -1745,8 +1745,8 @@ ablation's "non-refusals" were moralizing, so the true gap was flagged as
 from a past session's Phase 3 spot-check) had a real confound -- 100% of
 its `comply` labels came from Phase 1's smaller models, zero from any
 Qwen3-8B intervention experiment, and zero coverage of Llama-3.1-8B/
-gemma-2-9b-it or the cross-model-transfer results. `scripts/18_expand_
-moralize_comply_worksheet.py` sampled 53 more non-refuse completions
+gemma-2-9b-it or the cross-model-transfer results. `scripts/expand_worksheet.py`
+sampled 53 more non-refuse completions
 specifically from the previously-uncovered files, Claude-labeled blind
 (same protocol as the original), saved separately as
 `results/classifier_spotcheck_worksheet_expansion.csv`. Real side-finding
@@ -1823,8 +1823,8 @@ tested (parsing logic, judge-loading), and documented honestly as
 deleted or silently abandoned -- useful infrastructure and a real,
 reusable finding if a stronger local model becomes available later.
 
-**Resolving scripts/06's original question** (`scripts/20_rescore_
-scripts06_harmful_compliance.py`): every non-refuse completion in both
+**Resolving scripts/ablate_qwen3_direction.py's original question** (`scripts/rescore_compliance.py`):
+every non-refuse completion in both
 files (47 for dense-direction ablation, 38 for SAE-suppression top-15 --
 not sampled, both are already this project's own modest VAL sets) read
 and labeled directly, a built-in consistency check confirming every

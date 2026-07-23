@@ -1,19 +1,22 @@
-"""Extends Phase 4's dense-direction detector to Qwen2.5-1.5B-Instruct and
-SmolLM2-1.7B-Instruct (Phase 1's models) -- deferred from the original
-Phase 4 PR to keep Qwen3-8B's four-way comparison clean on one model, picked
-back up now. The SAE-feature detector still can't run on these models (no
-SAE trained for them); keyword/perplexity baselines are model-agnostic (they
-only look at prompt text, never activations) so their already-computed
-Qwen3-8B numbers apply unchanged here -- not recomputed, and not re-run
-per model.
+"""Extends the dense-direction detector to Llama-3.1-8B-Instruct and
+Gemma-2-9B-it (Phase 6) -- the two additional model families named in the
+original project roadmap, chosen specifically because pretrained SAE
+suites exist for both (LlamaScope, GemmaScope), unlike Qwen2.5/SmolLM2.
+This script only extends the dense-direction detector (mirrors
+`scripts/extend_qwen_smollm.py`'s pattern exactly);
+extending the SAE-feature detector is a separate, substantially larger
+follow-up (effectively repeating Phase 3's methodology per model) and is
+not done here.
 
-Layer selection and threshold calibration both happen on VAL (never TEST)
-for both models, via `dense_direction_detector.select_layer_and_calibrate`
--- a cleaner split discipline than the TEST-based layer selection
-Qwen3-8B's pipeline used (`scripts/06`), even though that made no practical
-difference there (see that function's docstring and DECISIONS.md).
+Both models are ~8-9B params, so both are loaded 4-bit (matching Qwen3-8B's
+approach) -- unlike Qwen2.5-1.5B/SmolLM2-1.7B, which fit unquantized.
 
-Usage: python scripts/12_extend_dense_direction_qwen25_smollm2.py
+Merges into the existing `results/dense_direction_cross_model.json` file
+(created by scripts/extend_qwen_smollm.py) rather than overwriting it, so all four
+cross-model results (Qwen2.5, SmolLM2, Llama-3.1, Gemma-2) live in one
+place.
+
+Usage: python scripts/extend_llama_gemma.py
 """
 
 from __future__ import annotations
@@ -33,10 +36,11 @@ from src.eval.detector_metrics import detector_stats
 
 RESULTS_DIR = Path(__file__).resolve().parents[1] / "results"
 ADVERSARIAL_MANIFEST_PATH = RESULTS_DIR / "adversarial_paraphrase_manifest.json"
+CROSS_MODEL_RESULTS_PATH = RESULTS_DIR / "dense_direction_cross_model.json"
 
 MODELS = {
-    "Qwen2.5-1.5B-Instruct": "Qwen/Qwen2.5-1.5B-Instruct",
-    "SmolLM2-1.7B-Instruct": "HuggingFaceTB/SmolLM2-1.7B-Instruct",
+    "Llama-3.1-8B-Instruct": "meta-llama/Llama-3.1-8B-Instruct",
+    "gemma-2-9b-it": "google/gemma-2-9b-it",
 }
 
 
@@ -69,8 +73,8 @@ def evaluate_model(cache_label: str, hf_model_name: str, adversarial_records: li
         xstest_scores = project(acts[layer, is_xstest_safe, :], direction).tolist()
         xstest_stats = detector_stats(xstest_scores, [False] * n_xstest_safe, threshold)
 
-    print(f"  loading model for adversarial-set activation extraction: {hf_model_name}")
-    model = load_model(hf_model_name)
+    print(f"  loading model (4-bit) for adversarial-set activation extraction: {hf_model_name}")
+    model = load_model(hf_model_name, load_in_4bit=True)
     adv_texts = [r["text"] for r in adversarial_records]
     adv_acts = get_last_token_resid_acts(model, adv_texts)
     adv_scores = project(adv_acts[layer], direction).tolist()
@@ -104,11 +108,16 @@ def main() -> None:
     )
 
     results = {}
+    if CROSS_MODEL_RESULTS_PATH.exists():
+        with open(CROSS_MODEL_RESULTS_PATH) as fh:
+            results = json.load(fh)
+        print(f"Loaded existing cross-model results for: {list(results.keys())}")
+
     for cache_label, hf_model_name in MODELS.items():
         print(f"\n=== {cache_label} ===")
         results[cache_label] = evaluate_model(cache_label, hf_model_name, adversarial_records)
 
-    print("\n=== Dense-direction detector: cross-model comparison ===")
+    print("\n=== Dense-direction detector: cross-model comparison (all models) ===")
     for cache_label, r in results.items():
         acc = r["test_overall"]["accuracy"]
         auc = r["test_overall"]["auroc"]
@@ -125,10 +134,9 @@ def main() -> None:
             m = stats["accuracy"]
             print(f"      {method}: {m['rate']:.3f} [{m['ci_low']:.3f},{m['ci_high']:.3f}] (n={m['n']})")
 
-    out_path = RESULTS_DIR / "dense_direction_cross_model.json"
-    with open(out_path, "w") as fh:
+    with open(CROSS_MODEL_RESULTS_PATH, "w") as fh:
         json.dump(results, fh, indent=2)
-    print(f"\nSaved results to {out_path}")
+    print(f"\nSaved merged results to {CROSS_MODEL_RESULTS_PATH}")
 
 
 if __name__ == "__main__":

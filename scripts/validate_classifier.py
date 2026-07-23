@@ -1,9 +1,9 @@
 """Validates `src.direction.moralize_comply_classifier` against two
 already-labeled worksheets -- no new human/Claude labeling needed:
 
-  - `results/classifier_spotcheck_worksheet.csv` (scripts/07/08's original
+  - `results/classifier_spotcheck_worksheet.csv` (scripts/sample_for_labeling.py/08's original
     45-row set, Qwen3-8B + Phase 1 sources).
-  - `results/classifier_spotcheck_worksheet_expansion.csv` (scripts/18's
+  - `results/classifier_spotcheck_worksheet_expansion.csv` (scripts/expand_worksheet.py's
     53-row set, Llama-3.1-8B/gemma-2-9b-it suppression + cross-model-
     transfer sources -- the original set had zero coverage of these).
 
@@ -12,9 +12,9 @@ condition, not one aggregate number -- the whole point of this classifier
 is not smearing easy cases (harmless-prompt compliance) into the hard,
 actually load-bearing case (harmful-prompt post-intervention). This is
 the same "don't trust the aggregate" discipline that originally found the
-moralize confound (see scripts/06/RESULTS.md).
+moralize confound (see scripts/ablate_qwen3_direction.py/RESULTS.md).
 
-Usage: python scripts/19_validate_moralize_comply_classifier.py
+Usage: python scripts/validate_classifier.py
 """
 
 from __future__ import annotations

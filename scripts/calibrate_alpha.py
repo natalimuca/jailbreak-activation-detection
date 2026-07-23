@@ -8,7 +8,7 @@ from both the direction-training set and the held-out val split used for
 final reporting) to find, per model, the smallest alpha that induces a high
 refusal rate without collapsing generation into degenerate repeated tokens.
 
-Usage: python scripts/02_calibrate_addition_alpha.py <model_name>
+Usage: python scripts/calibrate_alpha.py <model_name>
 """
 
 from __future__ import annotations

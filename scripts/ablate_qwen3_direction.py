@@ -16,7 +16,7 @@ suppression validation JSON (same model, same prompts, same do_sample=False
 settings), since re-running it would just reproduce that number at extra
 compute cost.
 
-Usage: python scripts/06_dense_direction_ablation_qwen3.py
+Usage: python scripts/ablate_qwen3_direction.py
 """
 
 from __future__ import annotations

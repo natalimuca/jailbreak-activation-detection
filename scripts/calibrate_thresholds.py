@@ -11,7 +11,7 @@ model other than Qwen3-8B, this reuses Qwen3-8B's already-calibrated
 keyword/perplexity thresholds instead of recomputing numerically identical
 output from a fresh model load (see DECISIONS.md's Phase 6 Wave 3 entry).
 
-Usage: python scripts/10_calibrate_detector_thresholds.py [model]
+Usage: python scripts/calibrate_thresholds.py [model]
 """
 
 from __future__ import annotations

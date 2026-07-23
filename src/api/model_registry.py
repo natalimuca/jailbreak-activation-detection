@@ -2,7 +2,7 @@
 which layer/direction/threshold each detector uses for a given target
 model, assembled from artifacts every earlier phase already produced
 (`results/detector_thresholds_*.json`, `results/dense_direction_cross_model.json`,
-`results/dense_directions.pt` from `scripts/21_export_dense_directions.py`,
+`results/dense_directions.pt` from `scripts/export_directions.py`,
 `results/sae_causal_ranking_*.json`) -- this module never recalibrates or
 re-derives anything, it only looks up already-computed values, so a live
 prompt's score is always directly comparable to the numbers already
@@ -30,7 +30,7 @@ DENSE_DIRECTIONS_PATH = RESULTS_DIR / "dense_directions.pt"
 CROSS_MODEL_RESULTS_PATH = RESULTS_DIR / "dense_direction_cross_model.json"
 
 # hf_name -> cache_label ("Qwen/Qwen3-8B" -> "Qwen3-8B"), same mapping used
-# throughout scripts/12, 14, 21 -- kept as one table here since the API
+# throughout scripts/extend_qwen_smollm.py, 14, 21 -- kept as one table here since the API
 # needs it in both directions (list models for the frontend, resolve a
 # model_name from a request body).
 MODELS: dict[str, str] = {
@@ -68,9 +68,9 @@ def _load_thresholds(cache_label: str, results_dir: Path) -> dict:
     """Every model's four thresholds, plus dense-direction layer and (for the
     3 SAE-covered models) SAE layers/k, live in
     `detector_thresholds_<cache_label>.json` -- but that file was only ever
-    generated for the 3 models scripts/10 was run against directly
+    generated for the 3 models scripts/calibrate_thresholds.py was run against directly
     (Qwen3-8B, Llama-3.1-8B-Instruct, gemma-2-9b-it). For the other two,
-    scripts/10's own documented convention is reused here: keyword/perplexity
+    scripts/calibrate_thresholds.py's own documented convention is reused here: keyword/perplexity
     thresholds are model-agnostic (prompt-text-only) so Qwen3-8B's values
     apply unchanged, and the dense-direction layer/threshold come from
     `dense_direction_cross_model.json` instead."""
@@ -119,7 +119,7 @@ def load_model_config(hf_name: str, results_dir: Path = RESULTS_DIR) -> ModelCon
     if cache_label not in directions:
         raise KeyError(
             f"No exported dense direction for {cache_label!r} in {results_dir / 'dense_directions.pt'} "
-            "-- run scripts/21_export_dense_directions.py."
+            "-- run scripts/export_directions.py."
         )
     layer = thresholds_payload["dense_direction_layer"]
     exported = directions[cache_label]
@@ -127,7 +127,7 @@ def load_model_config(hf_name: str, results_dir: Path = RESULTS_DIR) -> ModelCon
         raise ValueError(
             f"{cache_label}: exported dense-direction layer ({exported['layer']}) doesn't match "
             f"the calibrated-threshold layer ({layer}) -- results/dense_directions.pt is stale, "
-            "rerun scripts/21_export_dense_directions.py."
+            "rerun scripts/export_directions.py."
         )
 
     return ModelConfig(

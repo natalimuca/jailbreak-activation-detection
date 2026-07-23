@@ -13,7 +13,7 @@ Pipeline (see DECISIONS.md for the layer/prompt-count/length-cap rationale):
      diff, averaged over a length-capped sample of harmful TRAIN prompts.
   5. Save the top K*=20 to results/sae_causal_ranking_<model>.json.
 
-Usage: python scripts/04_causal_rank_sae_features.py [model]
+Usage: python scripts/rank_sae_features.py [model]
 """
 
 from __future__ import annotations

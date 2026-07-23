@@ -49,7 +49,7 @@ def select_layer_and_calibrate(
 ) -> tuple[int, torch.Tensor, float]:
     """One-shot layer selection + threshold calibration for a full-corpus
     activation cache, both done on VAL -- deliberately NOT on TEST (unlike
-    `scripts/06_dense_direction_ablation_qwen3.py`'s ablation-layer choice,
+    `scripts/ablate_qwen3_direction.py`'s ablation-layer choice,
     which was selected via TEST-split separation score since VAL was
     already spoken for by Phase 3's causal validation at the time). Reusing
     TEST for both layer selection and final reported metrics is a mild

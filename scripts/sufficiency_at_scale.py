@@ -1,19 +1,19 @@
 """Extends Phase 1's sufficiency (activation-addition) test to 7-9B scale
 (Qwen3-8B, Llama-3.1-8B-Instruct) -- closes a gap flagged in RESULTS.md's
 "Known limitations": necessity (ablation) has since been tested at this
-scale (Wave 2, `scripts/17`'s cross-model-transfer test) but sufficiency
+scale (Wave 2, `scripts/transfer_direction.py`'s cross-model-transfer test) but sufficiency
 hadn't, and remained tested only on the two small Phase 1 models
 (Qwen2.5-1.5B, SmolLM2-1.7B).
 
 Reuses each model's already-selected layer (never re-derives layer
 selection) and the already-cached full-corpus activations
 (`results/activations/<model>.pt`) -- no new activation extraction needed,
-only new generation. Mirrors Phase 1's split discipline (scripts/01 + 02)
+only new generation. Mirrors Phase 1's split discipline (scripts/reproduce_direction.py + 02)
 adapted to this project's train/val/test scheme (no separate "calib"
 split exists here, unlike Phase 1's original small-corpus 3-way split):
 
   1. Alpha-sweep calibration on a modest VAL-split harmless sample
-     (n=12, matching scripts/02's calib-split size) -- picks the smallest
+     (n=12, matching scripts/calibrate_alpha.py's calib-split size) -- picks the smallest
      alpha that induces a high refusal rate without degenerating.
   2. Final causal-validation generation test on a TEST-split harmless
      sample (n=50, this project's standing validation-sample convention),
@@ -24,7 +24,7 @@ Both models get the identical sampled prompt texts (same corpus, same
 splits, same seed) for direct comparability -- not literally the same
 activations, since those are model-specific.
 
-Usage: python scripts/23_sufficiency_7b_9b_scale.py
+Usage: python scripts/sufficiency_at_scale.py
 """
 
 from __future__ import annotations

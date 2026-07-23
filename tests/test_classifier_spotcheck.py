@@ -14,7 +14,7 @@ def _load_script(name):
 
 
 def test_stratified_sample_respects_n_per_source_and_covers_all_groups():
-    sampling = _load_script("07_sample_completions_for_labeling")
+    sampling = _load_script("sample_for_labeling")
     entries = []
     for source in ["a", "b"]:
         for condition in ["x", "y"]:
@@ -30,7 +30,7 @@ def test_stratified_sample_respects_n_per_source_and_covers_all_groups():
 
 
 def test_stratified_sample_caps_at_group_size_when_n_per_source_too_large():
-    sampling = _load_script("07_sample_completions_for_labeling")
+    sampling = _load_script("sample_for_labeling")
     entries = [{"source": "a", "condition": "x", "prompt": "p", "completion": "c"}]
 
     sampled = sampling.stratified_sample(entries, n_per_source=10, seed=0)
@@ -39,7 +39,7 @@ def test_stratified_sample_caps_at_group_size_when_n_per_source_too_large():
 
 
 def test_stratified_sample_is_deterministic_given_seed():
-    sampling = _load_script("07_sample_completions_for_labeling")
+    sampling = _load_script("sample_for_labeling")
     entries = [{"source": "a", "condition": "x", "prompt": f"p{i}", "completion": f"c{i}"}
                for i in range(10)]
 
@@ -50,7 +50,7 @@ def test_stratified_sample_is_deterministic_given_seed():
 
 
 def test_label_to_binary_covers_all_four_categories():
-    scoring = _load_script("08_score_classifier_agreement")
+    scoring = _load_script("score_agreement")
 
     assert scoring.LABEL_TO_BINARY["refuse"] == "refuse"
     assert scoring.LABEL_TO_BINARY["moralize"] == "non_refuse"

@@ -79,7 +79,7 @@ Two fixes, in order:
    layer, so `alpha=1.0` means "add the natural difference once," not an
    arbitrary number.
 2. Even with that fix, a single alpha value doesn't transfer across models
-   (see `RESULTS.md`'s calibration sweep). `scripts/02_calibrate_addition_alpha.py`
+   (see `RESULTS.md`'s calibration sweep). `scripts/calibrate_alpha.py`
    sweeps alpha on a calibration split disjoint from the reported val split,
    selecting the smallest alpha that clears an 80% refusal-rate target
    without the completions collapsing into degenerate repeated-token output
@@ -99,7 +99,7 @@ at small n and at rates near 0% or 100%, both of which occur throughout
 these results).
 
 **Validated (2026-07-11)**: a 45-completion human-labeling spot-check
-across every experiment in this project (`scripts/07`/`08`, full results
+across every experiment in this project (`scripts/sample_for_labeling.py`/`08`, full results
 in RESULTS.md/DECISIONS.md) found 97.8% agreement between the classifier
 and human judgment, including 100% accuracy at correctly calling
 "moralizes without complying" completions non-refuse. The classifier is
@@ -270,7 +270,7 @@ candidates, causal ranking via attribution patching, causal validation via
 suppression -- rerun per model using the already-merged JumpReLU SAE
 loaders (`src.sae.llama_scope`, `src.sae.gemma_scope`). `src/sae/registry.py`
 dispatches `load_sae`/layers/(for Gemma) an integrated-gradients
-micro-batch size per model, so `scripts/04`/`scripts/05` no longer
+micro-batch size per model, so `scripts/rank_sae_features.py`/`scripts/validate_sae_features.py` no longer
 hardcode Qwen-Scope specifically. This is "extend the recipe to new
 models," the same choice already made for the dense-direction detector's
 cross-model extension -- not the literal transfer question above (does a
@@ -310,7 +310,7 @@ shared protocol. Full rationale in [DECISIONS.md](DECISIONS.md).
 
 - **Dense-direction detector** (`src/detectors/dense_direction_detector.py`):
   projects a prompt's residual-stream activation, at the layer already
-  selected in the head-to-head ablation script (`scripts/06`, layer 23),
+  selected in the head-to-head ablation script (`scripts/ablate_qwen3_direction.py`, layer 23),
   onto the TRAIN-estimated refusal direction (`compute_directions`). Higher
   projection = more harmful-like, by construction.
 - **SAE-feature detector** (`src/detectors/sae_feature_detector.py`): sums
@@ -347,7 +347,7 @@ activation cache from Phase 2/3 -- no new full-corpus extraction.
 - **TRAIN**: already used to estimate the refusal direction and rank SAE
   features (Phases 1/3); reused as-is here, not re-derived.
 - **VAL**: calibrates every detector's decision threshold
-  (`scripts/10_calibrate_detector_thresholds.py`), via the cutoff that
+  (`scripts/calibrate_thresholds.py`), via the cutoff that
   maximizes Youden's J (TPR - FPR) on VAL's labeled prompts
   (`src/eval/detector_metrics.youden_threshold`) -- the same
   calibrate-on-a-disjoint-split discipline as the alpha-calibration sweep in
@@ -355,7 +355,7 @@ activation cache from Phase 2/3 -- no new full-corpus extraction.
   for Phase 3's *generation-based* causal suppression validation; using its
   *activations* for threshold-fitting here is a distinct, non-leaking use.
 - **TEST**: untouched by any tuning. Final metrics
-  (`scripts/11_head_to_head_detectors.py`) are reported here, plus its
+  (`scripts/compare_detectors.py`) are reported here, plus its
   XSTest-safe subset (false-positive/over-refusal check) and the
   adversarial paraphrase set below (built only from TEST-split JBB goals).
 
@@ -425,7 +425,7 @@ instead of treating each score as an independent sample:
 - **`delong_auc_test`** (DeLong et al. 1988, Sun & Xu 2014's structural-
   components formulation): compares two AUROCs measured on the *same*
   labeled sample, accounting for their correlation. Used for
-  dense-direction vs. SAE-feature on TEST-overall (`scripts/11`), where the
+  dense-direction vs. SAE-feature on TEST-overall (`scripts/compare_detectors.py`), where the
   gap (0.983 vs. 0.975) is close enough to need a real test rather than an
   eyeballed "clearly beats."
 - **`mcnemar_exact`**: paired binary-decision test for exactly two
@@ -433,7 +433,7 @@ instead of treating each score as an independent sample:
   comparison, see the section above).
 - **`cochrans_q`**: generalizes McNemar's test from two to *k* related
   classifiers scored on the same items -- used for the 3-model
-  dense-direction PAIR-paraphrase comparison (`scripts/13_cross_model_significance.py`),
+  dense-direction PAIR-paraphrase comparison (`scripts/cross_model_significance.py`),
   replacing an earlier informal "non-overlapping CIs" argument for
   "SmolLM2 is significantly more robust to PAIR paraphrase" with a real
   chi-squared test.
@@ -442,14 +442,14 @@ instead of treating each score as an independent sample:
 
 Extends only the dense-direction detector (not the SAE-feature detector --
 no SAE trained for these models) to Phase 1's two smaller models
-(`scripts/12_extend_dense_direction_qwen25_smollm2.py`). Keyword and
+(`scripts/extend_qwen_smollm.py`). Keyword and
 perplexity baselines are not re-run per model since they score prompt text
 only, never activations -- their Qwen3-8B numbers apply unchanged.
 
 `src.detectors.dense_direction_detector.select_layer_and_calibrate` does
 layer selection AND threshold calibration both on VAL, never TEST -- a
 cleaner discipline than the TEST-based layer selection used for Qwen3-8B's
-ablation layer (`scripts/06`), which reused a TEST-selected layer for final
+ablation layer (`scripts/ablate_qwen3_direction.py`), which reused a TEST-selected layer for final
 TEST-split reporting too. That reuse is a mild leakage pattern this
 project explicitly avoids elsewhere (see "Train/calib/val separation"
 above); it happened to make no practical difference for Qwen3-8B (layer 23
@@ -462,8 +462,8 @@ forward, including here.
 Completes the 3-model SAE-feature comparison: reframes Wave 2's
 causally-validated feature sets (Llama-3.1-8B, gemma-2-9b-it) as prompt
 classifiers, same four-detector head-to-head protocol as Qwen3-8B's
-original run above. `scripts/10`/`scripts/11` generalized with a `model`
-CLI arg (mirroring Wave 2's pattern for `scripts/04`/`05`): SAE loading
+original run above. `scripts/calibrate_thresholds.py`/`scripts/compare_detectors.py` generalized with a `model`
+CLI arg (mirroring Wave 2's pattern for `scripts/rank_sae_features.py`/`05`): SAE loading
 via `src/sae/registry.py`, K=15 reused for all three models (each
 model's own causal-validation curve independently bottoms out at top-15
 -- see DECISIONS.md), keyword/perplexity thresholds reused from Qwen3-8B
@@ -479,7 +479,7 @@ Wave 1's dense-direction extension
 (`src.detectors.dense_direction_detector`) branches on this rather than
 papering over the two genuinely different provenances with one table.
 
-New adversarial-activation caches (`scripts/15`, `results/activations/
+New adversarial-activation caches (`scripts/extend_sae_adversarial.py`, `results/activations/
 {model}_adversarial.pt`) were built for both models -- Wave 1's
 dense-direction extension computed these on the fly since it only needed
 one layer's projection; the SAE-feature detector needs all 3 of a
@@ -517,7 +517,7 @@ an SAE's feature basis is specific to that particular trained
 autoencoder, not a shared object across independently-trained SAEs the
 way a single residual-stream vector is.
 
-`scripts/17_cross_model_direction_transfer.py`, two tests:
+`scripts/transfer_direction.py`, two tests:
 
 1. **Separation score** (cheap, no generation): broadcast a foreign
    direction across the target model's layers (sound because
@@ -565,7 +565,7 @@ Two local judge models were tried and validated against a real,
 expanded ground-truth set (the original 45-row human-labeled worksheet
 plus 53 more rows sampled specifically from previously-uncovered sources
 -- Llama/Gemma's suppression results and the cross-model-transfer
-completions, `scripts/18`) -- both failed: SmolLM2-1.7B-Instruct
+completions, `scripts/expand_worksheet.py`) -- both failed: SmolLM2-1.7B-Instruct
 defaulted to "moralize" for the large majority of rows regardless of
 content (a real capability ceiling, not a prompt issue, confirmed after
 fixing two real execution bugs first); Phi-4-mini-instruct (after working
@@ -577,8 +577,8 @@ account, including the specific bugs found and fixed along the way, in
 DECISIONS.md.
 
 Given two genuine, principled attempts both failed, the actual
-application (resolving `scripts/06`'s "6% vs. 24%" ambiguity,
-`scripts/20`) used direct human (Claude) labeling instead -- the same
+application (resolving `scripts/ablate_qwen3_direction.py`'s "6% vs. 24%" ambiguity,
+`scripts/rescore_compliance.py`) used direct human (Claude) labeling instead -- the same
 methodology this project already validated at 97.8% agreement (Phase 3's
 original spot-check), not a downgrade. The classifier module is kept in
 the codebase, tested, and documented as a real negative finding rather

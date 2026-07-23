@@ -31,7 +31,7 @@ scale, real additional scope, deferred. SAE-feature transfer is out of
 scope too -- an SAE's feature basis is specific to that trained
 autoencoder, not a well-posed transfer question the way a single vector is.
 
-Usage: python scripts/17_cross_model_direction_transfer.py
+Usage: python scripts/transfer_direction.py
 """
 
 from __future__ import annotations
@@ -137,7 +137,7 @@ def run_generation_conditions(
 
 def transfer_verdict(conditions: dict) -> dict:
     """Three paired McNemar tests on the same prompts, matching
-    scripts/16's pattern -- turns the raw numbers into a clear verdict
+    scripts/gemma_suppression_significance.py's pattern -- turns the raw numbers into a clear verdict
     rather than a pile of p-values."""
     baseline_refusals = [is_refusal(c) for c in conditions["baseline"]["completions"]]
     own_refusals = [is_refusal(c) for c in conditions["own_ablation"]["completions"]]

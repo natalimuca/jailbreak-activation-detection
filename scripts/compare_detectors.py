@@ -6,15 +6,15 @@ filter, dense-direction, SAE-feature), evaluated on:
   (b) TEST's XSTest-safe subset -- false-positive / over-refusal check (this
       project's "safety tax" angle): these are harmless-but-scary-looking
       prompts, so a good detector should NOT flag them.
-  (c) the adversarial paraphrase set (scripts/09, extended to Llama/Gemma by
-      scripts/15) -- real published jailbreak prompts, all harmful by
+  (c) the adversarial paraphrase set (scripts/build_adversarial_set.py, extended to Llama/Gemma by
+      scripts/extend_sae_adversarial.py) -- real published jailbreak prompts, all harmful by
       construction, so the relevant number is detection/flag rate (recall),
       not full precision/AUROC (no negatives in this set).
 
-Thresholds are loaded from scripts/10's VAL-only calibration, never re-tuned
+Thresholds are loaded from scripts/calibrate_thresholds.py's VAL-only calibration, never re-tuned
 here.
 
-Usage: python scripts/11_head_to_head_detectors.py [model]
+Usage: python scripts/compare_detectors.py [model]
 """
 
 from __future__ import annotations
@@ -77,7 +77,7 @@ def main() -> None:
     is_test = torch.tensor([s == "test" for s in splits], dtype=torch.bool)
 
     # Direction re-derived from TRAIN at the already-selected layer -- same
-    # deterministic recomputation as scripts/10, not re-tuned here.
+    # deterministic recomputation as scripts/calibrate_thresholds.py, not re-tuned here.
     direction = compute_directions(
         acts[dense_layer : dense_layer + 1, is_train & labels_t, :],
         acts[dense_layer : dense_layer + 1, is_train & ~labels_t, :],

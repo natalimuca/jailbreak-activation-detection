@@ -1,10 +1,10 @@
 """Builds the adversarial-paraphrase activation cache (all layers) for
 Llama-3.1-8B-Instruct and gemma-2-9b-it -- the piece Wave 1's dense-direction
-extension (`scripts/14`) didn't need, since it only used one layer's
+extension (`scripts/extend_llama_gemma.py`) didn't need, since it only used one layer's
 projection and discarded the rest. The SAE-feature detector needs multiple
 layers per model (its top-K causally-ranked features span 3 layers each),
 so this time the cache is saved to disk, mirroring
-`scripts/09_build_adversarial_paraphrase_set.py`'s Qwen3-8B cache exactly
+`scripts/build_adversarial_set.py`'s Qwen3-8B cache exactly
 (same payload shape: model/source_model/activations/records).
 
 Reuses the existing `results/adversarial_paraphrase_manifest.json` (real
@@ -12,7 +12,7 @@ JailbreakBench PAIR/GCG artifacts, matched to TEST-split JBB goals) --
 does not rebuild it, same real prompts as every other model's adversarial
 evaluation in this project.
 
-Usage: python scripts/15_extend_sae_adversarial_cache_llama_gemma.py
+Usage: python scripts/extend_sae_adversarial.py
 """
 
 from __future__ import annotations

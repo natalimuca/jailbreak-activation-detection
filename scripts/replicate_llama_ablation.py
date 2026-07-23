@@ -1,7 +1,7 @@
 """Re-runs Llama-3.1-8B-Instruct's own dense-direction causal ablation
 (baseline vs. own-direction ablation, NOT the cross-model foreign-direction
 comparison) at a larger sample -- closes a specific gap flagged in
-RESULTS.md's cross-model-direction-transfer section: `scripts/17`'s n=50
+RESULTS.md's cross-model-direction-transfer section: `scripts/transfer_direction.py`'s n=50
 found this effect real but small (92% -> 88% refusal) and NOT significant
 via paired McNemar's test, "worth an independent re-run at a larger sample
 before leaning on it further."
@@ -20,7 +20,7 @@ plain baseline generation alone, no hooks yet -- and not worth the wall-
 clock cost; n=75 is still a real improvement in power over n=50 at a
 fraction of the runtime.)
 
-Usage: python scripts/22_llama_own_ablation_larger_n.py
+Usage: python scripts/replicate_llama_ablation.py
 """
 
 from __future__ import annotations
@@ -48,7 +48,7 @@ CACHE_LABEL = "Llama-3.1-8B-Instruct"
 N_VAL_PROMPTS = 75
 MAX_PROMPT_CHARS = 150
 MAX_NEW_TOKENS = 40
-SEED = 7  # different from scripts/17's SEED=2 -- an independent draw, not an extension
+SEED = 7  # different from scripts/transfer_direction.py's SEED=2 -- an independent draw, not an extension
 
 
 def main() -> None:
@@ -69,7 +69,7 @@ def main() -> None:
     rng = random.Random(SEED)
     n = min(N_VAL_PROMPTS, len(eligible))
     val_prompts = rng.sample(eligible, n)
-    print(f"Sampled {len(val_prompts)} VAL prompts (seed={SEED}, independent of scripts/17's n=50 draw)")
+    print(f"Sampled {len(val_prompts)} VAL prompts (seed={SEED}, independent of scripts/transfer_direction.py's n=50 draw)")
 
     print(f"\nLoading model: {HF_MODEL_NAME} (4-bit)")
     model = load_model(HF_MODEL_NAME, load_in_4bit=True)

@@ -38,7 +38,7 @@ def youden_threshold(scores: list[float], labels: list[bool]) -> float:
     cutoff maximizing Youden's J (TPR - FPR) -- the standard way to turn a
     continuous detector score into a binary decision without an arbitrary
     hand-picked constant, in the same spirit as this project's existing
-    alpha-calibration sweep (`scripts/02_calibrate_addition_alpha.py`).
+    alpha-calibration sweep (`scripts/calibrate_alpha.py`).
     Intended to be called on VAL (see DECISIONS.md's split-discipline
     entry for Phase 4), never on the split final metrics are reported on."""
     fpr, tpr, thresholds = roc_curve(labels, scores)

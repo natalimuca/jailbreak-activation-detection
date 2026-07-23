@@ -8,7 +8,7 @@ experiments, this is a prompt-classification evaluation (does the prompt's
 own activation pattern get flagged), so `get_last_token_resid_acts` is all
 that's needed -- much cheaper than any of the causal-validation runs.
 
-Usage: python scripts/09_build_adversarial_paraphrase_set.py
+Usage: python scripts/build_adversarial_set.py
 """
 
 from __future__ import annotations
@@ -37,7 +37,7 @@ ACTIVATIONS_DIR = RESULTS_DIR / "activations"
 def get_test_split_records() -> list[dict]:
     if not MANIFEST_PATH.exists():
         raise FileNotFoundError(
-            f"No split manifest at {MANIFEST_PATH} -- run scripts/03_extract_all_activations.py first."
+            f"No split manifest at {MANIFEST_PATH} -- run scripts/extract_activations.py first."
         )
     records = load_all_labeled_prompts()
     kept, _ = deduplicate(records)

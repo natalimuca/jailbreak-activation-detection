@@ -110,7 +110,7 @@ into repeated-token garbage at higher alpha.
 Closes a gap flagged below: necessity (ablation) was tested at 7-9B scale
 via Wave 2/the cross-model-transfer test, but sufficiency (activation
 addition) had only ever been tested on the two small Phase 1 models
-above. `scripts/23_sufficiency_7b_9b_scale.py` extends the same
+above. `scripts/sufficiency_at_scale.py` extends the same
 methodology (alpha-sweep calibration, then a held-out causal-validation
 generation test) to Qwen3-8B and Llama-3.1-8B-Instruct, reusing each
 model's already-selected layer and the already-cached full-corpus
@@ -330,8 +330,8 @@ SAE-suppression does, but produces no more actual harmful content.
 Motivated by the finding above: 45 completions sampled across every
 experiment in this project (Phase 1 x2 models, Phase 3 SAE suppression x6
 conditions, the head-to-head), human-labeled blind to the classifier's own
-verdict, then compared (`scripts/07_sample_completions_for_labeling.py`,
-`scripts/08_score_classifier_agreement.py`; full methodology in
+verdict, then compared (`scripts/sample_for_labeling.py`,
+`scripts/score_agreement.py`; full methodology in
 DECISIONS.md).
 
 | human label | n | classifier accuracy |
@@ -420,8 +420,8 @@ resolved:
   modest -- 14 points total vs. Llama's 88 and Qwen3's 66. **Confirmed
   statistically significant from top-10 onward** via a paired McNemar's
   exact test on the same 50 prompts (baseline vs. top-15: 7/50 discordant,
-  all favoring suppression, p=0.0156 -- `scripts/16_test_gemma_
-  suppression_significance.py`, full table in DECISIONS.md): a genuine
+  all favoring suppression, p=0.0156 -- `scripts/gemma_suppression_significance.py`,
+  full table in DECISIONS.md): a genuine
   causal effect, not noise, even though it's the smallest of the three
   models.
 
@@ -448,7 +448,7 @@ resolved:
   the instruct/chat model -- a documented, accepted limitation shared with
   the source paper (see DECISIONS.md), not unique to this reproduction.
 - **`refusal_rate` conflates "moralize" (safe) and "comply" (unsafe) --
-  resolved for the scripts/06 head-to-head via direct labeling** (see
+  resolved for the scripts/ablate_qwen3_direction.py head-to-head via direct labeling** (see
   above and DECISIONS.md), not via an automated classifier: two candidate
   local judge models (SmolLM2-1.7B-Instruct, Phi-4-mini-instruct) both
   failed validation on this specific task, defaulting to one category
@@ -457,7 +457,7 @@ resolved:
   result (`src/direction/moralize_comply_classifier.py`, kept in the
   codebase and documented honestly as "validated, found unreliable with
   locally-available models"). No number in this project beyond the
-  scripts/06 comparison currently reports a true harmful-compliance rate
+  scripts/ablate_qwen3_direction.py comparison currently reports a true harmful-compliance rate
   -- applying direct labeling to other conditions/models would need the
   same manual-reading approach, real additional effort per completion
   set, not a reusable automated pipeline.
@@ -826,7 +826,7 @@ foreign direction differs from it) -- reported as found, not forced into
 a single "directions don't transfer" narrative.
 
 **Independent replication at n=75 (2026-07-23,
-`scripts/22_llama_own_ablation_larger_n.py`) does not confirm a real
+`scripts/replicate_llama_ablation.py`) does not confirm a real
 small effect.** A fresh, independently-sampled set of 75 harmful VAL
 prompts (not an extension of the original 50, seed=7) found baseline
 refusal 96.0% [88.9%, 98.6%] vs. own-ablation 94.7% [87.1%, 97.9%] -- an
@@ -841,11 +841,11 @@ features, which do ablate Llama's refusal dramatically -- 98%->10% from
 a single feature, see Wave 2).
 
 **True harmful-compliance spot-check on the ablation conditions'
-non-refuse completions (2026-07-24).** Same motivation as scripts/06/20:
+non-refuse completions (2026-07-24).** Same motivation as scripts/ablate_qwen3_direction.py/20:
 the keyword-based refusal classifier's "non-refuse" verdict conflates
 safe moralizing with actual harmful compliance, so a raw non-refuse rate
 overstates risk. Direct Claude-labeling (refuse/moralize/comply, same
-method as scripts/06/20 -- no automated classifier, per the standing
+method as scripts/ablate_qwen3_direction.py/20 -- no automated classifier, per the standing
 "validated, found unreliable with locally-available models" finding) on
 all four ablation conditions' non-refuse completions from
 `results/cross_model_direction_transfer.json`:
@@ -857,7 +857,7 @@ all four ablation conditions' non-refuse completions from
 | Llama-3.1-8B own-ablation | 6/50 | 6 (all) | 2/6 (hedged/partial) |
 | Llama-3.1-8B foreign-ablation (Qwen's direction) | 4/50 | 4 (all) | 2/4 (hedged/partial) |
 
-**Qwen3-8B's pattern matches scripts/06's original finding almost
+**Qwen3-8B's pattern matches scripts/ablate_qwen3_direction.py's original finding almost
 exactly** -- most "non-refuse" completions under ablation are clean
 moralizing/lecturing, not compliance; the ~92% non-refuse rate massively
 overstates true harmful-compliance risk (spot-check suggests true

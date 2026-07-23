@@ -56,7 +56,7 @@ def test_load_model_config_reads_dedicated_thresholds_file(tmp_path):
 
 def test_load_model_config_falls_back_to_cross_model_file_when_no_dedicated_thresholds(tmp_path):
     # Qwen3-8B stands in for the "shared" keyword/perplexity threshold source
-    # scripts/10 documents reusing for models it wasn't run against directly.
+    # scripts/calibrate_thresholds.py documents reusing for models it wasn't run against directly.
     _write_model_artifacts(tmp_path, "Qwen3-8B", with_sae=True)
     _write_model_artifacts(tmp_path, "Qwen2.5-1.5B-Instruct", with_sae=False)
     (tmp_path / "detector_thresholds_Qwen2.5-1.5B-Instruct.json").unlink()  # force the fallback path

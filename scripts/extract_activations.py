@@ -11,7 +11,7 @@ As a sanity check, it computes the harmful/harmless direction on the TRAIN
 split only and reports per-layer separation on the held-out VAL split (never
 mixing the two, unlike a naive single-split check).
 
-Usage: python scripts/03_extract_all_activations.py <model_name>
+Usage: python scripts/extract_activations.py <model_name>
 """
 
 from __future__ import annotations

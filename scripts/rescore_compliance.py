@@ -1,4 +1,4 @@
-"""Resolves scripts/06's original ambiguity with real numbers: "6% refusal"
+"""Resolves scripts/ablate_qwen3_direction.py's original ambiguity with real numbers: "6% refusal"
 (dense-direction ablation) vs. "24% refusal" (SAE-feature suppression,
 top-15) looked like a large safety gap, but manual inspection at the time
 found most of dense ablation's "non-refusal" completions were moralizing,
@@ -13,14 +13,14 @@ a single default category regardless of actual completion content,
 rather than genuinely discriminating. Rather than report an automated
 result known to be unreliable, this rescoring uses direct human (Claude)
 labels for the exact completions in question, mirroring the ORIGINAL
-scripts/07/08 methodology that this project already validated at 97.8%
+scripts/sample_for_labeling.py/08 methodology that this project already validated at 97.8%
 agreement (Phase 3's spot-check). Every non-refuse completion in both
 files (47 for dense ablation, 38 for SAE-suppression top-15) was read and
 labeled individually -- not sampled, since both sets are already this
 project's own established, modest-sized VAL sets, not a large pool
 needing subsampling.
 
-Usage: python scripts/20_rescore_scripts06_harmful_compliance.py
+Usage: python scripts/rescore_compliance.py
 """
 
 from __future__ import annotations

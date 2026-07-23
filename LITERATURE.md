@@ -135,5 +135,5 @@ original scoping) is:
    evaluation infrastructure most of these papers report results without
    fully engineering (e.g. this project's own Phase 1 mistake of using an
    uncalibrated, untested alpha=8 constant before the calibration sweep in
-   `scripts/02_calibrate_addition_alpha.py` is exactly the kind of gap this
+   `scripts/calibrate_alpha.py` is exactly the kind of gap this
    angle is meant to close).

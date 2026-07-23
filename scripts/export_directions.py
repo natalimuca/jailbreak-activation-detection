@@ -2,7 +2,7 @@
 direction as a small standalone artifact (`results/dense_directions.pt`),
 for Phase 7's interactive UI backend.
 
-Every existing script (scripts/06, 10, 12, 14) recomputes the direction
+Every existing script (scripts/ablate_qwen3_direction.py, 10, 12, 14) recomputes the direction
 on the fly from that model's full activation cache
 (`results/activations/<model>.pt`, ~1GB each, gitignored) -- fine for a
 one-shot batch analysis, but the UI backend needs to score arbitrary live
@@ -12,10 +12,10 @@ This script computes each model's direction once (from the same cached
 TRAIN-split activations every other script already uses, via
 `resolve_layer_for_model` for the layer choice -- no new selection logic)
 and saves just the small (layer, direction) results, mirroring how
-scripts/10 persists calibrated thresholds instead of recalibrating at
+scripts/calibrate_thresholds.py persists calibrated thresholds instead of recalibrating at
 use time.
 
-Usage: python scripts/21_export_dense_directions.py
+Usage: python scripts/export_directions.py
 """
 
 from __future__ import annotations

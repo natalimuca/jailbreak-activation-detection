@@ -48,7 +48,7 @@ def extract_and_cache(model: LanguageModel, model_name: str, records: list[dict]
 def load_cache(model_name: str) -> dict:
     path = cache_path(model_name)
     if not path.exists():
-        raise FileNotFoundError(f"No activation cache for {model_name} at {path}. Run scripts/03_extract_all_activations.py first.")
+        raise FileNotFoundError(f"No activation cache for {model_name} at {path}. Run scripts/extract_activations.py first.")
     return torch.load(path, weights_only=False)
 
 
