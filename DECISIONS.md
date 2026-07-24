@@ -1846,3 +1846,105 @@ cleaner resolution than "likely much smaller" -- confirms the original
 more disruptive intervention that suppresses refusal *phrasing* more
 without actually producing more harmful *content*) with a real measured
 number instead of a plausible-sounding gap.
+
+## Investigating the Llama dense-direction-vs-SAE-feature causal gap (2026-07-24)
+
+Picks up the session's explicitly-scoped next task: why is Llama-3.1-8B's
+dense-direction approach weak on both necessity (unreplicated at n=75,
+see above) and sufficiency (10%->34%, degenerating from alpha>=2.0, see
+above), while its SAE-feature approach ablates refusal dramatically
+(98%->10% from a single feature, Wave 2)? Chosen specifically because it
+looked answerable by re-analyzing data already on disk rather than
+requiring new GPU generation -- confirmed true: `scripts/analyze_llama_causal_gap.py`
+needed only cached activations (`results/activations/*.pt`) and
+already-downloaded SAE checkpoints (via `src.sae.registry`), run once on
+CPU, no model loaded.
+
+**Two candidate mechanical explanations, tested in order, one ruled out
+rather than assumed**:
+
+1. **Raw direction magnitude.** Llama's raw diff-in-means direction norm
+   (19.1 at layer 27) is the smallest of the four models with necessity
+   data (75.3-279.6 for the others) -- but raw norm alone isn't the right
+   unit, since residual-stream scale varies by model and layer. Computed
+   each model's ambient activation norm directly from its own cached
+   activation tensor at the relevant layer and took the ratio. Result:
+   Llama's ratio (0.702) is the *largest* of the four, not the smallest
+   (0.332-0.522 for the others) -- the opposite of what a magnitude-
+   dilution story predicts. **Ruled out, reported as such, not
+   smoothed over.**
+2. **Dense-direction/SAE-feature axis misalignment.** Loaded the real
+   LlamaScope decoder vector for Llama's own top causal feature (layer
+   27/13363) and the real Qwen-Scope decoder vector for Qwen3-8B's own
+   top causal feature (layer 25/65291), computed cosine similarity
+   against each model's dense direction at that same layer (recomputed
+   from TRAIN-split cached activations, matching
+   `src.direction.compute.compute_directions` exactly), against a
+   random-200-feature null baseline. Result: Llama 0.201, Qwen3-8B
+   0.196 -- essentially identical, both real (random baseline ~0.013-0.016)
+   but nowhere near "the same axis." **Does not differentiate the two
+   models** -- reported as inconclusive, not as confirming a
+   misalignment story, since the model where the dense direction *does*
+   work causally shows the same degree of "misalignment."
+
+**What the data does support**: the concentration-vs-distribution
+asymmetry already documented in Wave 2/3 above (Llama's causal effect
+collapses into one feature; Qwen3-8B's is spread across the ranked set,
+top-1 alone doing nothing) co-occurs with which model's dense direction
+ablates/adds cleanly. Reported as a real, multi-pronged correlational
+finding from n=2 models with full data, not a proven mechanism -- no
+mechanistic account of *why* Llama's refusal computation would be more
+concentrated is established here, and none is claimed. Full write-up,
+including the honest hedging, in RESULTS.md's dedicated section; results
+in `results/llama_causal_gap_analysis.json` (gitignored, matching this
+project's `results/` convention -- rerun the script to reproduce).
+
+## Cross-model sufficiency transfer: does activation addition transfer between Qwen3-8B and Llama-3.1-8B? (2026-07-24)
+
+Closes the last item on the session's remaining-gaps list that didn't
+need new methodology: `scripts/transfer_direction.py` already tested
+necessity (ablation) transfer for this model pair and deliberately
+deferred sufficiency, since addition needs its own alpha calibration for
+the *foreign* direction on the target's residual-stream scale (a fixed
+alpha has no consistent cross-model meaning, same reasoning as
+`compute_raw_directions`'s own docstring). `scripts/transfer_sufficiency.py`
+does that calibration and the corresponding causal-validation generation.
+
+**Reuse, not regeneration, wherever the data already exists**: own raw
+directions/layers are recomputed identically to
+`scripts/sufficiency_at_scale.py` (never re-derived from scratch), and
+that script's own baseline/own-addition completions
+(`results/sufficiency_7b_9b_scale.json`) are reused outright rather than
+regenerated -- verified byte-for-byte that this script's harmless-prompt
+sampling (same seed, same val/test splits, same n=12/n=50) reproduces
+that file's `calib_prompts`/`val_prompts` exactly before trusting the
+reuse. Only the foreign-direction alpha sweep and final validation needed
+new generation (~134 completions per target model), roughly half the
+scope a from-scratch run would have needed.
+
+**Convention matched to the necessity side**: the foreign raw direction is
+added at the *target's own* already-selected layer (Qwen's direction into
+Llama's layer 27; Llama's direction into Qwen's layer 23), mirroring
+`scripts/transfer_direction.py`'s "foreign direction evaluated at the
+target's own already-selected layer" convention, extended here from
+ablation to addition.
+
+**Result: a clean, symmetric no-transfer verdict for both models,
+sharper than the necessity side's**. Foreign-direction addition induced
+0.00 refusal-rate change above baseline at *every* alpha tested (0.25
+through 4.0) in both models -- not a weak effect, an absent one. Paired
+McNemar's exact tests: Qwen3-8B baseline-vs-foreign p=1.0 (0/50
+discordant -- completions identical to baseline); Llama-3.1-8B
+baseline-vs-foreign p=0.5 (2/50 discordant, still indistinguishable from
+no effect). Own-vs-foreign is clearly significant for both (p<0.001),
+and baseline-vs-own confirms Llama's real-but-weak 10%->34% own-addition
+effect isn't itself noise (p=0.0005). Zero degenerate completions in
+either foreign-addition run, so the null isn't a byproduct of the
+intervention breaking generation.
+
+**This resolves what the necessity side left inconclusive for Llama**:
+own-ablation vs. foreign-ablation couldn't be distinguished at n=50, but
+own-addition vs. foreign-addition is unambiguous. Not generalized beyond
+this one model pair -- still the only `d_model`-matched pair available.
+Full write-up in RESULTS.md; results in `results/sufficiency_transfer.json`
+(gitignored, matching this project's `results/` convention).
