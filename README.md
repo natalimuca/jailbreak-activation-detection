@@ -190,13 +190,20 @@ genuinely open:
 
 - **Ruled out**: raw direction magnitude. Llama's direction has the smallest raw
   norm of any model tested (19.1), but normalized by its own ambient activation
-  scale at that layer, it's actually the *largest* fraction (70%) of the four
-  models checked — the opposite of what a magnitude-dilution story predicts.
+  scale at that layer, it's actually the *largest* fraction (70%) of the models
+  checked — the opposite of what a magnitude-dilution story predicts. Extended
+  to gemma-2-9b-it: its ratio (0.525) is unremarkable, right in the middle of
+  the pack — confirms Llama specifically is the outlier, not "8-9B models" in
+  general.
 - **Inconclusive, not differentiating**: cosine similarity between the dense
   direction and the top causal SAE feature is ~0.20 for *both* Llama and
   Qwen3-8B — real alignment above a random-feature baseline (~0.013), but
   identical across the model where the dense direction works and the one where
-  it doesn't, so it can't be what separates them.
+  it doesn't, so it can't be what separates them. gemma's is notably higher
+  (0.367) — a genuine third data point, but gemma has no own-direction
+  dense-ablation causal test in this project to correlate it against, and its
+  own SAE causal-effect shape (modest, gradual decline, no standout feature) is
+  a third pattern entirely, not a blend of Llama's and Qwen3-8B's.
 - **What the data does support**: a genuine concentration-vs-distribution
   asymmetry (Key Results above) that co-occurs with which model's dense
   direction ablates/adds cleanly — reported as a real, multi-pronged

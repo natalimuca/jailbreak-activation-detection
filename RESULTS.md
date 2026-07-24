@@ -934,7 +934,7 @@ generation -- the foreign direction is simply inert at every scale tested.
 points (one model pair), both pointing the same way on both necessity and
 sufficiency, but still only one pair with matching `d_model` to test on.
 
-## Investigating the Llama dense-direction-vs-SAE-feature gap (2026-07-24)
+## Investigating the Llama dense-direction-vs-SAE-feature gap (2026-07-24, extended to gemma-2-9b-it same day)
 
 Llama-3.1-8B-Instruct is the project's sharpest anomaly: best dense-direction
 TEST AUROC of any of the 5 models (0.989), yet the only model where own-
@@ -945,8 +945,12 @@ approach ablates refusal dramatically from a single feature (98%->10%, Wave
 2, above). `scripts/analyze_llama_causal_gap.py` re-analyzes data already
 sitting in `results/` plus two small CPU-only computations (loading cached
 activations and already-downloaded SAE decoder weights -- no new model
-generation) to test two candidate explanations, saved to
-`results/llama_causal_gap_analysis.json`.
+generation) to test two candidate explanations against Llama and Qwen3-8B,
+saved to `results/llama_causal_gap_analysis.json`. Extended the same day to
+gemma-2-9b-it as a third data point for the SAE causal-effect-concentration
+spread (see below) -- note gemma has no own-direction dense-ablation
+causal-generation test in this project, so it can only join the two cheap
+mechanical checks, not the necessity/sufficiency correlation itself.
 
 **Hypothesis 1: Llama's raw diff-in-means direction is just small in
 absolute terms, so ablating/adding it barely perturbs the residual
@@ -963,13 +967,17 @@ activation tensors) reverses the story:
 | SmolLM2-1.7B-Instruct | 20 | 842.1 | 279.6 | 0.332 |
 | Qwen3-8B | 23 | 195.2 | 99.3 | 0.509 |
 | Llama-3.1-8B-Instruct | 27 | 27.3 | 19.1 | **0.702** |
+| gemma-2-9b-it | 34 | 673.9 | 353.5 (freshly computed) | 0.525 |
 
 Llama's direction is the *largest* fraction of its own ambient activation
-scale of the four models, not the smallest -- its layer-27 residual stream
+scale of the models tested, not the smallest -- its layer-27 residual stream
 simply operates at a much smaller absolute norm than the other models' do
 at their own tested layers. **This hypothesis does not survive the check
 and is ruled out**, not smoothed over: magnitude dilution relative to the
 residual stream isn't what's making Llama's dense direction causally weak.
+gemma's ratio (0.525) lands right in the middle of the pack, unremarkable --
+it doesn't stand out the way Llama's does, reinforcing that Llama
+specifically is the outlier here, not "8-9B models in general."
 
 **Hypothesis 2: the dense direction and the top causal SAE feature simply
 point in different directions, so the classifier axis and the causal lever
@@ -983,14 +991,32 @@ similarity against each model's dense direction at that same layer:
 |---|---|---|---|---|
 | Llama-3.1-8B-Instruct | 27 | 13363 | 0.201 | 0.013 / 0.043 |
 | Qwen3-8B | 25 | 65291 | 0.196 | 0.016 / 0.153 |
+| gemma-2-9b-it | 35 | 52410 | **0.367** | 0.015 / 0.183 |
 
-Both models show essentially identical, modest alignment (~0.20 -- real,
-well above the random-feature baseline, but far from "the same axis").
-**This does not differentiate the two models** and is reported as
+Llama and Qwen3-8B show essentially identical, modest alignment (~0.20 --
+real, well above the random-feature baseline, but far from "the same axis").
+**This does not differentiate those two models** and is reported as
 inconclusive, not as confirming evidence for a misalignment story --
 whatever separates Llama's messy dense-direction causal behavior from
 Qwen3-8B's clean one, it isn't that Llama's SAE feature and dense direction
-are unusually more orthogonal than Qwen3-8B's.
+are unusually more orthogonal than Qwen3-8B's. **gemma is a genuinely
+different third point**: its dense direction and top causal SAE feature are
+nearly twice as aligned (0.367) as either other model's -- worth noting, but
+not obviously explanatory, since gemma has no own-direction dense-ablation
+causal-generation test in this project to correlate it against (only
+Qwen3-8B and Llama-3.1-8B were tested that way at 7-9B scale) -- reported as
+an observation, not evidence for or against either hypothesis.
+
+**gemma's own SAE causal-effect shape is a third distinct pattern, not a
+blend of the other two**: its ranking scores decay smoothly with no
+standout (rank1 0.801, rank2 0.581, rank3 0.526 -- nothing like Llama's
+10.07-then-cliff or even Qwen3-8B's own top-2 separation), and its
+suppression curve is a modest, gradual decline (96%->82% by top-15/20, see
+the SAE cross-model section above) rather than either Llama's near-total
+single-feature effect or Qwen3-8B's flat-then-effective distributed one.
+Higher dense-SAE alignment does not obviously map onto either "concentrated"
+or "distributed" -- gemma's own shape is its own thing, adding a genuine
+third data point rather than resolving the original two-model puzzle.
 
 **What the data does support**: the concentration-vs-distribution asymmetry
 already documented in the SAE cross-model section above. Llama's causal
@@ -1007,12 +1033,18 @@ the project), while Qwen3-8B's causal signal is distributed broadly enough
 that the same coarse average happens to capture it well.
 
 **Honestly hedged, not a forced conclusion**: this is a real, multi-pronged
-comparison (two candidate mechanical explanations tested and one ruled out)
-but ultimately a correlational finding from n=2 models with full data
+comparison (two candidate mechanical explanations tested, one ruled out for
+the two models where a full causal test exists) but ultimately a
+correlational finding from n=2 models with full necessity/sufficiency data
 (Llama vs. Qwen3-8B). No mechanistic account of *why* Llama's refusal
 computation would be more concentrated than Qwen3-8B's is established here
 -- that would need genuine mechanistic-interpretability work (e.g. tracing
 what the ~0.20-aligned component of the dense direction vs. its ~0.98-
 orthogonal remainder each individually contribute), a different and heavier
-scope than this re-analysis. No new GPU generation was needed to reach this
-point, and none is proposed to go further on this specific question.
+scope than this re-analysis. Extending the two cheap mechanical checks to
+gemma-2-9b-it added a real third data point (unremarkable magnitude ratio,
+notably higher dense-SAE alignment, a third distinct causal-effect shape)
+without resolving the original puzzle -- gemma simply confirms Llama is the
+one clear outlier on magnitude, while adding a new, separately-unexplained
+observation on alignment. No new GPU generation was needed for any of this,
+and none is proposed to go further on this specific question.

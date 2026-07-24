@@ -14,28 +14,42 @@ the one that did NOT survive:
 1. "Llama's raw diff-in-means direction is just small, so ablating/adding it barely
    perturbs the residual stream." Checked by normalizing each model's raw_direction_norm
    (already saved per-model in results/phase1_reproduction_*.json and
-   results/sufficiency_7b_9b_scale.json) by that same layer's own ambient activation norm,
-   computed directly from the cached activation tensors. Result: Llama's ratio is the
-   LARGEST of the four models tested (not the smallest) -- this hypothesis does not survive
-   and is reported as ruled out, not smoothed over.
+   results/sufficiency_7b_9b_scale.json where available; computed fresh here for
+   gemma-2-9b-it, which has neither file, since this ratio needs no causal-generation
+   test to compute) by that same layer's own ambient activation norm, computed directly
+   from the cached activation tensors. Result: Llama's ratio is the LARGEST of the models
+   tested (not the smallest) -- this hypothesis does not survive and is reported as ruled
+   out, not smoothed over.
 
 2. "The dense direction and the top causal SAE feature point in different directions,
    so the classifier axis and the causal lever are simply different objects for Llama."
    Checked by loading the real SAE decoder weight for each model's own top causal feature
-   (LlamaScope layer 27/feature 13363, Qwen-Scope layer 25/feature 65291) and computing
-   cosine similarity against the dense direction at that same layer (recomputed from the
-   TRAIN-split cached activations, matching src.direction.compute.compute_directions exactly),
-   against a random-200-feature null baseline for scale. Result: both models show near-
-   identical, modest alignment (~0.20, vs ~0.013 for random features) -- this does NOT
-   differentiate the two models and is reported as inconclusive, not as confirming evidence.
+   (LlamaScope layer 27/feature 13363, Qwen-Scope layer 25/feature 65291, GemmaScope layer
+   35/feature 52410) and computing cosine similarity against the dense direction at that
+   same layer (recomputed from the TRAIN-split cached activations, matching
+   src.direction.compute.compute_directions exactly), against a random-200-feature null
+   baseline for scale. Result: Llama and Qwen3-8B show near-identical, modest alignment
+   (~0.20, vs ~0.013-0.016 for random features) -- this does NOT differentiate the two
+   models and is reported as inconclusive, not as confirming evidence.
+
+Extended to gemma-2-9b-it (2026-07-24) as a third data point for the SAE causal-effect-
+concentration spread (Llama concentrated in 1 feature, Qwen3-8B distributed, gemma modest/
+gradual with no sharp ranking-score standout at all -- see RESULTS.md). Note: gemma has no
+own-direction dense-ablation causal-generation test in this project at all (only Qwen3-8B,
+Llama-3.1-8B were tested that way, plus the two small Phase-1 models) -- this script's two
+checks don't depend on that test existing, but the necessity/sufficiency correlation framing
+from the Llama-vs-Qwen3-8B comparison can't be extended to gemma the same way, reported
+honestly rather than glossed over.
 
 What the data DOES support, pulled directly from already-saved results (no new computation
 needed): a genuine concentration-vs-distribution asymmetry already documented in RESULTS.md's
 SAE cross-model section -- Llama's causal effect collapses into a single dominant feature
 (top-1 alone: 86%->10%) where Qwen3-8B's is spread across the ranked set (top-1 alone: no
-effect, 82%->84%). This asymmetry co-occurs with which model's *dense*-direction necessity/
-sufficiency is clean vs. null, but this script does not claim to have found the mechanism
-connecting the two -- see RESULTS.md for the full, hedged write-up.
+effect, 82%->84%) and gemma's declines modestly and gradually (96%->82% by top-15/20, no
+single feature dominates). This asymmetry co-occurs with which model's *dense*-direction
+necessity/sufficiency is clean vs. null for the two models where that causal test exists,
+but this script does not claim to have found the mechanism connecting the two -- see
+RESULTS.md for the full, hedged write-up.
 
 Usage: python scripts/analyze_llama_causal_gap.py
 """
@@ -51,7 +65,7 @@ import torch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from src.activations.cache import load_cache
-from src.direction.compute import compute_directions
+from src.direction.compute import compute_directions, compute_raw_directions
 from src.sae.registry import SAE_PROVIDERS
 
 RESULTS_DIR = Path(__file__).resolve().parents[1] / "results"
@@ -59,13 +73,15 @@ N_RANDOM_BASELINE = 200
 RANDOM_SEED = 0
 
 # (cache_label, layer, raw_direction_norm) -- raw_direction_norm already reported in
-# results/phase1_reproduction_*.json and results/sufficiency_7b_9b_scale.json; repeated here
-# only as a lookup key alongside the freshly-computed ambient norm, not recomputed.
+# results/phase1_reproduction_*.json and results/sufficiency_7b_9b_scale.json where available;
+# None means "no prior published value -- compute fresh from cache below" (true for
+# gemma-2-9b-it, which was never run through either of those scripts).
 NECESSITY_MODELS = [
     ("Qwen2.5-1.5B-Instruct", 23, 75.3),
     ("SmolLM2-1.7B-Instruct", 20, 279.6),
     ("Qwen3-8B", 23, 99.3335),
     ("Llama-3.1-8B-Instruct", 27, 19.1452),
+    ("gemma-2-9b-it", 34, None),
 ]
 
 # (cache_label, hf_model_name, sae_layer, top_causal_feature) -- sae_layer/feature from
@@ -73,6 +89,7 @@ NECESSITY_MODELS = [
 SAE_ALIGNMENT_MODELS = [
     ("Llama-3.1-8B-Instruct", "meta-llama/Llama-3.1-8B-Instruct", 27, 13363),
     ("Qwen3-8B", "Qwen/Qwen3-8B", 25, 65291),
+    ("gemma-2-9b-it", "google/gemma-2-9b-it", 35, 52410),
 ]
 
 
@@ -90,6 +107,15 @@ def dense_direction_at_layer(cache_label: str, layer: int) -> torch.Tensor:
     is_train = torch.tensor([s == "train" for s in cache["splits"]], dtype=torch.bool)
     directions = compute_directions(acts[:, is_train & labels, :], acts[:, is_train & ~labels, :])
     return directions[layer].float()
+
+
+def raw_direction_norm_at_layer(cache_label: str, layer: int) -> float:
+    cache = load_cache(cache_label)
+    acts = cache["activations"]
+    labels = torch.tensor([l == "harmful" for l in cache["labels"]], dtype=torch.bool)
+    is_train = torch.tensor([s == "train" for s in cache["splits"]], dtype=torch.bool)
+    raw_directions = compute_raw_directions(acts[:, is_train & labels, :], acts[:, is_train & ~labels, :])
+    return round(raw_directions[layer].float().norm().item(), 4)
 
 
 def feature_vector(W_dec: torch.Tensor, d_model: int, feature: int) -> torch.Tensor:
@@ -136,12 +162,17 @@ def main() -> None:
     print("=== Hypothesis 1: raw direction norm vs. ambient activation norm ===")
     magnitude_results = []
     for cache_label, layer, raw_norm in NECESSITY_MODELS:
+        freshly_computed = raw_norm is None
+        if freshly_computed:
+            raw_norm = raw_direction_norm_at_layer(cache_label, layer)
         ambient = ambient_norm_at_layer(cache_label, layer)
         ratio = round(raw_norm / ambient["mean"], 4)
+        note = " (freshly computed, no prior published value)" if freshly_computed else ""
         print(f"  {cache_label} layer {layer}: ambient_norm_mean={ambient['mean']} "
-              f"raw_direction_norm={raw_norm} ratio={ratio}")
+              f"raw_direction_norm={raw_norm} ratio={ratio}{note}")
         magnitude_results.append({
             "model": cache_label, "layer": layer, "raw_direction_norm": raw_norm,
+            "raw_direction_norm_freshly_computed": freshly_computed,
             "ambient_activation_norm": ambient, "ratio": ratio,
         })
 

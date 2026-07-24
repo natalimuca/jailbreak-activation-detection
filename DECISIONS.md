@@ -1899,6 +1899,43 @@ including the honest hedging, in RESULTS.md's dedicated section; results
 in `results/llama_causal_gap_analysis.json` (gitignored, matching this
 project's `results/` convention -- rerun the script to reproduce).
 
+**Extended to gemma-2-9b-it the same day**, user's explicit choice among
+several remaining open questions (offered as options, this one picked as
+the natural continuation of the just-finished work). Added gemma to both
+of the script's checks (`NECESSITY_MODELS`, `SAE_ALIGNMENT_MODELS`):
+
+- Its own top causal feature (GemmaScope layer 35/52410, from Wave 2's
+  ranking) required computing its raw diff-in-means direction norm fresh
+  (`raw_direction_norm_at_layer`, new helper) -- unlike the other three
+  models, gemma has no prior `phase1_reproduction_*.json` or
+  `sufficiency_7b_9b_scale.json` entry to reuse, since it was never run
+  through either script. Verified GemmaScope's `W_dec` layout matches the
+  project's own (d_model, d_sae) convention after `load_sae`'s internal
+  transpose (see `src/sae/gemma_scope.py`'s docstring) before reusing the
+  same `feature_vector` helper unchanged.
+- **Magnitude ratio: 0.525, unremarkable** -- sits right between
+  Qwen2.5's (0.522) and Qwen3-8B's (0.509), nothing like Llama's outlier
+  0.702. Strengthens the "Llama specifically, not 8-9B models generally"
+  reading of the ruled-out hypothesis above.
+- **Cosine alignment: 0.367, notably higher than Llama's or Qwen3-8B's**
+  (~0.20 each) -- a genuine third data point, but reported as an
+  observation, not evidence either way: gemma has no own-direction dense-
+  ablation causal-generation test in this project (only Qwen3-8B and
+  Llama-3.1-8B were tested that way at this scale) to correlate the
+  alignment number against. gemma's own SAE causal-effect shape (smooth
+  ranking-score decay, no standout feature, modest 96%->82% suppression
+  curve -- see Wave 2 above) is its own third pattern, not a blend of
+  Llama's concentration or Qwen3-8B's distribution, so the higher
+  alignment doesn't obviously explain anything about it either.
+- **Net effect on the original two-model puzzle**: unresolved, as
+  expected going in -- gemma adds one confirmatory data point (magnitude)
+  and one new, separately-unexplained observation (alignment), not a
+  third data point for the necessity/sufficiency correlation itself,
+  since that causal test doesn't exist for gemma. Consistent with this
+  project's standing practice of reporting a genuine null/non-resolving
+  result rather than reaching for a post-hoc story to make three models
+  look tidier than they are.
+
 ## Cross-model sufficiency transfer: does activation addition transfer between Qwen3-8B and Llama-3.1-8B? (2026-07-24)
 
 Closes the last item on the session's remaining-gaps list that didn't
