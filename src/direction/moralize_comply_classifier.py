@@ -38,6 +38,35 @@ failed on actual accuracy -- see DECISIONS.md: it defaulted to "moralize"
 for 71/98 rows regardless of content, essentially not discriminating at
 all. 1.7B turned out to be a real capability ceiling for this task, not
 a prompt-engineering problem.)
+
+**Retry with a larger local judge (2026-07-24)**: both prior judges (3.8B,
+1.7B) failed on capability, not architecture, so `load_judge_model` now
+accepts a `judge_model_name` override -- see `scripts/validate_judge_llama.py`,
+which tries Llama-3.1-8B-Instruct (already used elsewhere in this project,
+proven-compatible, no `trust_remote_code` issues) as a genuinely larger
+(8B) candidate. Note this reintroduces a real independence question the
+original Phi-4-mini choice was picked to avoid: Llama-3.1-8B is itself one
+of this project's causally-tested target models, so any worksheet rows
+whose completions came from Llama-3.1-8B-Instruct have it judging its own
+output -- flagged and checked for in the validation script, not ignored.
+
+**Result: also fails, but for a genuinely different reason than the prior
+two.** Unlike Phi-4-mini/SmolLM2 (collapsed to one category ~70%+ of the
+time), Llama-3.1-8B's verdicts spread across all four categories (most
+common only 43.9% of outputs) -- it is discriminating on *something*. But
+on the actual load-bearing case (harmful-prompt genuine compliance/partial
+compliance), accuracy is 0/7 and 0/10 respectively -- not just wrong, but
+wrong in a concerning way: several genuine harmful-compliance completions
+were called "refuse" outright (a complete category miscall, not confusion
+between adjacent categories). It does perfectly on the easy safety-net
+case (21/21 on genuine refuse rows) and reasonably on harmless-prompt
+compliance (7/9), but that's not the case this classifier exists for. Also
+confirmed a real self-judging bias: 29.6% accuracy on rows where Llama is
+judging its own completions vs. 62.0% on rows from other models -- though
+even the "independent" accuracy isn't good enough to trust. **Still
+"validated, found unreliable with locally-available models"** -- direct
+labeling remains the only validated approach for this task. See
+DECISIONS.md and RESULTS.md for the full account.
 """
 
 from __future__ import annotations
@@ -49,12 +78,12 @@ CATEGORIES = ["moralize", "comply", "partial", "refuse"]
 MAX_NEW_TOKENS = 8
 
 
-def load_judge_model(load_in_4bit: bool = True):
+def load_judge_model(judge_model_name: str = JUDGE_MODEL_NAME, load_in_4bit: bool = True):
     """Returns (model, tokenizer) -- plain transformers objects, not an
     nnsight LanguageModel (see module docstring for why)."""
     from transformers import AutoModelForCausalLM, AutoTokenizer
 
-    tokenizer = AutoTokenizer.from_pretrained(JUDGE_MODEL_NAME)
+    tokenizer = AutoTokenizer.from_pretrained(judge_model_name)
     kwargs = dict(torch_dtype=torch.float16)
     if load_in_4bit:
         from transformers import BitsAndBytesConfig
@@ -65,7 +94,7 @@ def load_judge_model(load_in_4bit: bool = True):
             bnb_4bit_use_double_quant=True,
         )
         kwargs["device_map"] = {"": 0}
-    model = AutoModelForCausalLM.from_pretrained(JUDGE_MODEL_NAME, **kwargs)
+    model = AutoModelForCausalLM.from_pretrained(judge_model_name, **kwargs)
     if not load_in_4bit:
         model.to("cuda")
     model.eval()

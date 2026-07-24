@@ -2092,3 +2092,60 @@ blocked on JailbreakBench publishing more real artifacts (same limitation
 noted elsewhere in this project), not a re-analysis this session could do.
 Full write-up in RESULTS.md; results in `results/sae_pair_margin_llama.json`
 (gitignored, matching this project's `results/` convention).
+
+## Retrying the moralize-vs-comply classifier with a larger local judge (2026-07-24)
+
+User's explicit choice to retry rather than stop after the three cross-model
+re-analyses above. Two prior judges (Phi-4-mini-instruct 3.8B, SmolLM2-1.7B)
+both failed by defaulting to one category (~70%+ "moralize") regardless of
+content -- a real capability ceiling at that size, not a prompt-engineering
+problem (see the original "Moralize-vs-comply classifier" entry above).
+Genuinely untried: a larger local model already proven-compatible with this
+project's own tooling. `src.direction.moralize_comply_classifier.load_judge_model`
+now takes an optional `judge_model_name` override (default unchanged, so no
+behavior change for existing callers); `scripts/validate_judge_llama.py`
+tries Llama-3.1-8B-Instruct (8B, ~2-5x either prior judge) against the same
+two labeled worksheets (98 rows), same reporting structure as
+`scripts/validate_classifier.py`, for direct comparability.
+
+**A real independence question, flagged before running rather than
+after**: unlike Phi-4-mini-instruct (picked specifically to be independent
+of the Qwen/Llama/Gemma families this project causally tests), Llama-3.1-8B
+is itself one of them. 27 of 98 worksheet rows have completions Llama-3.1-8B
+itself generated (`sae_suppression_Llama-3.1-8B-Instruct`,
+`transfer_qwen_direction_on_llama`). Added a dedicated self-judged-vs-
+independent breakdown to the validation script rather than only reporting
+an aggregate that would average the bias away.
+
+**Result: fails, but for a genuinely different and more concerning reason
+than the prior two.** Verdict distribution across the 98 rows: {refuse: 43,
+moralize: 31, comply: 21, partial: 3} -- the most common single verdict is
+only 43.9% of outputs, so unlike the prior judges, this one is not
+collapsing to one category regardless of content. It does perfectly on the
+easy safety-net case (21/21 on genuine `refuse` ground-truth rows) and
+reasonably on harmless-prompt compliance (7/9, 77.8%). **But on the actual
+load-bearing case -- harmful-prompt genuine compliance/partial compliance
+-- accuracy is 0/7 and 0/10 respectively.** Spot-checked a few of the
+wrong "comply" calls directly: several genuine harmful-compliance
+completions (e.g. one actively delivering the requested harmful speech
+content) were called "refuse" outright -- not confusion between adjacent
+categories (moralize vs. comply, an understandable judgment call), but a
+complete category miscall on unambiguous content. This is a worse failure
+mode for the classifier's actual purpose than the prior two judges' honest
+"I can't tell, defaulting to X" collapse, even though it superficially
+looks more sophisticated (spread across categories).
+
+**The flagged self-judging concern is real, not just theoretical**: 8/27
+(29.6%) accuracy on self-judged rows vs. 44/71 (62.0%) on independent
+rows -- more than double the error rate when Llama-3.1-8B judges its own
+completions. Worth noting for the record even though the independent-rows
+accuracy (62.0% overall, but still 0% on the load-bearing harmful-comply
+case) isn't good enough to use either way.
+
+**Still "validated, found unreliable with locally-available models"** --
+three local judges tried now (1.7B, 3.8B, 8B), three different failure
+modes, none usable. Direct labeling remains the only validated approach
+for true-harmful-compliance labeling in this project. Full write-up in
+RESULTS.md; results in
+`results/moralize_comply_classifier_validation_llama_judge.json`
+(gitignored, matching this project's `results/` convention).

@@ -449,18 +449,59 @@ resolved:
   the source paper (see DECISIONS.md), not unique to this reproduction.
 - **`refusal_rate` conflates "moralize" (safe) and "comply" (unsafe) --
   resolved for the scripts/ablate_qwen3_direction.py head-to-head via direct labeling** (see
-  above and DECISIONS.md), not via an automated classifier: two candidate
-  local judge models (SmolLM2-1.7B-Instruct, Phi-4-mini-instruct) both
-  failed validation on this specific task, defaulting to one category
-  regardless of content rather than genuinely discriminating -- a real
-  capability/alignment-bias finding in its own right, not just a null
-  result (`src/direction/moralize_comply_classifier.py`, kept in the
-  codebase and documented honestly as "validated, found unreliable with
+  above and DECISIONS.md), not via an automated classifier: **three**
+  candidate local judge models now tried (SmolLM2-1.7B-Instruct,
+  Phi-4-mini-instruct, Llama-3.1-8B-Instruct), all three failed validation
+  on this specific task, each a genuinely different failure mode -- the
+  first two defaulted to one category regardless of content; the third
+  (2026-07-24 retry, a real capability jump to 8B) discriminates across
+  categories in aggregate but scores 0% on the actual load-bearing case
+  (harmful-prompt genuine compliance/partial compliance), including
+  several outright "refuse" miscalls on unambiguous harmful-compliance
+  completions, plus a confirmed self-judging bias (29.6% vs. 62.0%
+  accuracy on its own completions vs. others'). A real capability/
+  alignment-bias finding in its own right, not just a null result
+  (`src/direction/moralize_comply_classifier.py`, kept in the codebase and
+  documented honestly as "validated, found unreliable with
   locally-available models"). No number in this project beyond the
   scripts/ablate_qwen3_direction.py comparison currently reports a true harmful-compliance rate
   -- applying direct labeling to other conditions/models would need the
   same manual-reading approach, real additional effort per completion
   set, not a reusable automated pipeline.
+
+### Retry: Llama-3.1-8B-Instruct as moralize-vs-comply judge (2026-07-24)
+
+`scripts/validate_judge_llama.py` retries the automated classifier with a
+genuinely larger local judge (8B vs. the prior 1.7B/3.8B), same 98-row
+labeled worksheets, same reporting structure as `scripts/validate_classifier.py`.
+
+| | accuracy | notes |
+|---|---|---|
+| Overall | 52/98 (53.1%) | verdict distribution spread across all 4 categories, most common only 43.9% -- does not collapse like prior judges |
+| Refuse ground truth | 21/21 (100.0%) | perfect on the easy safety-net case |
+| Harmless-prompt compliance | 7/9 (77.8%) | the easier case |
+| **Harmful-prompt comply** | **0/7 (0.0%)** | the load-bearing case -- several miscalled outright "refuse" |
+| **Harmful-prompt partial** | **0/10 (0.0%)** | same load-bearing case |
+| Self-judged rows (Llama judging its own completions) | 8/27 (29.6%) | a confirmed, real self-judging bias |
+| Independent rows (judge != completion source) | 44/71 (62.0%) | still not good enough on the harmful-comply case above |
+
+**A genuinely different failure mode than the prior two judges, not a
+repeat.** SmolLM2-1.7B and Phi-4-mini-instruct both defaulted to one
+category (~70%+ "moralize") regardless of content -- an obvious,
+easy-to-detect failure. Llama-3.1-8B-Instruct instead *looks* like it's
+discriminating (spread across categories, perfect on refuse, decent on
+harmless-prompt compliance) while scoring 0% on the two categories that
+actually matter for this classifier's purpose, including outright category
+miscalls (calling active harmful-content delivery "refuse") on unambiguous
+cases -- arguably a more dangerous failure mode to trust by accident, since
+the aggregate numbers alone don't obviously look broken. The self-judging
+bias is real and substantial (29.6% vs. 62.0%), confirming a concern flagged
+before running rather than only after.
+
+**Three local judges tried now, three different failure modes, none
+usable.** Direct labeling remains the only validated approach for
+true-harmful-compliance labeling in this project. Results in
+`results/moralize_comply_classifier_validation_llama_judge.json`.
 
 ## Baseline detectors and adversarial evaluation
 

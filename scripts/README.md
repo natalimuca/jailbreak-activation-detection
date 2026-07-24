@@ -34,6 +34,7 @@ encoding that order; this table replaces it.
 | 26 | `extend_adversarial_small.py` | Build the adversarial-activation cache for Qwen2.5-1.5B/SmolLM2 |
 | 27 | `pair_margin_analysis.py` | Continuous margin account of the PAIR-robustness spread across 5 models |
 | 28 | `sae_pair_margin.py` | Is Llama's dense-vs-SAE PAIR flip real? Continuous-margin + paired Wilcoxon check |
+| 29 | `validate_judge_llama.py` | Retry moralize-vs-comply classifier with Llama-3.1-8B-Instruct as judge |
 
 Full rationale for every methodology choice is in
 [DECISIONS.md](../DECISIONS.md); results are in

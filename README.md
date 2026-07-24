@@ -352,14 +352,19 @@ dense-vs-SAE head-to-head), verified live in-browser against the real GPU.
 - Llama's dense-vs-SAE PAIR flip: a more powered paired continuous test
   (Wilcoxon p=0.147) than the original binary McNemar (p=0.25) — still not
   significant, genuinely inconclusive rather than resolved either way.
+- Moralize-vs-comply classifier retry with a larger (8B) local judge —
+  discriminates across categories unlike the two prior failures, but scores
+  0% on the actual load-bearing case (harmful-prompt comply/partial) plus a
+  confirmed self-judging bias; a third, more informative failure mode, not
+  a fix.
 
 **Remaining:**
 - Interactive detector UI frontend — built and live-verified, pending final
   sign-off before merge.
-- A reusable automated moralize-vs-comply classifier — two candidate local judge
-  models both failed validation on this specific distinction; extending
-  true-harmful-compliance labeling elsewhere still needs manual effort per
-  completion set.
+- A reusable automated moralize-vs-comply classifier — three candidate local
+  judge models now tried, all failed validation, each a different failure
+  mode; extending true-harmful-compliance labeling elsewhere still needs
+  manual effort per completion set.
 - A handful of statistically-confirmed cross-model differences with no
   *mechanistic* explanation (PAIR-robustness spread — now formally quantified,
   still unexplained; XSTest false-positive non-monotonicity; SAE causal-effect-
