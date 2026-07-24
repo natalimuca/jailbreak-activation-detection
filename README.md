@@ -349,6 +349,9 @@ dense-vs-SAE head-to-head), verified live in-browser against the real GPU.
 - PAIR-robustness spread: continuous margin analysis (Spearman rho=0.90,
   p=0.037, n=5) — sharpens the description with a formal test, doesn't
   identify a mechanism.
+- Llama's dense-vs-SAE PAIR flip: a more powered paired continuous test
+  (Wilcoxon p=0.147) than the original binary McNemar (p=0.25) — still not
+  significant, genuinely inconclusive rather than resolved either way.
 
 **Remaining:**
 - Interactive detector UI frontend — built and live-verified, pending final
@@ -360,6 +363,7 @@ dense-vs-SAE head-to-head), verified live in-browser against the real GPU.
 - A handful of statistically-confirmed cross-model differences with no
   *mechanistic* explanation (PAIR-robustness spread — now formally quantified,
   still unexplained; XSTest false-positive non-monotonicity; SAE causal-effect-
-  concentration spread) — reported honestly as open questions rather than
-  forced into an explanation, consistent with this project's standing practice
-  throughout.
+  concentration spread; Llama's dense-vs-SAE PAIR flip — now more carefully
+  tested, still inconclusive) — reported honestly as open questions rather
+  than forced into an explanation, consistent with this project's standing
+  practice throughout.

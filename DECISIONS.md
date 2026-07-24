@@ -2051,3 +2051,44 @@ standing practice of not forcing a description into an explanation it
 doesn't support. Full write-up in RESULTS.md; results in
 `results/pair_margin_analysis.json` (gitignored, matching this project's
 `results/` convention).
+
+## Is Llama's dense-vs-SAE PAIR flip real? A continuous-margin check (2026-07-24)
+
+Last of three remaining open items, user's explicit choice (offered
+alongside retrying the moralize-vs-comply classifier): Llama-3.1-8B is the
+one case in this project where SAE-feature numerically beats dense-direction
+on PAIR specifically (80.9% vs 66.7%, McNemar p=0.25, not significant at
+n=21, see Wave 3 above) -- the direction arXiv:2505.23556 originally
+claimed, but never confirmed at significance anywhere else in this project.
+`scripts/sae_pair_margin.py` extends the same continuous-margin method just
+used for the 5-model dense-direction analysis to Llama's SAE-feature score,
+reusing `src.detectors.sae_feature_detector.score` unchanged (the exact
+function the published 80.9% came from) rather than reimplementing it --
+needed no new GPU generation.
+
+**Sanity check first**: recomputed detection rate from the fresh per-prompt
+margins reproduced the published 80.9% (got 81.0%, rounding) -- confirms the
+already-calibrated threshold and already-selected top-15 features are being
+applied correctly.
+
+**Result**: SAE-feature's margin is higher than dense-direction's in both
+absolute (0.508 vs 0.332) and relative (0.627 vs 0.355, as a fraction of
+each detector's own genuine-harmful-prompt margin) terms -- not just an
+artifact of where the binary threshold happens to fall. Ran a **paired
+Wilcoxon signed-rank test on the same 21 prompts' continuous margins**
+(more statistical power than McNemar's test on the binarized pass/fail
+outcome, since it uses the full margin rather than collapsing to
+above/below threshold): statistic=73.0, **p=0.147**. Lower than the
+original McNemar p=0.25 (moves in the direction of "more likely a real
+effect"), but still not significant at the conventional 0.05 threshold.
+
+**Genuinely inconclusive, reported as such rather than either dismissed or
+oversold**: a more powered test doesn't resolve this into "real" or "noise"
+-- both binary and continuous measures point the same direction (SAE beats
+dense on Llama's PAIR set) without either reaching significance at n=21.
+This is the honest end state for this specific question given the data on
+hand; resolving it further would need a larger matched adversarial set,
+blocked on JailbreakBench publishing more real artifacts (same limitation
+noted elsewhere in this project), not a re-analysis this session could do.
+Full write-up in RESULTS.md; results in `results/sae_pair_margin_llama.json`
+(gitignored, matching this project's `results/` convention).

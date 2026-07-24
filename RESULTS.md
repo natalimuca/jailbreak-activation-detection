@@ -640,6 +640,41 @@ by-method) in `results/detector_head_to_head_{Llama-3.1-8B-Instruct,
 gemma-2-9b-it}.json`; methodology and infrastructure changes in
 DECISIONS.md's Phase 6 Wave 3 entry.
 
+#### Is the Llama PAIR flip real? A continuous-margin check (2026-07-24)
+
+`scripts/sae_pair_margin.py` applies the same continuous-margin method used
+for the 5-model dense-direction PAIR analysis above to Llama's SAE-feature
+score instead, to see whether a finer-grained measure shows a real signal
+underneath the non-significant binary result. No new GPU generation --
+reuses the already-cached activations, already-selected top-15 features, and
+`src.detectors.sae_feature_detector.score` unchanged (the exact function the
+published 80.9% came from).
+
+| | harmful-prompt margin | PAIR margin | PAIR as frac. of harmful margin |
+|---|---|---|---|
+| SAE-feature | 0.811 | **0.508** | **0.627** |
+| dense-direction | 0.936 | 0.332 | 0.355 |
+
+Recomputing the detection rate from these margins reproduces the published
+81.0% (vs. known 80.9%) -- confirms the math before trusting anything new.
+**SAE-feature's margin is higher than dense-direction's in both absolute and
+relative terms** -- not just a difference in where the binary threshold
+happens to fall. A **paired Wilcoxon signed-rank test on the same 21
+prompts' continuous margins** (more statistical power than McNemar's test on
+the binarized outcome, since it uses the full margin rather than just
+above/below threshold): **statistic=73.0, p=0.147** -- lower than the
+original McNemar p=0.25, but still not significant at the conventional 0.05
+threshold.
+
+**Genuinely inconclusive, not resolved either way**: a more powered
+continuous test moves the p-value in the direction of "more likely real"
+but does not cross significance. The honest read is that this project's
+n=21 PAIR set cannot currently distinguish "SAE-feature is genuinely more
+robust to paraphrase for Llama specifically" from "noise that happens to
+point the same direction on two different measures" -- both the original
+binary result and this continuous one are consistent with either. Results
+in `results/sae_pair_margin_llama.json`.
+
 ### Known limitations (baseline detectors and adversarial evaluation)
 
 - **Adversarial set is small** (n=35, spanning only 11 of TEST's JBB-sourced

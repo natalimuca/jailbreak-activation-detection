@@ -33,6 +33,7 @@ encoding that order; this table replaces it.
 | 25 | `transfer_sufficiency.py` | Cross-model sufficiency transfer (Qwen3-8B <-> Llama-3.1-8B) |
 | 26 | `extend_adversarial_small.py` | Build the adversarial-activation cache for Qwen2.5-1.5B/SmolLM2 |
 | 27 | `pair_margin_analysis.py` | Continuous margin account of the PAIR-robustness spread across 5 models |
+| 28 | `sae_pair_margin.py` | Is Llama's dense-vs-SAE PAIR flip real? Continuous-margin + paired Wilcoxon check |
 
 Full rationale for every methodology choice is in
 [DECISIONS.md](../DECISIONS.md); results are in
