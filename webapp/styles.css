@@ -1,0 +1,1026 @@
+/* Design tokens -- ui-ux-pro-max --design-system search ("security research
+   tool dashboard technical dark mode analytics") recommended Dark Mode
+   (OLED) + Fira Code/Fira Sans + blue/amber/red semantic palette. Leaned
+   further technical/instrument-panel (sharp corners, dot-grid texture,
+   monospace-first) rather than a soft rounded-card SaaS look, since this
+   is a thesis research instrument, not a consumer product. */
+:root {
+  color-scheme: dark;
+  --font-ui: "Fira Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "Fira Code", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  --color-bg: #07070a;
+  --color-surface: #0f0f14;
+  --color-surface-2: #16161d;
+  --color-border: #24242e;
+  --color-border-strong: #33333f;
+  --color-text: #e9e9ef;
+  --color-text-muted: #8d8d9c;
+  --color-text-dim: #5c5c68;
+
+  --color-primary: #4f8cf7;
+  --color-accent: #d97706;
+
+  --color-flagged: #f87171;
+  --color-flagged-dim: #7a3a3a;
+  --color-clear: #34d399;
+  --color-clear-dim: #2f6b56;
+  --color-unavailable: #8d8d9c;
+  --color-idle: #5c5c68;
+
+  /* Chart series -- validated via dataviz skill's validate_palette.js
+     (CVD ΔE 29.4/28.9, normal-vision ΔE 32.3, all >= target) against this
+     dark surface. Kept separate from --color-primary/--color-accent so the
+     light-mode chart blue can be tuned for the lightness-band check
+     independently of the UI accent blue used elsewhere. */
+  --chart-blue: #4f8cf7;
+  --chart-amber: #d97706;
+  --chart-gray: #5c5c68;
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --transition-fast: 150ms ease-out;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    color-scheme: light;
+    --color-bg: #eef0f4;
+    --color-surface: #ffffff;
+    --color-surface-2: #f2f3f7;
+    --color-border: #dcdfe6;
+    --color-border-strong: #c6cad4;
+    --color-text: #171923;
+    --color-text-muted: #565a6b;
+    --color-text-dim: #8b8fa0;
+
+    --color-primary: #1e40af;
+    --color-accent: #b45309;
+
+    --color-flagged: #b3261e;
+    --color-flagged-dim: #f3c8c6;
+    --color-clear: #15803d;
+    --color-clear-dim: #c3e6cf;
+    --color-unavailable: #565a6b;
+    --color-idle: #9a9dac;
+
+    /* #2f5fc4, not --color-primary's #1e40af -- the validator's lightness-
+       band check (L 0.43-0.77) fails on #1e40af as a bar fill (L=0.424);
+       #2f5fc4 clears it and still passes CVD/contrast against #ffffff. */
+    --chart-blue: #2f5fc4;
+    --chart-amber: #b45309;
+    --chart-gray: #9a9dac;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* Without this, `.layout { display: grid }` and `.findings { display: ... }`
+   below (author rules) silently outrank the browser's default
+   `[hidden] { display: none }` (a lower-priority UA-stylesheet rule) --
+   so toggling the `hidden` attribute on #panel-detector/#panel-findings
+   would flip the DOM property but never actually stop rendering. */
+[hidden] {
+  display: none !important;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-ui);
+  background-color: var(--color-bg);
+  background-image: radial-gradient(var(--color-border) 1px, transparent 1px);
+  background-size: 22px 22px;
+  color: var(--color-text);
+  line-height: 1.5;
+  font-size: 15.5px;
+}
+
+@media (prefers-color-scheme: light) {
+  body {
+    background-image: radial-gradient(var(--color-border) 1px, transparent 1px);
+  }
+}
+
+button,
+select,
+textarea,
+input {
+  font-family: inherit;
+}
+
+a {
+  color: var(--color-primary);
+}
+
+/* -- App bar -- */
+
+.app-bar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: color-mix(in srgb, var(--color-bg) 92%, transparent);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.app-bar-inner {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 0.95rem 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.brand-mark {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--color-primary) 18%, transparent);
+  color: var(--color-primary);
+  border: 1px solid color-mix(in srgb, var(--color-primary) 35%, transparent);
+}
+
+.brand-mark svg {
+  width: 20px;
+  height: 20px;
+}
+
+.brand-title {
+  margin: 0;
+  font-weight: 700;
+  font-size: 1rem;
+  letter-spacing: -0.01em;
+}
+
+.brand-subtitle {
+  margin: 0.1rem 0 0;
+  font-size: 0.74rem;
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+}
+
+.stat-strip {
+  display: flex;
+  gap: 1.5rem;
+  margin: 0;
+}
+
+.stat-strip > div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.stat-strip dt {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-dim);
+}
+
+.stat-strip dd {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+/* -- Layout -- */
+
+main {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 1.5rem 1.5rem 3rem;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 1.1rem;
+  align-items: start;
+}
+
+@media (max-width: 860px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.rail {
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+  position: sticky;
+  top: 5.5rem;
+}
+
+@media (max-width: 860px) {
+  .rail {
+    position: static;
+  }
+}
+
+.panel {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.panel-title {
+  margin: 0 0 0.9rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-dim);
+  padding-bottom: 0.6rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.controls {
+  padding: 1.1rem 1.2rem 1.2rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-bottom: 1rem;
+}
+
+.field label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.select-wrap {
+  position: relative;
+}
+
+select {
+  width: 100%;
+  appearance: none;
+  color: var(--color-text);
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  padding: 0.65rem 2.2rem 0.65rem 0.8rem;
+  font-size: 0.88rem;
+  font-family: var(--font-mono);
+  min-height: 44px;
+  cursor: pointer;
+  transition: border-color var(--transition-fast);
+}
+
+select:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.select-chevron {
+  position: absolute;
+  right: 0.8rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 15px;
+  height: 15px;
+  color: var(--color-text-muted);
+  pointer-events: none;
+}
+
+textarea {
+  width: 100%;
+  color: var(--color-text);
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  padding: 0.7rem 0.85rem;
+  font-size: 0.88rem;
+  font-family: var(--font-mono);
+  line-height: 1.5;
+  resize: vertical;
+  transition: border-color var(--transition-fast);
+}
+
+select:focus-visible,
+textarea:focus-visible,
+button:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+select:hover,
+textarea:hover {
+  border-color: var(--color-primary);
+}
+
+button#analyze-button {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 44px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: #ffffff;
+  background: var(--color-primary);
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 0.65rem 1.2rem;
+  cursor: pointer;
+  transition: background var(--transition-fast), transform 120ms ease-out;
+}
+
+button#analyze-button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-primary) 88%, white);
+}
+
+button#analyze-button:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+button#analyze-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-icon {
+  width: 15px;
+  height: 15px;
+}
+
+.spinner {
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #ffffff;
+  animation: spin 0.7s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation: none;
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.status-line {
+  margin: 0.6rem 0 0;
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  min-height: 1.1rem;
+}
+
+.status-line.error {
+  color: var(--color-flagged);
+}
+
+/* model validation stat panel */
+
+.model-stats {
+  padding: 1.1rem 1.2rem 1.2rem;
+}
+
+.model-stat-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 0.8rem;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.model-stat-row:last-child {
+  border-bottom: none;
+}
+
+.model-stat-row .k {
+  color: var(--color-text-muted);
+}
+
+.model-stat-row .v {
+  font-family: var(--font-mono);
+  font-weight: 600;
+}
+
+.model-stat-note {
+  margin: 0.7rem 0 0;
+  font-size: 0.74rem;
+  color: var(--color-text-dim);
+  line-height: 1.5;
+}
+
+/* method note -- collapsed by default (<details>): the rail (controls +
+   model-stats + method) would otherwise run noticeably taller than the
+   4-card results grid next to it, leaving a dead gap under the shorter
+   column since both share one grid row's height. */
+
+.method-note {
+  padding: 1.1rem 1.2rem;
+}
+
+.method-note summary.panel-title {
+  cursor: pointer;
+  list-style: none;
+  margin-bottom: 0;
+}
+
+.method-note[open] summary.panel-title {
+  margin-bottom: 0.9rem;
+}
+
+.method-note summary.panel-title::-webkit-details-marker {
+  display: none;
+}
+
+.method-note summary.panel-title::after {
+  content: "+";
+  float: right;
+  font-family: var(--font-mono);
+  color: var(--color-text-dim);
+}
+
+.method-note[open] summary.panel-title::after {
+  content: "\2212";
+}
+
+.method-text {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+  line-height: 1.6;
+}
+
+.method-text em {
+  color: var(--color-text);
+  font-style: normal;
+}
+
+/* -- Result cards -- */
+
+/* Single column, not a 2x2 grid: the sticky rail is meant to be the
+   shorter column next to a taller, scrollable main content area (the
+   standard sticky-sidebar pattern) -- a compact 2x2 card grid inverted
+   that, leaving dead space under the shorter results column once the
+   grid row stretched to match the taller rail. */
+.results {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+  align-content: start;
+}
+
+.card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 1.1rem 1.2rem 1.2rem;
+  transition: border-color var(--transition-fast);
+}
+
+.card-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  margin-bottom: 0.9rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.card-icon {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-2);
+  color: var(--color-text-muted);
+  margin-top: 0.1rem;
+}
+
+.card-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.card h2 {
+  font-size: 0.92rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.card-spec {
+  margin: 0.2rem 0 0;
+  font-size: 0.72rem;
+  color: var(--color-text-dim);
+  font-family: var(--font-mono);
+  line-height: 1.4;
+}
+
+/* status pill */
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-family: var(--font-mono);
+  padding: 0.22rem 0.55rem;
+  border-radius: var(--radius-sm);
+  margin-bottom: 0.8rem;
+  border: 1px solid transparent;
+}
+
+.pill svg {
+  width: 12px;
+  height: 12px;
+}
+
+.pill.flagged {
+  background: color-mix(in srgb, var(--color-flagged) 14%, transparent);
+  color: var(--color-flagged);
+  border-color: color-mix(in srgb, var(--color-flagged) 35%, transparent);
+}
+
+.pill.clear {
+  background: color-mix(in srgb, var(--color-clear) 14%, transparent);
+  color: var(--color-clear);
+  border-color: color-mix(in srgb, var(--color-clear) 35%, transparent);
+}
+
+.pill.unavailable {
+  background: color-mix(in srgb, var(--color-unavailable) 12%, transparent);
+  color: var(--color-unavailable);
+  border-color: var(--color-border-strong);
+}
+
+.pill.idle {
+  background: transparent;
+  color: var(--color-idle);
+  border-color: var(--color-border-strong);
+}
+
+/* score display */
+
+.score-stats {
+  display: flex;
+  align-items: baseline;
+  gap: 0.55rem;
+  font-family: var(--font-mono);
+  margin-bottom: 0.6rem;
+}
+
+.score-value {
+  font-size: 1.3rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.score-value.flagged {
+  color: var(--color-flagged);
+}
+
+.score-value.clear {
+  color: var(--color-clear);
+}
+
+.score-threshold {
+  font-size: 0.74rem;
+  color: var(--color-text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+/* diverging axis meter: real signed value relative to a zero-anchored
+   scale, with the calibrated decision threshold marked as a dashed line --
+   deliberately not a plain 0-100% progress bar, since dense-direction and
+   SAE-feature scores are real signed magnitudes, not probabilities. */
+.axis {
+  position: relative;
+  height: 20px;
+  margin-bottom: 0.85rem;
+}
+
+.axis-track {
+  position: absolute;
+  top: 9px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--color-border-strong);
+}
+
+.axis-zero {
+  position: absolute;
+  top: 3px;
+  width: 1px;
+  height: 14px;
+  background: var(--color-text-dim);
+}
+
+.axis-fill {
+  position: absolute;
+  top: 7px;
+  height: 6px;
+  border-radius: 3px;
+  transition: width 400ms ease-out, left 400ms ease-out;
+}
+
+.axis-fill.flagged {
+  background: var(--color-flagged);
+}
+
+.axis-fill.clear {
+  background: var(--color-clear);
+}
+
+.axis-threshold {
+  position: absolute;
+  top: 0;
+  width: 0;
+  height: 20px;
+  border-left: 2px dashed var(--color-accent);
+}
+
+.detail-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--color-text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 0.75rem 0 0.4rem;
+}
+
+.term-list,
+.feature-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.82rem;
+  font-family: var(--font-mono);
+}
+
+.term-list li,
+.feature-list li {
+  padding: 0.22rem 0;
+  border-bottom: 1px solid var(--color-border);
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.term-list li:last-child,
+.feature-list li:last-child {
+  border-bottom: none;
+}
+
+.feature-list .contribution {
+  color: var(--color-text-muted);
+}
+
+.feature-bar-wrap {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.feature-bar-track {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--color-border);
+  overflow: hidden;
+}
+
+.feature-bar-fill {
+  height: 100%;
+  background: var(--color-primary);
+  border-radius: 2px;
+}
+
+.empty-note {
+  font-size: 0.82rem;
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
+/* skeleton loading state */
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--color-surface-2) 25%,
+    var(--color-border-strong) 37%,
+    var(--color-surface-2) 63%
+  );
+  background-size: 400% 100%;
+  border-radius: 3px;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0 50%;
+  }
+}
+
+.skeleton-line {
+  height: 0.85rem;
+  margin-bottom: 0.55rem;
+}
+
+.skeleton-line.w-60 {
+  width: 60%;
+}
+
+.skeleton-line.w-80 {
+  width: 80%;
+}
+
+.skeleton-line.w-40 {
+  width: 40%;
+}
+
+/* footer */
+
+.page-footer {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 0 1.5rem 2.5rem;
+  font-size: 0.75rem;
+  color: var(--color-text-dim);
+  font-family: var(--font-mono);
+}
+
+.page-footer p {
+  margin: 0;
+  padding-top: 1rem;
+  border-top: 1px solid var(--color-border);
+}
+
+@media (max-width: 480px) {
+  .app-bar-inner,
+  main,
+  .page-footer {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  .stat-strip {
+    display: none;
+  }
+}
+
+/* -- Tabs -- */
+
+.tabs {
+  display: flex;
+  gap: 0.3rem;
+  margin-bottom: 1.1rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.tab {
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 0.6rem 0.2rem;
+  margin-bottom: -1px;
+  cursor: pointer;
+  transition: color var(--transition-fast), border-color var(--transition-fast);
+}
+
+.tab + .tab {
+  margin-left: 1.2rem;
+}
+
+.tab:hover {
+  color: var(--color-text);
+}
+
+.tab.active {
+  color: var(--color-text);
+  border-bottom-color: var(--color-primary);
+}
+
+/* -- Findings view -- */
+
+.findings-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+  gap: 1rem;
+}
+
+.chart-figure {
+  margin: 0;
+  padding: 1.1rem 1.2rem 1.2rem;
+}
+
+.chart-caption {
+  margin: 0.3rem 0 1rem;
+  font-size: 0.76rem;
+  color: var(--color-text-dim);
+  line-height: 1.55;
+}
+
+.chart-legend {
+  display: flex;
+  gap: 1.1rem;
+  margin-bottom: 0.9rem;
+  font-size: 0.76rem;
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+}
+
+.legend-swatch {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.legend-swatch::before {
+  content: "";
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  background: var(--swatch-color, currentColor);
+}
+
+/* bar chart -- see references/marks-and-anatomy.md: <=24px thick bars,
+   4px rounded data-end, square at the baseline, direct value labels at
+   the tip rather than a number on every gridline. */
+.bar-chart {
+  border-left: 1px solid var(--color-border-strong);
+}
+
+.bar-group + .bar-group {
+  margin-top: 0.7rem;
+}
+
+.bar-group-title {
+  margin: 0 0 0.3rem 0.7rem;
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+/* Emphasis form (dataviz skill): ties the findings back to the model
+   actually selected in the live detector above -- its bar/group stays at
+   full color, everything else recedes. */
+.bar-row-current .bar-label {
+  color: var(--color-text);
+  font-weight: 700;
+}
+
+.bar-group-current .bar-group-title {
+  color: var(--color-text);
+  font-weight: 700;
+}
+
+.bar-group-dim {
+  opacity: 0.45;
+}
+
+.bar-group-note {
+  font-family: var(--font-mono);
+  font-weight: 400;
+  color: var(--color-text-dim);
+  margin-left: 0.5rem;
+}
+
+.bar-row {
+  display: grid;
+  grid-template-columns: 128px 1fr 54px;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 3px 0 3px 0.7rem;
+}
+
+.bar-label {
+  font-size: 0.74rem;
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bar-track {
+  position: relative;
+  height: 16px;
+}
+
+.bar-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  border-radius: 0 4px 4px 0;
+  transition: width 500ms ease-out;
+}
+
+.bar-value {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.table-toggle {
+  margin-top: 0.9rem;
+}
+
+.table-toggle summary {
+  cursor: pointer;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  user-select: none;
+}
+
+.table-toggle summary:hover {
+  color: var(--color-text);
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 0.6rem;
+  font-size: 0.78rem;
+  font-family: var(--font-mono);
+}
+
+.data-table th,
+.data-table td {
+  text-align: left;
+  padding: 0.35rem 0.6rem 0.35rem 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.data-table th {
+  color: var(--color-text-dim);
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+}
+
+.data-table td {
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 480px) {
+  .bar-row {
+    grid-template-columns: 92px 1fr 48px;
+  }
+
+  .bar-label {
+    font-size: 0.68rem;
+  }
+}
