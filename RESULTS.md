@@ -879,16 +879,60 @@ in the data worth a closer look if this project's scope grows further.
 - **Only one model pair tested** (Qwen3-8B <-> Llama-3.1-8B) -- the only
   pair with matching `d_model`. Whether this weak-effect pattern recurs
   in other models is unknown.
-- **Necessity (ablation) only** -- sufficiency (activation addition) with
-  a foreign direction was not attempted; would need its own alpha
-  calibration for the foreign direction on the target's residual-stream
-  scale, real additional scope.
+- ~~Necessity (ablation) only~~ -- **sufficiency (activation addition) with
+  a foreign direction has since been tested, see the dedicated section
+  below.**
 - ~~Llama's own-direction causal ablation effect is itself new and
   unreplicated at a larger N~~ -- **replicated at n=75 (independent
   sample), does NOT confirm a real effect** (96.0% vs. 94.7%, McNemar
   p=1.0 -- see the dedicated section above). The dense direction's causal
   necessity for Llama's refusal remains genuinely unresolved, not
   established as "real but small."
+
+## Cross-model sufficiency transfer (2026-07-24)
+
+Closes the necessity-only limitation flagged above: does a foreign
+direction, scaled by its own newly-calibrated alpha, *induce* refusal the
+way it can (or can't) *remove* it? `scripts/transfer_sufficiency.py`
+reuses each model's already-generated baseline and own-addition
+completions from `results/sufficiency_7b_9b_scale.json` unchanged (verified
+byte-for-byte identical prompt sampling before reusing them, so only the
+foreign-direction alpha sweep and validation needed new generation) and
+adds the foreign raw direction at the *target's own* already-selected
+layer, matching the necessity section's convention above.
+
+| model | baseline | own addition | foreign addition | own calibrated alpha | foreign calibrated alpha |
+|---|---|---|---|---|---|
+| Qwen3-8B (foreign = Llama's direction) | 6.0% | **70.0%** | 6.0% | 1.0 | 0.25 |
+| Llama-3.1-8B-Instruct (foreign = Qwen3-8B's direction) | 10.0% | 34.0% | 6.0% | 1.0 | 0.25 |
+
+**Foreign-direction addition induces literally zero refusal above baseline
+in both models, at every alpha tested (0.25 through 4.0) -- not a weak
+effect, an absent one.** Paired McNemar's exact tests give a clean,
+unambiguous verdict this time (unlike the necessity side's underpowered
+Llama result):
+
+- **Qwen3-8B**: baseline vs. foreign, p=1.0 (0 discordant pairs --
+  completions are identical to baseline, not just similar). Own vs.
+  foreign, p<0.001 (32/50 discordant). A clean, symmetric no-transfer
+  result matching the necessity side's own clean no-transfer finding for
+  this model.
+- **Llama-3.1-8B-Instruct**: baseline vs. foreign, p=0.5 (2/50
+  discordant, statistically indistinguishable from no effect). Baseline
+  vs. own, p=0.0005 -- confirms the real (if weak) 10%->34% own-addition
+  effect from the section above is not itself noise. Own vs. foreign,
+  p<0.001. **This resolves what the necessity side of this same transfer
+  question left inconclusive** (own-ablation vs. foreign-ablation
+  couldn't be distinguished at n=50) -- on the sufficiency side, own and
+  foreign are clearly, significantly different, and foreign has no
+  detectable effect at all.
+
+Zero degenerate completions in either foreign-addition run (0/50 each),
+so the null result isn't a byproduct of the intervention breaking
+generation -- the foreign direction is simply inert at every scale tested.
+**Not smoothed into "directions never transfer"** -- this is two data
+points (one model pair), both pointing the same way on both necessity and
+sufficiency, but still only one pair with matching `d_model` to test on.
 
 ## Investigating the Llama dense-direction-vs-SAE-feature gap (2026-07-24)
 

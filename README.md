@@ -146,9 +146,12 @@ degrade sharply on PAIR relative to clean TEST performance.
 
 Does a direction fit on one model do anything applied to a *different* model's
 activations? Scoped to the only `d_model`-matched pair (Qwen3-8B ↔
-Llama-3.1-8B-Instruct, both 4096).
+Llama-3.1-8B-Instruct, both 4096). Tested both directions of causal
+intervention: necessity (ablation) and sufficiency (activation addition).
 
-| | baseline | own-direction | foreign-direction |
+**Necessity:**
+
+| | baseline | own-ablation | foreign-ablation |
 |---|---|---|---|
 | Qwen3-8B (foreign = Llama's direction) | 84% | **8%** | 84% (no effect) |
 | Llama-3.1-8B (foreign = Qwen's direction) | 96.0% | 94.7% (n=75, p=1.0) | 92% |
@@ -157,8 +160,24 @@ Llama-3.1-8B-Instruct, both 4096).
 works dramatically, the foreign direction does nothing at all. **Llama-3.1-8B:
 inconclusive** — its own dense-direction causal necessity doesn't clearly
 separate from baseline at this sample size either way, so "own vs. foreign" isn't
-a meaningful contrast here yet. The sufficiency (activation-addition) side of
-this same transfer question is **in progress** — see Roadmap below.
+a meaningful contrast here yet.
+
+**Sufficiency**, using each model's already-generated baseline/own-addition
+completions plus a freshly-calibrated alpha for the foreign direction:
+
+| | baseline | own addition | foreign addition |
+|---|---|---|---|
+| Qwen3-8B (foreign = Llama's direction) | 6.0% | **70.0%** | 6.0% (p=1.0 vs. baseline) |
+| Llama-3.1-8B (foreign = Qwen's direction) | 10.0% | 34.0% | 6.0% (p=0.5 vs. baseline) |
+
+**Foreign-direction addition induces zero refusal above baseline in both
+models, at every alpha tested** — not a weak effect, an absent one, with a
+clean paired McNemar verdict this time (own vs. foreign p<0.001 for both).
+This resolves what the necessity side left inconclusive for Llama: on the
+sufficiency side, own and foreign are clearly, significantly different, and
+foreign has no detectable effect at all. Both necessity and sufficiency now
+point the same way for this one model pair — not generalized further than
+that.
 
 ### The Llama causal-gap investigation
 
@@ -311,12 +330,13 @@ dense-vs-SAE head-to-head), verified live in-browser against the real GPU.
 - Cross-model direction transfer (necessity) — a clean no-transfer result for
   Qwen3-8B, an inconclusive one for Llama-3.1-8B, independently replicated at
   larger N.
+- Cross-model direction transfer (sufficiency) — zero detectable effect from
+  either model's foreign direction at any alpha, a clean paired-McNemar verdict
+  resolving what the necessity side left inconclusive for Llama.
 - Live-inference API backend, with full test coverage and a real-GPU smoke test.
 - The Llama causal-gap investigation (see Key Results above).
 
 **Remaining:**
-- Cross-model direction transfer (sufficiency / activation-addition side) — in
-  progress.
 - Interactive detector UI frontend — built and live-verified, pending final
   sign-off before merge.
 - A reusable automated moralize-vs-comply classifier — two candidate local judge

@@ -29,6 +29,8 @@ encoding that order; this table replaces it.
 | 21 | `export_directions.py` | Export precomputed dense-direction vectors for the live-inference API |
 | 22 | `replicate_llama_ablation.py` | Independent replication of Llama's own-ablation effect at larger N |
 | 23 | `sufficiency_at_scale.py` | Sufficiency (activation addition) at 7-9B scale |
+| 24 | `analyze_llama_causal_gap.py` | Investigate why Llama's dense-direction necessity/sufficiency are weak vs. its SAE feature |
+| 25 | `transfer_sufficiency.py` | Cross-model sufficiency transfer (Qwen3-8B <-> Llama-3.1-8B) |
 
 Full rationale for every methodology choice is in
 [DECISIONS.md](../DECISIONS.md); results are in
