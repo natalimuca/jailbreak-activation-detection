@@ -889,3 +889,86 @@ in the data worth a closer look if this project's scope grows further.
   p=1.0 -- see the dedicated section above). The dense direction's causal
   necessity for Llama's refusal remains genuinely unresolved, not
   established as "real but small."
+
+## Investigating the Llama dense-direction-vs-SAE-feature gap (2026-07-24)
+
+Llama-3.1-8B-Instruct is the project's sharpest anomaly: best dense-direction
+TEST AUROC of any of the 5 models (0.989), yet the only model where own-
+direction necessity fails to replicate (96.0%->94.7%, n=75, McNemar p=1.0)
+and where sufficiency is real but weak and fragile (10%->34%, degenerating
+from alpha=2.0 -- see the two sections above). Meanwhile its SAE-feature
+approach ablates refusal dramatically from a single feature (98%->10%, Wave
+2, above). `scripts/analyze_llama_causal_gap.py` re-analyzes data already
+sitting in `results/` plus two small CPU-only computations (loading cached
+activations and already-downloaded SAE decoder weights -- no new model
+generation) to test two candidate explanations, saved to
+`results/llama_causal_gap_analysis.json`.
+
+**Hypothesis 1: Llama's raw diff-in-means direction is just small in
+absolute terms, so ablating/adding it barely perturbs the residual
+stream.** Llama's raw direction norm (19.1, at layer 27) is the smallest of
+the four models with necessity data -- but raw norm alone isn't the right
+unit, since residual-stream scale itself varies enormously by model and
+layer. Normalizing each model's raw direction norm by its own ambient
+activation norm at that same layer (computed directly from the cached
+activation tensors) reverses the story:
+
+| model | layer | ambient activation norm (mean) | raw direction norm | ratio |
+|---|---|---|---|---|
+| Qwen2.5-1.5B-Instruct | 23 | 144.2 | 75.3 | 0.522 |
+| SmolLM2-1.7B-Instruct | 20 | 842.1 | 279.6 | 0.332 |
+| Qwen3-8B | 23 | 195.2 | 99.3 | 0.509 |
+| Llama-3.1-8B-Instruct | 27 | 27.3 | 19.1 | **0.702** |
+
+Llama's direction is the *largest* fraction of its own ambient activation
+scale of the four models, not the smallest -- its layer-27 residual stream
+simply operates at a much smaller absolute norm than the other models' do
+at their own tested layers. **This hypothesis does not survive the check
+and is ruled out**, not smoothed over: magnitude dilution relative to the
+residual stream isn't what's making Llama's dense direction causally weak.
+
+**Hypothesis 2: the dense direction and the top causal SAE feature simply
+point in different directions, so the classifier axis and the causal lever
+are different objects for Llama specifically.** Checked by loading the real
+LlamaScope decoder vector for Llama's own top causal feature (layer
+27/feature 13363) and the real Qwen-Scope decoder vector for Qwen3-8B's own
+top causal feature (layer 25/feature 65291), and computing cosine
+similarity against each model's dense direction at that same layer:
+
+| model | layer | top causal feature | cosine similarity | random-200-feature baseline (mean abs / max abs) |
+|---|---|---|---|---|
+| Llama-3.1-8B-Instruct | 27 | 13363 | 0.201 | 0.013 / 0.043 |
+| Qwen3-8B | 25 | 65291 | 0.196 | 0.016 / 0.153 |
+
+Both models show essentially identical, modest alignment (~0.20 -- real,
+well above the random-feature baseline, but far from "the same axis").
+**This does not differentiate the two models** and is reported as
+inconclusive, not as confirming evidence for a misalignment story --
+whatever separates Llama's messy dense-direction causal behavior from
+Qwen3-8B's clean one, it isn't that Llama's SAE feature and dense direction
+are unusually more orthogonal than Qwen3-8B's.
+
+**What the data does support**: the concentration-vs-distribution asymmetry
+already documented in the SAE cross-model section above. Llama's causal
+effect collapses almost entirely into its single top SAE feature (baseline
+86%->10% from top-1 alone); Qwen3-8B's is spread across the ranked set
+(top-1 alone: 82%->84%, no effect, only reaching bottom at top-15). This
+asymmetry co-occurs with exactly which model's *dense* direction ablates/
+adds cleanly vs. not at all -- consistent with a story where Llama's
+refusal mechanism at layer 27 is causally concentrated in a narrow feature
+that a coarse two-class mean-difference average doesn't reliably recover as
+a causal lever (even though it recovers something that correlates
+extremely well with the refusal label, hence the best classifier AUROC in
+the project), while Qwen3-8B's causal signal is distributed broadly enough
+that the same coarse average happens to capture it well.
+
+**Honestly hedged, not a forced conclusion**: this is a real, multi-pronged
+comparison (two candidate mechanical explanations tested and one ruled out)
+but ultimately a correlational finding from n=2 models with full data
+(Llama vs. Qwen3-8B). No mechanistic account of *why* Llama's refusal
+computation would be more concentrated than Qwen3-8B's is established here
+-- that would need genuine mechanistic-interpretability work (e.g. tracing
+what the ~0.20-aligned component of the dense direction vs. its ~0.98-
+orthogonal remainder each individually contribute), a different and heavier
+scope than this re-analysis. No new GPU generation was needed to reach this
+point, and none is proposed to go further on this specific question.
