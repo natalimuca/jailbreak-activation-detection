@@ -55,10 +55,14 @@ Headline findings so far:
   into a tidy story.
 - **PAIR-paraphrase robustness has a real, statistically confirmed 5-model
   spread** (Cochran's Q p=0.0006): SmolLM2 (90.5%) > Llama-3.1-8B (66.7%) >
-  Gemma-2-9B (47.6%) > Qwen3-8B (42.9%) > Qwen2.5-1.5B (38.1%). A continuous
-  margin analysis (Spearman rho=0.90, p=0.037, n=5) sharpens the description
-  but still doesn't identify *why* — flagged as an open question, not forced
-  into an explanation the data doesn't support.
+  Gemma-2-9B (47.6%) > Qwen3-8B (42.9%) > Qwen2.5-1.5B (38.1%). A **matched-pair**
+  analysis (same underlying request, original vs. its real paraphrase) finds
+  the projection-shift ranking matches this exactly across all 5 models
+  (Spearman rho=-1.0, exact permutation p=0.0167) — and at the SAE-feature
+  level, Llama's specific dominant causal feature shows no statistically
+  detectable shift under paraphrase at all, while Qwen3-8B's/gemma's own top
+  features do. Real, mechanism-*adjacent* evidence, not a full explanation of
+  *why* that one feature is invariant.
 - **Necessity (ablation) generalizes across model scale far more robustly than
   sufficiency (activation addition)** — a pattern first seen at 1.5–1.7B scale,
   confirmed again independently at 8–9B scale with a different model pair.
@@ -357,6 +361,12 @@ dense-vs-SAE head-to-head), verified live in-browser against the real GPU.
   0% on the actual load-bearing case (harmful-prompt comply/partial) plus a
   confirmed self-judging bias; a third, more informative failure mode, not
   a fix.
+- Matched-pair mechanistic dig into PAIR-robustness: exact rank match across
+  all 5 models (Spearman rho=-1.0, exact permutation p=0.0167) between
+  paraphrase-induced signal shift and known robustness; direct evidence
+  Llama's dominant causal SAE feature specifically resists paraphrase where
+  Qwen3-8B's/gemma's own top features don't. Real, mechanism-adjacent
+  support, not a full explanation of *why*.
 
 **Remaining:**
 - Interactive detector UI frontend — built and live-verified, pending final
@@ -366,9 +376,13 @@ dense-vs-SAE head-to-head), verified live in-browser against the real GPU.
   mode; extending true-harmful-compliance labeling elsewhere still needs
   manual effort per completion set.
 - A handful of statistically-confirmed cross-model differences with no
-  *mechanistic* explanation (PAIR-robustness spread — now formally quantified,
-  still unexplained; XSTest false-positive non-monotonicity; SAE causal-effect-
-  concentration spread; Llama's dense-vs-SAE PAIR flip — now more carefully
-  tested, still inconclusive) — reported honestly as open questions rather
-  than forced into an explanation, consistent with this project's standing
-  practice throughout.
+  *complete* mechanistic explanation (PAIR-robustness spread — now has
+  real matched-pair, feature-level mechanism-adjacent evidence, but not a
+  full account of *why* Llama's dominant feature specifically resists
+  paraphrase; XSTest false-positive non-monotonicity; Llama's dense-vs-SAE
+  PAIR flip — more carefully tested, still inconclusive) — reported
+  honestly as open questions rather than forced into an explanation,
+  consistent with this project's standing practice throughout. Token-level
+  attribution of what the paraphrase actually changes would be the next,
+  genuinely heavier step (new GPU work), explicitly not attempted this
+  session.

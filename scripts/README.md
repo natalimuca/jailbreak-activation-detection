@@ -35,6 +35,8 @@ encoding that order; this table replaces it.
 | 27 | `pair_margin_analysis.py` | Continuous margin account of the PAIR-robustness spread across 5 models |
 | 28 | `sae_pair_margin.py` | Is Llama's dense-vs-SAE PAIR flip real? Continuous-margin + paired Wilcoxon check |
 | 29 | `validate_judge_llama.py` | Retry moralize-vs-comply classifier with Llama-3.1-8B-Instruct as judge |
+| 30 | `paraphrase_decay_dense.py` | Matched-pair dense-direction signal decay under PAIR paraphrase, 5 models |
+| 31 | `paraphrase_decay_sae.py` | Matched-pair SAE-feature signal decay under PAIR paraphrase, 3 models |
 
 Full rationale for every methodology choice is in
 [DECISIONS.md](../DECISIONS.md); results are in

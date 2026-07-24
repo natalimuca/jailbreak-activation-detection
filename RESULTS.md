@@ -865,21 +865,119 @@ positional analysis of what the paraphrase changes) would be separate,
 heavier scope than this re-analysis; none is proposed here. Results in
 `results/pair_margin_analysis.json`.
 
+#### Does concentration protect the causal signal from paraphrase? A matched-pair mechanistic dig (2026-07-24)
+
+The margin analysis above compares *distributions* (21 PAIR prompts vs. the
+general harmful-prompt population). Every PAIR-adversarial record is
+actually matched, by construction, to one exact original (unparaphrased)
+TEST-split harmful prompt with identical `goal` text -- confirmed 21/21
+matches for every model, all `source=="jbb"`, `split=="test"`, already
+sitting in the main activation cache. This gives real **matched pairs**
+(same underlying request, only the surface phrasing differs), letting the
+paraphrase's effect be measured directly per prompt-pair rather than across
+two different distributions -- still no new GPU generation, pure lookup and
+linear algebra over already-cached activations.
+
+**Motivation**: among the 3 SAE-having models, dense-direction PAIR
+robustness (Llama 66.7% > gemma 47.6% > Qwen3-8B 42.9%) ranks in the *same
+order* as SAE causal-effect concentration (Llama: one dominant feature;
+gemma: modest/gradual; Qwen3-8B: distributed, top-1 alone does nothing) --
+an ordinal match not previously tested. This rules out a naive "redundancy
+protects" story (the *most distributed* model is the *least* robust, not
+the most) and leaves "the concentrated feature is itself unusually
+paraphrase-invariant" as the standing candidate.
+
+**Dense-direction, matched pairs, all 5 models** (`scripts/paraphrase_decay_dense.py`,
+delta = original margin minus paraphrased margin, positive = paraphrase
+pushed the projection toward harmless; Wilcoxon signed-rank on the 21
+matched pairs per model):
+
+| model | delta (mean) | Wilcoxon p | known PAIR detection |
+|---|---|---|---|
+| SmolLM2-1.7B-Instruct | **0.250** | 0.0595 (n.s.) | 90.5% |
+| Llama-3.1-8B-Instruct | 0.767 | <0.0001 | 66.7% |
+| gemma-2-9b-it | 1.030 | <0.0001 | 47.6% |
+| Qwen3-8B | 1.067 | <0.0001 | 42.9% |
+| Qwen2.5-1.5B-Instruct | 1.118 | <0.0001 | 38.1% |
+
+**The delta ranking matches the known robustness ranking exactly across
+all 5 models** -- smallest delta (SmolLM2) is the most robust, largest
+(Qwen2.5) the least, monotonic in between. Spearman rho=-1.0 (perfect
+rank match); at n=5, scipy's default asymptotic p-value is not valid, so
+the script computes the **exact permutation p-value directly (all 5!
+orderings)**: p=0.0167 -- a real, formally significant result at the
+smallest sample size this project has, not an artifact of the wrong test.
+SmolLM2 is also the only model where the shift itself isn't statistically
+distinguishable from zero (p=0.0595) -- consistent with it being the most
+paraphrase-robust model by a wide margin.
+
+**SAE-feature level, matched pairs, the 3 SAE models**
+(`scripts/paraphrase_decay_sae.py`) -- tests two related questions
+separately rather than conflating them:
+
+| model | top-1 feature delta | top-1 feature p | full top-15 score delta | full score p |
+|---|---|---|---|---|
+| Llama-3.1-8B-Instruct | **0.396** | **0.1678 (n.s.)** | 0.858 | 0.0038 |
+| Qwen3-8B | 1.315 | <0.0001 | 2.037 | <0.0001 |
+| gemma-2-9b-it | 2.070 | 0.0033 | 2.408 | <0.0001 |
+
+**Llama's own top-ranked causal feature (layer 27/13363) is the only one
+of the three where paraphrasing does not produce a statistically
+detectable shift at all** (p=0.1678) -- direct, matched-pair evidence for
+the "this specific feature is unusually paraphrase-invariant" hypothesis,
+not just an inference from the aggregate margin/detection-rate
+correlation. Qwen3-8B's and gemma's own top features both show a real,
+significant shift under paraphrase. The delta ranking (Llama smallest <
+Qwen3-8B < gemma largest) also matches the known SAE-feature PAIR-detection
+ranking (Llama 80.9% > Qwen3-8B 33.3% > gemma 23.8%) exactly -- Spearman
+rho=-1.0, but **at n=3 the exact permutation p-value is 0.333, not
+significant** -- a perfect rank match is simply the best possible result
+at this sample size, reported honestly rather than oversold.
+
+**A real answer to the redundancy question, within each model**: for
+Qwen3-8B, the full top-15 score decays *more* than its own (already
+significantly decaying) top feature alone (2.037 vs. 1.315) -- paraphrase
+disrupts many of its top-ranked features roughly together, not a case of
+redundancy averaging out noise. For Llama, the full score decays
+significantly (0.858, p=0.0038) even though its top feature alone does not
+(0.396, n.s.) -- the one causally-dominant feature is robust, but the
+other 14 features the detector also sums in are not, so the published
+SAE-feature detector's own PAIR robustness (80.9%) is somewhat *diluted*
+by non-causally-important features, not purely carried by the invariant one.
+
+**Honestly hedged**: this is a matched-observational design, not a causal
+intervention -- it describes *what* changes under paraphrase with much
+finer resolution than the earlier margin analyses, and gives real,
+statistically-grounded support for "Llama's dominant feature is
+unusually paraphrase-invariant" specifically, but does not itself explain
+*why* that one feature (out of tens of thousands) happens to be
+invariant -- that would need e.g. token-level attribution of what the
+paraphrase changes, a genuinely heavier undertaking than this re-analysis,
+not attempted here. The SAE-level question is also fundamentally limited
+to n=3 models (no trained SAE for the two models at either extreme of the
+dense-direction robustness ranking, SmolLM2/Qwen2.5), so it can never be
+tested at the full 5-model resolution the dense-direction result achieves.
+Results in `results/paraphrase_decay_dense.json` and
+`results/paraphrase_decay_sae.json`.
+
 ### Known limitations (cross-model dense-direction comparison)
 
 - **n=35 adversarial prompts (21 PAIR), shared across all five models** --
   large enough for a formally significant Cochran's Q result (see
   DECISIONS.md) but not yet understood mechanistically.
-- ~~The SmolLM2 hypothesis above is untested~~ -- **the PAIR-margin analysis
-  above gives a formally-tested (Spearman rho=0.90, p=0.037, n=5),
-  continuous account that's consistent with the known ranking, but it still
-  does not identify a *mechanism*** (why some models' margins survive
-  paraphrasing better than others). Confirming or ruling out an actual
-  mechanism would need, at minimum, checking whether the pattern holds on a
-  larger/different adversarial set, and probably a deeper look at how each
-  model's refusal direction differs geometrically (e.g. via the "different
-  but functionally similar directions" framing in arXiv:2602.02132, surveyed
-  in LITERATURE.md).
+- ~~The SmolLM2 hypothesis above is untested~~ -- **the matched-pair
+  mechanistic dig above gives real, statistically-grounded (exact
+  permutation p=0.0167 at n=5) support for a specific mechanism at the
+  dense-direction level (paraphrase moves models' projections least where
+  robustness is highest, in an exact rank match across all 5 models), and
+  direct evidence at the SAE-feature level that Llama's specific dominant
+  causal feature is paraphrase-invariant while Qwen3-8B's/gemma's own top
+  features are not.** Still not a full explanation, though: *why* that one
+  feature (out of tens of thousands) is invariant remains open -- would need
+  token-level attribution of what the paraphrase changes, out of scope
+  here. The SAE-level check is also capped at n=3 models (no trained SAE
+  for SmolLM2/Qwen2.5-1.5B, the two most extreme dense-direction robustness
+  models), so it can't be extended to the full 5-model range.
 - **Baselines are asserted, not re-verified, to be model-agnostic.** This is
   true by construction (keyword/perplexity scores never touch model
   activations), but wasn't independently re-run per model as a sanity check.

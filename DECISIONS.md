@@ -2149,3 +2149,99 @@ for true-harmful-compliance labeling in this project. Full write-up in
 RESULTS.md; results in
 `results/moralize_comply_classifier_validation_llama_judge.json`
 (gitignored, matching this project's `results/` convention).
+
+## Does concentration protect the causal signal from paraphrase? A matched-pair mechanistic dig (2026-07-24)
+
+After the user asked "what's the next gap" once the day's re-analyses were
+done, the honest answer was that nothing actionable remained -- everything
+left was either blocked externally, deliberately left open by this
+project's own philosophy, or needed the user directly. Recommended against
+opening a new research thread on that basis, but flagged one real
+exception: the SAE-concentration/PAIR-robustness connection was the most
+promising thread left, though it would need genuine mechanistic work (not
+another aggregate-margin script) to say anything new. User asked to do
+exactly that. Planned via `EnterPlanMode` first (a genuinely non-trivial,
+multi-script investigation, not a quick fix) -- full plan approved before
+any code was written.
+
+**The concrete new idea, found during planning**: every PAIR-adversarial
+record is matched, by construction
+(`src.eval.adversarial_paraphrase.build_adversarial_set`'s own goal-text
+matching), to one exact original TEST-split harmful prompt already in the
+main activation cache. Verified directly before committing to the plan:
+21/21 PAIR records match a TEST-split `source=="jbb"` prompt, for every
+model. This gives real **matched pairs** (same underlying request, only
+the phrasing differs) instead of comparing two unrelated distributions
+(what the day's earlier `pair_margin_analysis.py`/`sae_pair_margin.py` did)
+-- still zero new GPU generation, since all layers are cached for every
+model and the matched originals are already sitting in the corpus.
+
+**Motivating observation, never noticed before this session's planning**:
+among the 3 SAE-having models, dense-direction PAIR robustness (Llama
+66.7% > gemma 47.6% > Qwen3-8B 42.9%) ranks in the *same order* as SAE
+causal-effect concentration from Wave 2 (Llama: one dominant feature;
+gemma: modest/gradual; Qwen3-8B: distributed). This rules out "redundancy
+protects" (the most-distributed model is the *least* robust) and leaves
+"the concentrated feature is itself paraphrase-invariant" as the standing
+candidate to test directly.
+
+**Two scripts, matching the plan exactly**:
+
+1. `scripts/paraphrase_decay_dense.py` (all 5 models): matched-pair delta
+   (original margin minus paraphrased margin, both normalized by pooled
+   std as in `pair_margin_analysis.py`) plus a per-model paired Wilcoxon
+   test. **Result: the delta ranking matches the known PAIR-detection
+   ranking exactly across all 5 models** (SmolLM2 smallest delta/most
+   robust through Qwen2.5 largest delta/least robust). Spearman rho=-1.0
+   -- but at n=5, `scipy.stats.spearmanr`'s default p-value uses a
+   t-distribution approximation that is not valid at this sample size (the
+   project's actual full model count, not something to grow). Computed the
+   **exact permutation p-value directly** (brute-force over all 5! =120
+   orderings, matching this project's existing "use the exact test, not
+   the asymptotic one" discipline -- e.g. McNemar exact elsewhere): p=0.0167,
+   a real, formally significant result, not an artifact of the wrong test.
+   SmolLM2 is also the only model where the paraphrase shift itself isn't
+   statistically distinguishable from zero (p=0.0595) -- consistent with
+   it being the most robust by a wide margin.
+2. `scripts/paraphrase_decay_sae.py` (3 SAE models): same matched-pair
+   method, but at the feature level, testing two separate questions rather
+   than conflating them -- does each model's own top-ranked causal feature
+   survive paraphrasing, and does the full top-15 detector score decay
+   differently from that single feature (the direct redundancy test).
+   Reused `src.detectors.sae_feature_detector.score` and
+   `src.sae.registry.SAE_PROVIDERS` unchanged. **Result: Llama's top
+   feature (layer 27/13363) is the only one of the three where paraphrase
+   produces no statistically detectable shift at all** (p=0.1678) --
+   direct, matched-pair evidence for the "this specific feature is
+   unusually invariant" hypothesis, not just an inference from aggregate
+   correlation. Qwen3-8B's and gemma's own top features both shift
+   significantly. The delta ranking again matches known SAE-feature
+   PAIR-detection exactly (rho=-1.0), but **at n=3 the exact permutation
+   p-value is 0.333** -- a perfect rank match is the best any n=3 result
+   can score, reported honestly as not significant rather than oversold.
+
+**A real answer to the redundancy question, found within each model**:
+for Qwen3-8B, the full top-15 score decays *more* than its own top feature
+alone (2.037 vs. 1.315) -- paraphrase disrupts many of its ranked features
+together, not a case of redundancy averaging out noise. For Llama, the
+full score decays significantly (0.858, p=0.0038) even though its top
+feature alone does not (0.396, n.s.) -- the one causally-dominant feature
+is robust, but the other 14 features the published detector also sums in
+are not, so the detector's own 80.9% PAIR robustness is somewhat diluted
+by non-causally-important features, not purely carried by the invariant one.
+
+**Honestly hedged, not oversold**: this gives real, statistically-grounded
+support for a specific mechanism-adjacent claim (Llama's dominant feature
+specifically resists paraphrase; the effect isn't explained by redundancy)
+-- a genuine step down from "these two rankings happen to correlate"
+toward "here is what specifically does and doesn't change under
+paraphrase, per matched prompt pair." It does **not** explain *why* that
+one feature happens to be invariant (would need token-level attribution of
+what the paraphrase changes -- explicitly scoped out of this plan as a
+heavier Tier 2, not attempted). The SAE-level question is also
+fundamentally capped at n=3 (no SAE for SmolLM2/Qwen2.5-1.5B, the two most
+extreme dense-direction robustness models), so it can never reach the
+full 5-model resolution the dense-direction result achieves. Full
+write-up in RESULTS.md; results in `results/paraphrase_decay_dense.json`
+and `results/paraphrase_decay_sae.json` (gitignored, matching this
+project's `results/` convention).
