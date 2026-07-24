@@ -15,15 +15,20 @@ rather than wording and should be more robust to that disguise.
 This project extends that finding in three directions:
 
 1. **Sparse, interpretable features over one dense direction** — rather than
-   a single residual-stream direction, a pretrained sparse autoencoder (SAE)
-   is used to find the specific sparse features (out of tens of thousands)
+   a single residual-stream direction, pretrained sparse autoencoders (SAEs)
+   are used to find the specific sparse features (out of tens of thousands)
    causally responsible for refusal, selected via cosine similarity to the
    refusal direction and ranked by attribution-patching causal effect, then
    validated by suppressing them and measuring the effect on real generated
    completions.
 2. **Cross-model generalization** — does a detector trained on one model's
    internals transfer to a different model family/size, or does it need
-   per-model retraining?
+   per-model retraining? Tested across 5 model families (dense-direction
+   detector) and 3 (SAE-feature detector), plus literal cross-model direction
+   transfer (does a direction fit on one model do anything applied to a
+   different model's activations) — a mix of results that replicate cleanly,
+   replicate partially, and don't replicate at all, reported honestly rather
+   than smoothed into one headline.
 3. **Engineering rigor** — calibration, formal paired significance testing
    (McNemar's, DeLong's, Cochran's Q) rather than eyeballing confidence
    intervals, an honest head-to-head comparison against baselines (keyword
@@ -55,14 +60,14 @@ decisions and open questions in [DECISIONS.md](DECISIONS.md).
 ## Models
 
 Open-weight, via Hugging Face: `Qwen2.5-1.5B-Instruct`, `SmolLM2-1.7B-Instruct`
-for fast iteration on the single-direction reproduction; `Qwen3-8B` (4-bit
-quantized to fit a 6GB local GPU) for the SAE-feature detector, paired with
-[Qwen-Scope](https://arxiv.org/pdf/2605.11887)'s pretrained sparse
-autoencoders. The dense-direction detector additionally runs on
-`Llama-3.1-8B-Instruct` and `Gemma-2-9B-it` (both 4-bit quantized) for the
-cross-model generalization question above; extending the SAE-feature
-detector to these two (LlamaScope/GemmaScope both have pretrained SAE
-suites, unlike Qwen2.5/SmolLM2) is a larger follow-up, not yet done.
+for fast iteration on the single-direction reproduction; `Qwen3-8B`,
+`Llama-3.1-8B-Instruct`, and `gemma-2-9b-it` (all 4-bit quantized to fit a
+6GB local GPU) for the full cross-model comparison. The dense-direction
+detector runs on all 5 models; the SAE-feature detector runs on the 3
+8-9B models, each paired with its own pretrained sparse-autoencoder suite
+([Qwen-Scope](https://arxiv.org/pdf/2605.11887), LlamaScope, GemmaScope) —
+Qwen2.5-1.5B and SmolLM2 have no published SAE suite, so the SAE-feature
+detector isn't available for them (reported as an honest gap, not hidden).
 
 ## Repo layout
 
@@ -76,6 +81,7 @@ src/
   baselines/     keyword-filter and perplexity-filter prompt classifiers
   detectors/     dense-direction and SAE-feature prompt classifiers
   eval/          shared detector metrics, adversarial paraphrase set
+  api/           FastAPI backend serving live per-prompt detector inference
 scripts/         standalone runnable pipeline stages
 notebooks/       exploratory analysis
 results/         metrics, figures, activation caches (gitignored)
