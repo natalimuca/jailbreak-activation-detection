@@ -55,8 +55,10 @@ Headline findings so far:
   into a tidy story.
 - **PAIR-paraphrase robustness has a real, statistically confirmed 5-model
   spread** (Cochran's Q p=0.0006): SmolLM2 (90.5%) > Llama-3.1-8B (66.7%) >
-  Gemma-2-9B (47.6%) > Qwen3-8B (42.9%) > Qwen2.5-1.5B (38.1%) — flagged as an
-  open question, not forced into an explanation the data doesn't support.
+  Gemma-2-9B (47.6%) > Qwen3-8B (42.9%) > Qwen2.5-1.5B (38.1%). A continuous
+  margin analysis (Spearman rho=0.90, p=0.037, n=5) sharpens the description
+  but still doesn't identify *why* — flagged as an open question, not forced
+  into an explanation the data doesn't support.
 - **Necessity (ablation) generalizes across model scale far more robustly than
   sufficiency (activation addition)** — a pattern first seen at 1.5–1.7B scale,
   confirmed again independently at 8–9B scale with a different model pair.
@@ -341,7 +343,12 @@ dense-vs-SAE head-to-head), verified live in-browser against the real GPU.
   either model's foreign direction at any alpha, a clean paired-McNemar verdict
   resolving what the necessity side left inconclusive for Llama.
 - Live-inference API backend, with full test coverage and a real-GPU smoke test.
-- The Llama causal-gap investigation (see Key Results above).
+- The Llama causal-gap investigation, extended to gemma-2-9b-it (see Key
+  Results above) — unremarkable magnitude ratio, notably higher SAE alignment,
+  a third distinct causal-effect shape.
+- PAIR-robustness spread: continuous margin analysis (Spearman rho=0.90,
+  p=0.037, n=5) — sharpens the description with a formal test, doesn't
+  identify a mechanism.
 
 **Remaining:**
 - Interactive detector UI frontend — built and live-verified, pending final
@@ -351,7 +358,8 @@ dense-vs-SAE head-to-head), verified live in-browser against the real GPU.
   true-harmful-compliance labeling elsewhere still needs manual effort per
   completion set.
 - A handful of statistically-confirmed cross-model differences with no
-  mechanistic explanation (PAIR-robustness spread, XSTest false-positive
-  non-monotonicity, SAE causal-effect-concentration spread) — reported honestly
-  as open questions rather than forced into an explanation, consistent with this
-  project's standing practice throughout.
+  *mechanistic* explanation (PAIR-robustness spread — now formally quantified,
+  still unexplained; XSTest false-positive non-monotonicity; SAE causal-effect-
+  concentration spread) — reported honestly as open questions rather than
+  forced into an explanation, consistent with this project's standing practice
+  throughout.

@@ -1985,3 +1985,69 @@ own-addition vs. foreign-addition is unambiguous. Not generalized beyond
 this one model pair -- still the only `d_model`-matched pair available.
 Full write-up in RESULTS.md; results in `results/sufficiency_transfer.json`
 (gitignored, matching this project's `results/` convention).
+
+## PAIR-paraphrase robustness spread: a continuous margin account (2026-07-24)
+
+User's explicit choice among three remaining open items (offered as options):
+dig into one of the standing unexplained cross-model differences rather than
+retry the moralize-vs-comply classifier or the dense-vs-SAE PAIR flip. Picked
+the PAIR-robustness spread specifically (SmolLM2 90.5% > Llama-3.1-8B 66.7% >
+gemma-2-9b-it 47.6% > Qwen3-8B 42.9% > Qwen2.5-1.5B 38.1%, Cochran's Q
+p=0.0006) -- the existing candidate hypothesis in RESULTS.md (SmolLM2's
+weaker/less-linear baseline refusal) was explicitly flagged as not explaining
+Llama's own comparative robustness, so this needed a genuinely different
+angle, not a retest of the same idea.
+
+**Approach**: replace the binary "flagged or not" adversarial-detection rate
+with a continuous per-prompt margin -- each model's dense-direction
+projection on the 21 real PAIR prompts, minus its own calibrated threshold,
+normalized by that layer's pooled harmful/harmless standard deviation
+(matching `src.direction.compute.separation_score`'s own normalization, so
+comparable across models with very different raw activation scales). Also
+computed the same normalized margin for genuine harmful VAL prompts as a
+reference scale, expressing PAIR margin as a fraction of it.
+
+**A real gap found before the analysis could even start**: only 3 of 5
+models (Qwen3-8B, Llama-3.1-8B, gemma-2-9b-it) had a cached
+`results/activations/{model}_adversarial.pt` -- `scripts/extend_qwen_smollm.py`
+scores Qwen2.5-1.5B/SmolLM2 on the adversarial set by extracting activations
+transiently at eval time, never caching them. Rather than limit the
+investigation to 3 of 5 models (missing both the most- and least-robust
+models in the ranking), wrote `scripts/extend_adversarial_small.py` to build
+the missing two caches -- forward-pass-only extraction (no generation,
+no quantization needed for these small models), ~10 seconds each, mirroring
+`scripts/extend_sae_adversarial.py`'s exact payload shape.
+
+**Sanity check before trusting anything new**: recomputing each model's PAIR
+detection rate from these fresh per-prompt margins (fraction with projection
+above threshold) reproduced the already-published rates exactly
+(0.381/0.905/0.429/0.667/0.476) -- confirms the already-persisted
+directions/thresholds (`results/dense_directions.pt`,
+`results/dense_direction_cross_model.json`,
+`results/detector_thresholds_Qwen3-8B.json`) are being applied correctly
+before trusting any new number built on top of them.
+
+**Result: a real, formally-significant rank correlation, not a mechanism**.
+Spearman's rho between mean PAIR margin and known detection rate across all
+5 models: **rho=0.90, p=0.037** (n=5 -- small, but this is the full
+population of models this project has, not a sample). The top 3 models by
+margin (SmolLM2 0.469, Llama-3.1-8B 0.332, gemma-2-9b-it -0.049) match the
+detection-rate ranking exactly; the bottom two (Qwen2.5-1.5B -0.109,
+Qwen3-8B -0.240) are swapped relative to detection rate, both solidly
+negative and close together -- reported as the one genuine discrepancy, not
+smoothed into a perfect match. One new textured observation surfaced by the
+continuous measure that the binary rate couldn't show: gemma-2-9b-it sits
+almost exactly at its own decision boundary on average for PAIR prompts
+(margin -0.049, essentially zero), distinct from the Qwen models being
+pushed solidly into harmless-looking territory.
+
+**What this does and doesn't establish**: this sharpens the *description* of
+the phenomenon (a formal statistic, finer resolution, a genuine new
+observation about gemma) but does not identify *why* some models' margins
+survive paraphrasing better than others -- that mechanism question is
+exactly as open as it was before this analysis, just now described with a
+number instead of an eyeballed ranking. Consistent with this project's
+standing practice of not forcing a description into an explanation it
+doesn't support. Full write-up in RESULTS.md; results in
+`results/pair_margin_analysis.json` (gitignored, matching this project's
+`results/` convention).

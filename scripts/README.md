@@ -31,6 +31,8 @@ encoding that order; this table replaces it.
 | 23 | `sufficiency_at_scale.py` | Sufficiency (activation addition) at 7-9B scale |
 | 24 | `analyze_llama_causal_gap.py` | Investigate why Llama's dense-direction necessity/sufficiency are weak vs. its SAE feature |
 | 25 | `transfer_sufficiency.py` | Cross-model sufficiency transfer (Qwen3-8B <-> Llama-3.1-8B) |
+| 26 | `extend_adversarial_small.py` | Build the adversarial-activation cache for Qwen2.5-1.5B/SmolLM2 |
+| 27 | `pair_margin_analysis.py` | Continuous margin account of the PAIR-robustness spread across 5 models |
 
 Full rationale for every methodology choice is in
 [DECISIONS.md](../DECISIONS.md); results are in

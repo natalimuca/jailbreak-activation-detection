@@ -741,18 +741,69 @@ models using the exact same detection method. Both new models
 (Llama-3.1-8B, Gemma-2-9B) sit in the upper-middle of this range, not at
 either extreme.
 
+#### PAIR-robustness spread: a continuous margin account (2026-07-24)
+
+The Cochran's Q result above establishes the spread is real but not why it
+exists. `scripts/pair_margin_analysis.py` replaces the binary "flagged or
+not" rate with a continuous measure: each model's dense-direction projection
+margin on the 21 real PAIR prompts, expressed in pooled-std units (matching
+`separation_score`'s own normalization) and then as a fraction of that same
+model's *genuine harmful-prompt* margin -- "how much of the typical harmful
+signal survives paraphrasing, relative to this model's own scale." Needed no
+new GPU generation for 3 of 5 models (`results/activations/*_adversarial.pt`
+already existed for Qwen3-8B/Llama-3.1-8B/gemma-2-9b-it); Qwen2.5-1.5B and
+SmolLM2 needed a one-time forward-pass-only extraction first
+(`scripts/extend_adversarial_small.py`, ~10s each, no generation).
+
+| model | harmful-prompt margin | PAIR margin | PAIR as frac. of harmful margin | known PAIR detection |
+|---|---|---|---|---|
+| SmolLM2-1.7B-Instruct | 0.681 | **0.469** | 0.689 | 90.5% |
+| Llama-3.1-8B-Instruct | 0.936 | **0.332** | 0.355 | 66.7% |
+| gemma-2-9b-it | 1.018 | -0.049 | -0.049 | 47.6% |
+| Qwen2.5-1.5B-Instruct | 0.958 | -0.109 | -0.113 | 38.1% |
+| Qwen3-8B | 0.679 | -0.240 | -0.353 | 42.9% |
+
+Recomputing each model's PAIR detection rate directly from these margins
+(fraction with projection above threshold) reproduces the published rates
+exactly (0.381/0.905/0.429/0.667/0.476) -- a sanity check that the
+already-persisted directions/thresholds are being applied correctly, not new
+information on its own. **The real new result**: a formal Spearman rank
+correlation between mean PAIR margin and known detection rate across all 5
+models, **rho = 0.90, p = 0.037** (n=5) -- a real, if small-sample, rank
+relationship. The top 3 models (SmolLM2 > Llama-3.1-8B > gemma-2-9b-it) match
+the detection-rate ranking exactly; the bottom two (Qwen2.5-1.5B,
+Qwen3-8B) are swapped by mean margin relative to detection rate, both
+solidly negative and close together -- reported as the one genuine
+discrepancy, not smoothed into a perfect match.
+
+**Honestly hedged, not a mechanism**: this sharpens the description of the
+phenomenon (continuous margin, formally tested, an n=5 correlation) and
+surfaces one new textured observation -- gemma sits almost exactly at its
+own decision boundary on average for PAIR (margin -0.049, essentially zero),
+while both Qwen models are pushed solidly into harmless-looking territory.
+**It does not explain *why*** some models' margins hold up better under
+paraphrasing than others -- that's the same open question as before, just
+described with a formal statistic and finer resolution instead of a raw
+pass/fail rate. Identifying an actual mechanism (e.g. token-level or
+positional analysis of what the paraphrase changes) would be separate,
+heavier scope than this re-analysis; none is proposed here. Results in
+`results/pair_margin_analysis.json`.
+
 ### Known limitations (cross-model dense-direction comparison)
 
 - **n=35 adversarial prompts (21 PAIR), shared across all five models** --
   large enough for a formally significant Cochran's Q result (see
   DECISIONS.md) but not yet understood mechanistically.
-- **The SmolLM2 hypothesis above is untested, and now also doesn't cover
-  Llama-3.1-8B's comparatively strong PAIR robustness.** Confirming or
-  ruling either out would need, at minimum, checking whether the pattern
-  holds on a larger/different adversarial set, and probably a deeper look
-  at how each model's refusal direction differs geometrically (e.g. via
-  the "different but functionally similar directions" framing in
-  arXiv:2602.02132, surveyed in LITERATURE.md).
+- ~~The SmolLM2 hypothesis above is untested~~ -- **the PAIR-margin analysis
+  above gives a formally-tested (Spearman rho=0.90, p=0.037, n=5),
+  continuous account that's consistent with the known ranking, but it still
+  does not identify a *mechanism*** (why some models' margins survive
+  paraphrasing better than others). Confirming or ruling out an actual
+  mechanism would need, at minimum, checking whether the pattern holds on a
+  larger/different adversarial set, and probably a deeper look at how each
+  model's refusal direction differs geometrically (e.g. via the "different
+  but functionally similar directions" framing in arXiv:2602.02132, surveyed
+  in LITERATURE.md).
 - **Baselines are asserted, not re-verified, to be model-agnostic.** This is
   true by construction (keyword/perplexity scores never touch model
   activations), but wasn't independently re-run per model as a sanity check.
