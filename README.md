@@ -61,8 +61,12 @@ Headline findings so far:
   (Spearman rho=-1.0, exact permutation p=0.0167) — and at the SAE-feature
   level, Llama's specific dominant causal feature shows no statistically
   detectable shift under paraphrase at all, while Qwen3-8B's/gemma's own top
-  features do. Real, mechanism-*adjacent* evidence, not a full explanation of
-  *why* that one feature is invariant.
+  features do. **Token-level ablation gets a step closer to *why***: Llama's
+  top feature is frequently keyed to the literal core harmful-action word
+  itself ("unauthorized", "cloning", "underage", each at rank 1), while
+  Qwen3-8B's top tokens more often surface the fictional/roleplay wrapper
+  PAIR uses to disguise the request instead. A real, directly-read
+  qualitative pattern, not a formally-tested or fully mechanistic claim.
 - **Necessity (ablation) generalizes across model scale far more robustly than
   sufficiency (activation addition)** — a pattern first seen at 1.5–1.7B scale,
   confirmed again independently at 8–9B scale with a different model pair.
@@ -367,6 +371,15 @@ dense-vs-SAE head-to-head), verified live in-browser against the real GPU.
   Llama's dominant causal SAE feature specifically resists paraphrase where
   Qwen3-8B's/gemma's own top features don't. Real, mechanism-adjacent
   support, not a full explanation of *why*.
+- Token-level attribution (Tier 2): single-token leave-one-out ablation on
+  all 21 real PAIR prompts finds Llama's top feature frequently keyed to
+  the literal core harmful-action word itself ("unauthorized", "cloning",
+  "underage", all at rank 1), where Qwen3-8B's top tokens more often
+  surface the fictional/roleplay wrapper instead ("hypothetical",
+  "consultant"). A real, directly-read qualitative pattern (~9/21 vs.
+  ~6/21 prompts), not a clean or formally-tested split — see RESULTS.md
+  for the full account, including two failed Integrated Gradients attempts
+  that preceded this simpler, working method.
 
 **Remaining:**
 - Interactive detector UI frontend — built and live-verified, pending final

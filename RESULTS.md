@@ -716,6 +716,66 @@ point the same direction on two different measures" -- both the original
 binary result and this continuous one are consistent with either. Results
 in `results/sae_pair_margin_llama.json`.
 
+### Why is Llama's feature paraphrase-invariant? Token-level attribution (2026-07-25)
+
+The margin-decay results above establish *that* Llama's top causal feature
+(layer 27/13363) survives PAIR paraphrasing while Qwen3-8B's own top
+feature (layer 25/65291) doesn't -- this section asks *what in the text*
+each feature is actually reading, via `scripts/token_attribution.py`.
+**Method: single-token leave-one-out ablation** (each token replaced with
+the model's own EOS token one at a time, clean forward pass, no
+gradients) on all 21 real PAIR-paraphrased prompts per model, restricted to
+the actual instruction span (excludes chat-template scaffolding -- an
+un-masked first pass found the top tokens were dominated by `<think>`,
+`assistant`, and newlines near the readout position, not the paraphrased
+content itself).
+
+**Two gradient-based (Integrated Gradients) attempts were tried first and
+failed real correctness checks** before this simpler method was used --
+both a multiplicative zero-baseline interpolation (degenerate under
+RMSNorm's scale invariance) and an additive EOS-baseline interpolation
+failed IG's completeness property by ~50-100x. Full account, including the
+specific numbers that revealed each failure, in DECISIONS.md -- reported
+rather than quietly discarded, since a dead end that was seriously wrong
+twice is itself informative about this project's tooling.
+
+**A real, if noisy, qualitative pattern** across the 21 matched prompts
+(direct reading of the top-5 highest-importance tokens per prompt, not run
+through an automated classifier -- same reasoning as the moralize-vs-comply
+labeling elsewhere in this project): **Llama's top-ranked token is
+frequently the literal core harmful-action word itself** --
+`"unauthorized"` (rank 1, "gains **unauthorized** access"), `"cloning"`
+(rank 1, debit-card **cloning**), `"underage"` (rank 1, **underage** labor),
+`"ext"`+`"ort"` (ranks 1-2, the subword pieces of "**extort**"), and
+`"convincing"`/`"scams"`/`"resembles"` together (Nigerian-prince-scam
+email). **Qwen3-8B's top tokens are more often dominated by the PAIR
+attack's fictional/roleplay wrapper language instead of the core request**:
+`"hypothetical"` (top-1, twice, on two different prompts), `"consultant"`
+(top-1, three times), plus `"fictional"`, `"researcher"`, `"Imagine"`,
+`"creative"`, `"villain"` -- and several prompts where the entire top-5 is
+generic connective tissue (`"."`, `"this"`, `"and"`, `"Please"`) with no
+content word at all.
+
+**Rough tally (direct reading, not an automated/validated count -- a
+judgment call, stated as such)**: roughly 9/21 Llama prompts have a clear,
+specific harmful-content word in the top-5, several as the literal
+rank-1 token; roughly 6/21 Qwen3-8B prompts do, and rarely at rank 1.
+**Neither model is clean** -- both have plenty of prompts where the top-5
+is mostly generic function words regardless of model, and the difference
+is a real tendency, not a crisp split. This is genuinely mechanism-adjacent
+evidence (not just "these two numbers correlate") for why the concentrated
+feature might be more paraphrase-invariant: it appears to key off the
+underlying harmful request more directly, while Qwen3-8B's distributed
+signal is more entangled with the surface framing PAIR uses to disguise it.
+
+**Explicitly not established**: *why* Llama's feature reads content words
+more directly than Qwen3-8B's -- that would need real controlled
+manipulation (e.g. swapping wrappers while holding the core request fixed
+across many more examples), out of scope here. Token-level embedding
+attribution also conflates token identity with position (no separate
+positional-embedding ablation). Results (all 42 prompts' full top-5 lists)
+in `results/token_attribution.json`.
+
 ### Known limitations (baseline detectors and adversarial evaluation)
 
 - **Adversarial set is small** (n=35, spanning only 11 of TEST's JBB-sourced

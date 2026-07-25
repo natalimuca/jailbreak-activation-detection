@@ -2245,3 +2245,117 @@ full 5-model resolution the dense-direction result achieves. Full
 write-up in RESULTS.md; results in `results/paraphrase_decay_dense.json`
 and `results/paraphrase_decay_sae.json` (gitignored, matching this
 project's `results/` convention).
+
+## Tier 2: why is Llama's feature paraphrase-invariant? Token-level attribution (2026-07-25)
+
+User's explicit continuation of the mechanistic dig above, agreeing this is
+genuinely heavier work (real new GPU generation -- forward/backward passes,
+not another cached re-analysis) via `EnterPlanMode` first. Goal: which
+input tokens actually drive Llama's top causal feature's activation on a
+PAIR-paraphrased prompt -- the literal harmful content, or the roleplay
+wrapper PAIR uses to disguise it, compared against the same question for
+Qwen3-8B (whose own top feature does decay under paraphrase).
+
+**Two failed Integrated Gradients attempts, in full, not smoothed over --
+both real bugs, caught by a numerical correctness check before trusting
+any output on real prompts**:
+
+1. **Multiplicative interpolation from a zero embedding baseline**
+   (`v = alpha * natural_embedding`, mirroring `src.sae.causal_ranking`'s
+   own "natural value -> 0" convention for a single scalar feature).
+   IG's completeness property (sum of attributions should equal
+   metric(natural) - metric(baseline)) failed by ~100x (sum=-1.44 vs.
+   expected -139.6). **Root cause, confirmed by direct measurement, not
+   guessed**: Llama-3.1/Qwen3 apply RMSNorm immediately after the
+   embedding layer, and RMSNorm is scale-invariant
+   (`RMSNorm(alpha*x) == RMSNorm(x)` for any alpha>0) -- scaling the
+   embedding by 0.5 changed layer-0's output by only ~1.4 in max-abs terms
+   (measured directly), confirming multiplicative interpolation from a
+   zero baseline is degenerate everywhere except the single point
+   alpha=0, which the discretized IG integral never actually samples.
+2. **Fixed to additive interpolation toward a real, non-degenerate
+   baseline** (each model's own EOS-token embedding, tiled across
+   positions -- fetched inside a `model.trace()` since module parameters
+   resolve to meta tensors outside one, confirmed directly). Completeness
+   still failed, now with an even larger discrepancy (sum=13.9 vs.
+   expected 6567.75) -- most likely because a repeated-EOS-token input is
+   itself such an extreme out-of-distribution point that the straight-line
+   path from natural to baseline isn't well-approximated by 10 IG steps,
+   though a deeper nnsight/4-bit-quantization gradient interaction at the
+   embedding layer specifically was not fully ruled out either.
+
+**Switched to single-token leave-one-out ablation instead** (offered as an
+option, user chose to keep debugging IG once, then switched after the
+second failure) -- no gradients, no interpolation path to get wrong: for
+each token position, replace just that token with the model's own EOS
+token and re-run a clean forward pass, comparing the target feature's raw
+pre-activation with vs. without that token. Batches all `seq_len`
+single-token variants for one prompt into one forward pass per batch
+chunk. Verification here is a basic sanity check (finite values, real
+variance across positions), not IG's completeness property -- leave-one-out
+effects don't sum to the full-prompt effect in general (tokens can be
+redundant with each other), so there's no equivalent invariant to check
+against.
+
+**Three more real bugs found and fixed during the actual run, not before
+it**:
+
+1. **Un-masked top tokens were dominated by chat-template scaffolding**
+   (`<think>`, `assistant`, `ĊĊ` double-newline) near the readout position,
+   not the paraphrased content -- fixed by restricting reported top tokens
+   to the character span of the raw instruction text within the
+   chat-templated prompt (found via `templated.find(prompt)` plus the
+   tokenizer's offset mapping), verified with a fast CPU-only tokenizer
+   test before re-running anything on GPU.
+2. **A batch size of 32 for the ablation forward passes OOM'd immediately**
+   ("16.04 GiB is allocated by PyTorch" on a 6GB card) -- the 4-bit 8B
+   model alone leaves very little headroom; reduced to 8 (measured
+   near-identical wall-clock vs. batch=4, so 8 halves the trace() call
+   count for free). Even so, throughput was ~300s/prompt regardless of
+   batch size (nnsight per-trace overhead dominates, not batch compute) --
+   far slower than this project's `causal_ranking.py` IG work, a real,
+   unexplained difference worth remembering if this pattern (embedding-
+   layer hooking, many small forward passes) comes up again.
+3. **A real cross-run bug querying** `content_span_mask`'s tokenizer call
+   passed `add_special_tokens=False` while `token_ablation_importance`'s
+   call used the default (`True`) -- silently consistent for Qwen3-8B
+   (whose tokenizer adds no special token by default) but crashed on
+   Llama-3.1 specifically (whose tokenizer prepends a BOS token by
+   default), a length mismatch only surfacing on the *second* model after
+   Qwen3-8B's full 21-prompt run had already completed. Fixed by making
+   both calls use the same (default) setting.
+4. **A genuine memory leak across loop iterations**, distinct from the
+   batch-size OOM above: `_feature_value` (called repeatedly per ablation
+   batch per prompt) was missing `@torch.no_grad()` despite never calling
+   `.backward()` -- every forward pass built and retained a full, unused
+   autograd graph, accumulating until a later prompt's allocation finally
+   exceeded the 6GB card ("15.87 GiB allocated by PyTorch", again absurd
+   for one forward pass). The already-existing `_metric_at_alpha`
+   sanity-check helper *was* already `@torch.no_grad()`-decorated and
+   never showed this symptom in any test run, which is what pointed at the
+   fix. **Added per-prompt checkpointing** (`results/token_attribution.json`
+   rewritten after every single prompt, plus raw per-token importance
+   saved even if the downstream reporting step fails) after the *first*
+   crash lost Qwen3-8B's already-completed run to a bug in the reporting
+   step it didn't actually need to re-lose -- the second crash (this one)
+   confirmed the checkpointing's value: Qwen3-8B's 21 prompts were
+   preserved and skipped on the retry, only Llama's partial 5/21 needed
+   redoing.
+
+**Result: a real, qualitative pattern, read directly rather than run
+through an automated classifier** (same "moralize-vs-comply" discipline as
+elsewhere in this project) -- Llama's top-ranked token is frequently the
+literal core harmful-action word itself (`"unauthorized"`, `"cloning"`,
+`"underage"`, the `"ext"`+`"ort"` pieces of "extort", all at rank 1 on
+their respective prompts); Qwen3-8B's top tokens more often surface the
+PAIR attack's fictional/roleplay wrapper instead (`"hypothetical"` at
+rank 1 twice, `"consultant"` at rank 1 three times) or are entirely generic
+connective tissue. Rough tally, explicitly a direct-reading judgment call
+and not a validated automated count: ~9/21 Llama prompts show a clear
+content word in the top-5 (several at rank 1) vs. ~6/21 for Qwen3-8B,
+rarely at rank 1. Neither model is clean -- plenty of prompts on both sides
+are mostly generic regardless of model. Full write-up, including explicit
+limitations (why, not just what, remains unestablished; token-level
+attribution conflates identity and position), in RESULTS.md; all 42
+prompts' full top-5 lists in `results/token_attribution.json` (gitignored,
+matching this project's `results/` convention).
