@@ -60,6 +60,11 @@ def n_layers(model: LanguageModel) -> int:
     return len(model.model.layers)
 
 
+def hook_module(model: LanguageModel, layer_idx: int, hookpoint: str = "resid"):
+    layer = model.model.layers[layer_idx]
+    return layer.mlp if hookpoint == "mlp" else layer
+
+
 @torch.no_grad()
 def get_last_token_resid_acts(
     model: LanguageModel, instructions: list[str]

@@ -17,3 +17,43 @@ def test_load_model_with_4bit_quantization_does_not_raise():
 
     model = load_model(MODEL_NAME, load_in_4bit=True)
     assert model is not None
+
+
+class _StubLayer:
+    def __init__(self):
+        self.mlp = "mlp_module"
+
+
+class _StubLayers(list):
+    pass
+
+
+class _StubInnerModel:
+    def __init__(self):
+        self.layers = _StubLayers([_StubLayer(), _StubLayer()])
+
+
+class _StubModel:
+    def __init__(self):
+        self.model = _StubInnerModel()
+
+
+def test_hook_module_returns_layer_for_resid():
+    from src.activations.extract import hook_module
+
+    model = _StubModel()
+    assert hook_module(model, 1, "resid") is model.model.layers[1]
+
+
+def test_hook_module_returns_mlp_for_mlp_hookpoint():
+    from src.activations.extract import hook_module
+
+    model = _StubModel()
+    assert hook_module(model, 0, "mlp") == "mlp_module"
+
+
+def test_hook_module_defaults_to_resid():
+    from src.activations.extract import hook_module
+
+    model = _StubModel()
+    assert hook_module(model, 0) is model.model.layers[0]

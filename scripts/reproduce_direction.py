@@ -34,7 +34,7 @@ from src.direction.compute import (
     separation_score,
 )
 from src.direction.interventions import generate_baseline, generate_with_ablation, generate_with_addition
-from src.direction.refusal_classifier import refusal_stats
+from src.direction.refusal_classifier import refusal_stats, resolve_completions
 
 DEFAULT_MODEL = "Qwen/Qwen2.5-1.5B-Instruct"
 RESULTS_DIR = Path(__file__).resolve().parents[1] / "results"
@@ -47,6 +47,8 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--n-train", type=int, default=200)
     p.add_argument("--n-calib", type=int, default=30)
     p.add_argument("--n-val", type=int, default=30)
+    p.add_argument("--max-new-tokens", type=int, default=40)
+    p.add_argument("--reasoning-model", action="store_true")
     return p.parse_args()
 
 
@@ -91,38 +93,50 @@ def main() -> None:
 
     print(f"\n== Causal validation at layer {best_layer} (held-out val split) ==")
 
+    mnt = args.max_new_tokens
+
     print("Baseline completions on harmful val prompts")
-    baseline_harmful = [generate_baseline(model, p) for p in split["harmful_val"]]
+    baseline_harmful = [generate_baseline(model, p, max_new_tokens=mnt) for p in split["harmful_val"]]
     print("Ablated completions on harmful val prompts")
-    ablated_harmful = [generate_with_ablation(model, p, direction) for p in split["harmful_val"]]
+    ablated_harmful = [generate_with_ablation(model, p, direction, max_new_tokens=mnt) for p in split["harmful_val"]]
 
     print("Baseline completions on harmless val prompts")
-    baseline_harmless = [generate_baseline(model, p) for p in split["harmless_val"]]
+    baseline_harmless = [generate_baseline(model, p, max_new_tokens=mnt) for p in split["harmless_val"]]
     print("Direction-added completions on harmless val prompts")
     added_harmless = [
-        generate_with_addition(model, p, raw_direction, layer_idx=best_layer, alpha=args.alpha)
+        generate_with_addition(model, p, raw_direction, layer_idx=best_layer, alpha=args.alpha, max_new_tokens=mnt)
         for p in split["harmless_val"]
     ]
+
+    conditions = {
+        "harmful_baseline": baseline_harmful,
+        "harmful_ablated": ablated_harmful,
+        "harmless_baseline": baseline_harmless,
+        "harmless_direction_added": added_harmless,
+    }
+    if args.reasoning_model:
+        refusal_rate = {}
+        truncated = {}
+        for key, completions in conditions.items():
+            resolved, n_truncated = resolve_completions(completions)
+            refusal_rate[key] = refusal_stats(resolved)
+            truncated[key] = n_truncated
+    else:
+        refusal_rate = {key: refusal_stats(completions) for key, completions in conditions.items()}
+        truncated = None
 
     results = {
         "model": model_name,
         "alpha": args.alpha,
+        "max_new_tokens": mnt,
+        "reasoning_model": args.reasoning_model,
         "best_layer": best_layer,
         "candidate_layers": candidates,
         "separation_scores": {i: round(scores[i].item(), 4) for i in candidates},
         "raw_direction_norm": round(raw_direction.norm().item(), 4),
-        "refusal_rate": {
-            "harmful_baseline": refusal_stats(baseline_harmful),
-            "harmful_ablated": refusal_stats(ablated_harmful),
-            "harmless_baseline": refusal_stats(baseline_harmless),
-            "harmless_direction_added": refusal_stats(added_harmless),
-        },
-        "samples": {
-            "harmful_baseline": list(zip(split["harmful_val"], baseline_harmful)),
-            "harmful_ablated": list(zip(split["harmful_val"], ablated_harmful)),
-            "harmless_baseline": list(zip(split["harmless_val"], baseline_harmless)),
-            "harmless_direction_added": list(zip(split["harmless_val"], added_harmless)),
-        },
+        "refusal_rate": refusal_rate,
+        "truncated": truncated,
+        "samples": {key: list(zip(split[f"{key.split('_')[0]}_val"], completions)) for key, completions in conditions.items()},
     }
 
     RESULTS_DIR.mkdir(exist_ok=True)

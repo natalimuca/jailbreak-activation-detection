@@ -56,6 +56,7 @@ KNOWN_PAIR_DETECTION_RATE = {
     "gemma-2-9b-it": 0.476,
     "Qwen3-8B": 0.429,
     "Qwen2.5-1.5B-Instruct": 0.381,
+    "DeepSeek-R1-Distill-Qwen-1.5B": 0.095,
 }
 
 MODELS = [
@@ -64,6 +65,7 @@ MODELS = [
     "Qwen3-8B",
     "Llama-3.1-8B-Instruct",
     "gemma-2-9b-it",
+    "DeepSeek-R1-Distill-Qwen-1.5B",
 ]
 
 

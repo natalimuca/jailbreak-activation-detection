@@ -8,10 +8,11 @@ re-derives anything, it only looks up already-computed values, so a live
 prompt's score is always directly comparable to the numbers already
 reported in RESULTS.md.
 
-Only 3 of the 5 models have a pretrained SAE suite (Qwen3-8B,
-Llama-3.1-8B-Instruct, gemma-2-9b-it -- see `src.sae.registry.SAE_PROVIDERS`);
-the other two (Qwen2.5-1.5B-Instruct, SmolLM2-1.7B-Instruct) get
-`sae_feature=None` rather than a fabricated fallback.
+4 of the 6 models have a pretrained SAE suite (Qwen3-8B,
+Llama-3.1-8B-Instruct, gemma-2-9b-it, DeepSeek-R1-Distill-Qwen-1.5B -- see
+`src.sae.registry.SAE_PROVIDERS`); the other two (Qwen2.5-1.5B-Instruct,
+SmolLM2-1.7B-Instruct) get `sae_feature=None` rather than a fabricated
+fallback.
 """
 
 from __future__ import annotations
@@ -39,6 +40,7 @@ MODELS: dict[str, str] = {
     "Qwen/Qwen3-8B": "Qwen3-8B",
     "meta-llama/Llama-3.1-8B-Instruct": "Llama-3.1-8B-Instruct",
     "google/gemma-2-9b-it": "gemma-2-9b-it",
+    "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B": "DeepSeek-R1-Distill-Qwen-1.5B",
 }
 
 SAE_K = 15

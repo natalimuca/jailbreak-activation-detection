@@ -43,6 +43,7 @@ QWEN3_ADVERSARIAL_CACHE_PATH = RESULTS_DIR / "activations" / "Qwen3-8B_adversari
 SMALL_MODELS = {
     "Qwen2.5-1.5B-Instruct": "Qwen/Qwen2.5-1.5B-Instruct",
     "SmolLM2-1.7B-Instruct": "HuggingFaceTB/SmolLM2-1.7B-Instruct",
+    "DeepSeek-R1-Distill-Qwen-1.5B": "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B",
 }
 
 LARGE_MODELS = {

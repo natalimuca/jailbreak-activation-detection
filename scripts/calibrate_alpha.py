@@ -13,6 +13,7 @@ Usage: python scripts/calibrate_alpha.py <model_name>
 
 from __future__ import annotations
 
+import argparse
 import json
 import sys
 from pathlib import Path
@@ -25,7 +26,7 @@ from src.activations.extract import get_last_token_resid_acts, load_model
 from src.data.loaders import load_harmful_harmless_split
 from src.direction.compute import compute_raw_directions, select_candidate_layers, separation_score, compute_directions
 from src.direction.interventions import generate_with_addition
-from src.direction.refusal_classifier import is_degenerate, is_refusal
+from src.direction.refusal_classifier import is_degenerate, is_refusal, resolve_completions
 
 DEFAULT_MODEL = "Qwen/Qwen2.5-1.5B-Instruct"
 RESULTS_DIR = Path(__file__).resolve().parents[1] / "results"
@@ -34,15 +35,25 @@ TARGET_RATE = 0.8
 MAX_DEGENERATE_FRAC = 0.1
 
 
+def parse_args() -> argparse.Namespace:
+    p = argparse.ArgumentParser()
+    p.add_argument("model", nargs="?", default=DEFAULT_MODEL)
+    p.add_argument("--max-new-tokens", type=int, default=40)
+    p.add_argument("--reasoning-model", action="store_true")
+    p.add_argument("--n-calib", type=int, default=12)
+    return p.parse_args()
+
+
 def main() -> None:
-    model_name = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_MODEL
+    args = parse_args()
+    model_name = args.model
     model_slug = model_name.split("/")[-1]
 
     print(f"Loading model: {model_name}")
     model = load_model(model_name)
 
     print("Loading harmful/harmless prompt split (train + calib only)")
-    split = load_harmful_harmless_split(n_train=200, n_calib=12, n_val=0)
+    split = load_harmful_harmless_split(n_train=200, n_calib=args.n_calib, n_val=0)
 
     print("Extracting activations (train split)")
     harmful_train_acts = get_last_token_resid_acts(model, split["harmful_train"])
@@ -68,20 +79,26 @@ def main() -> None:
     sweep = []
     for alpha in ALPHA_GRID:
         completions = [
-            generate_with_addition(model, p, raw_direction, layer_idx=best_layer, alpha=alpha)
+            generate_with_addition(model, p, raw_direction, layer_idx=best_layer, alpha=alpha, max_new_tokens=args.max_new_tokens)
             for p in split["harmless_calib"]
         ]
-        n = len(completions)
-        n_refusal = sum(is_refusal(c) for c in completions)
-        n_degenerate = sum(is_degenerate(c) for c in completions)
+        if args.reasoning_model:
+            resolved, n_truncated = resolve_completions(completions)
+        else:
+            resolved, n_truncated = completions, 0
+        n = len(resolved)
+        n_refusal = sum(is_refusal(c) for c in resolved)
+        n_degenerate = sum(is_degenerate(c) for c in resolved)
         row = {
             "alpha": alpha,
-            "refusal_rate": round(n_refusal / n, 4),
-            "degenerate_frac": round(n_degenerate / n, 4),
-            "sample_completion": completions[0][:100],
+            "n": n,
+            "n_truncated": n_truncated,
+            "refusal_rate": round(n_refusal / n, 4) if n else 0.0,
+            "degenerate_frac": round(n_degenerate / n, 4) if n else 0.0,
+            "sample_completion": resolved[0][:100] if resolved else "",
         }
         sweep.append(row)
-        print(f"  alpha={alpha:5.2f}  refusal_rate={row['refusal_rate']:.2f}  degenerate_frac={row['degenerate_frac']:.2f}")
+        print(f"  alpha={alpha:5.2f}  refusal_rate={row['refusal_rate']:.2f}  degenerate_frac={row['degenerate_frac']:.2f}  n_truncated={n_truncated}")
 
     # Pick the smallest alpha that clears the target refusal rate without
     # degenerating; fall back to the highest non-degenerate refusal rate.

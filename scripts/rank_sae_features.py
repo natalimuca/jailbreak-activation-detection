@@ -31,10 +31,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from src.activations.cache import load_cache
 from src.activations.extract import load_model
 from src.direction.compute import compute_directions
+from src.direction.interventions import generate_reasoning_trace
 from src.direction.refusal_metric import refusal_compliance_token_ids
 from src.sae.causal_ranking import rank_pooled_candidates
 from src.sae.feature_selection import pool_top_k0_across_layers
-from src.sae.registry import SAE_PROVIDERS
+from src.sae.registry import SAE_PROVIDERS, hookpoint_for
 
 DEFAULT_MODEL = "Qwen/Qwen3-8B"
 K0 = 10
@@ -43,12 +44,20 @@ N_STEPS = 10
 N_EVAL_PROMPTS = 16
 MAX_PROMPT_CHARS = 150  # see DECISIONS.md: backward-pass memory risk on long outliers
 RESULTS_DIR = Path(__file__).resolve().parents[1] / "results"
+NEEDS_4BIT = {
+    "Qwen/Qwen3-8B",
+    "meta-llama/Llama-3.1-8B-Instruct",
+    "google/gemma-2-9b-it",
+    "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B",
+}
 
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser()
     p.add_argument("model", nargs="?", default=DEFAULT_MODEL)
     p.add_argument("--seed", type=int, default=0)
+    p.add_argument("--reasoning-model", action="store_true")
+    p.add_argument("--think-budget", type=int, default=2048)
     return p.parse_args()
 
 
@@ -81,8 +90,9 @@ def main() -> None:
     print(f"Sampled {len(eval_prompts)} eval prompts (seed={args.seed}, max_chars={MAX_PROMPT_CHARS}) "
           f"from {len(eligible_prompts)} eligible")
 
-    print(f"Loading model: {model_name} (4-bit)")
-    model = load_model(model_name, load_in_4bit=True)
+    load_in_4bit = model_name in NEEDS_4BIT
+    print(f"Loading model: {model_name}" + (" (4-bit)" if load_in_4bit else ""))
+    model = load_model(model_name, load_in_4bit=load_in_4bit)
     # SAEs stay on CPU (fp32) here -- feature_ig_attribution only ever
     # indexes a single row/column per candidate (sae.W_enc[feature_idx],
     # sae.feature_direction(feature_idx)) and moves *that* tiny slice to
@@ -92,12 +102,31 @@ def main() -> None:
     # each; three of them left almost no headroom on a 6GB card). See
     # DECISIONS.md.
     refusal_id, compliance_id = refusal_compliance_token_ids(model.tokenizer)
+    hookpoint = hookpoint_for(model_name)
+
+    prompt_overrides = None
+    if args.reasoning_model:
+        print(f"Resolving reasoning traces (budget={args.think_budget})...")
+        resolved_prompts, prompt_overrides = [], []
+        n_truncated = 0
+        for p in eval_prompts:
+            prefix = generate_reasoning_trace(model, p, max_new_tokens=args.think_budget)
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+            if prefix is None:
+                n_truncated += 1
+                continue
+            resolved_prompts.append(p)
+            prompt_overrides.append(prefix)
+        print(f"  {len(resolved_prompts)}/{len(eval_prompts)} resolved, {n_truncated} truncated (dropped)")
+        eval_prompts = resolved_prompts
 
     print(f"Ranking {len(candidates)} candidates over {len(eval_prompts)} prompts "
           f"(n_steps={N_STEPS}, micro_batch_size={MICRO_BATCH_SIZE})...")
     ranked = rank_pooled_candidates(
         model, saes, candidates, eval_prompts, refusal_id, compliance_id,
         k_star=K_STAR, n_steps=N_STEPS, micro_batch_size=MICRO_BATCH_SIZE,
+        hookpoint=hookpoint, prompt_overrides=prompt_overrides,
     )
 
     print(f"\nTop-{K_STAR} SAE features by causal (IG) effect:")
@@ -114,6 +143,8 @@ def main() -> None:
         "n_eval_prompts": N_EVAL_PROMPTS,
         "max_prompt_chars": MAX_PROMPT_CHARS,
         "seed": args.seed,
+        "reasoning_model": args.reasoning_model,
+        "think_budget": args.think_budget if args.reasoning_model else None,
         "eval_prompts": eval_prompts,
         "pooled_candidates": candidates,
         "ranked_features": [

@@ -36,6 +36,7 @@ MANIFEST_PATH = RESULTS_DIR / "adversarial_paraphrase_manifest.json"
 MODELS = {
     "Qwen2.5-1.5B-Instruct": "Qwen/Qwen2.5-1.5B-Instruct",
     "SmolLM2-1.7B-Instruct": "HuggingFaceTB/SmolLM2-1.7B-Instruct",
+    "DeepSeek-R1-Distill-Qwen-1.5B": "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B",
 }
 
 

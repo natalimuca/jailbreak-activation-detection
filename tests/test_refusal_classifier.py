@@ -1,4 +1,5 @@
-from src.direction.refusal_classifier import is_degenerate, is_refusal, refusal_rate, refusal_stats
+from src.direction.extract_answer import extract_answer
+from src.direction.refusal_classifier import is_degenerate, is_refusal, refusal_rate, refusal_stats, resolve_completions
 
 
 def test_is_refusal_detects_common_phrasings():
@@ -76,3 +77,29 @@ def test_refusal_stats_ci_widens_at_small_n():
 def test_refusal_stats_empty():
     stats = refusal_stats([])
     assert stats == {"n": 0, "count": 0, "rate": 0.0, "ci_low": 0.0, "ci_high": 0.0}
+
+
+def test_extract_answer_returns_text_after_think_close():
+    assert extract_answer("reasoning\n</think>\n\nSure, here you go.") == "\n\nSure, here you go."
+
+
+def test_extract_answer_none_when_think_never_closes():
+    assert extract_answer("still reasoning about this forever...") is None
+
+
+def test_extract_answer_uses_first_close_tag():
+    completion = "reasoning</think>answer mentions </think> literally too"
+    assert extract_answer(completion) == "answer mentions </think> literally too"
+
+
+def test_resolve_completions_splits_resolved_and_truncated():
+    completions = ["r1</think>Sure.", "still reasoning forever", "r2</think>I cannot."]
+    resolved, n_truncated = resolve_completions(completions)
+    assert resolved == ["Sure.", "I cannot."]
+    assert n_truncated == 1
+
+
+def test_resolve_completions_all_truncated():
+    resolved, n_truncated = resolve_completions(["a", "b"])
+    assert resolved == []
+    assert n_truncated == 2

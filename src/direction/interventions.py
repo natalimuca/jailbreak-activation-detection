@@ -25,7 +25,8 @@ from __future__ import annotations
 import torch
 from nnsight import LanguageModel
 
-from src.activations.extract import format_prompt, n_layers
+from src.activations.extract import format_prompt, hook_module, n_layers
+from src.direction.extract_answer import THINK_CLOSE_ID
 from src.sae.qwen_scope import TopKSAE
 
 
@@ -63,12 +64,13 @@ def generate_with_addition(
     layer_idx: int,
     alpha: float = 1.0,
     max_new_tokens: int = 40,
+    prompt_override: str | None = None,
 ) -> str:
     """raw_direction should be the *unnormalized* mean-difference vector
     (see compute.compute_raw_directions) -- its own norm already reflects
     the natural harmful/harmless separation scale at this layer, so `alpha`
     is a small multiplier on top of that (not a raw activation magnitude)."""
-    prompt = format_prompt(model, instruction)
+    prompt = prompt_override if prompt_override is not None else format_prompt(model, instruction)
     with model.generate(
         prompt, min_new_tokens=max_new_tokens, max_new_tokens=max_new_tokens, do_sample=False
     ) as tracer:
@@ -85,6 +87,8 @@ def generate_with_feature_suppression(
     instruction: str,
     features_by_layer: dict[int, list[tuple[TopKSAE, int]]],
     max_new_tokens: int = 40,
+    hookpoint: str = "resid",
+    prompt_override: str | None = None,
 ) -> str:
     """Ablates one or more SAE features (each a (sae, feature_idx) pair,
     grouped by the layer they live at) at every generated token -- the
@@ -98,7 +102,7 @@ def generate_with_feature_suppression(
     original residual and summed in one combined update -- not applied
     sequentially -- so ablating feature B doesn't shift the baseline that
     feature A's contribution is measured against."""
-    prompt = format_prompt(model, instruction)
+    prompt = prompt_override if prompt_override is not None else format_prompt(model, instruction)
     # nnsight requires modules to be accessed in the order they actually
     # execute in the forward pass -- iterating features_by_layer in whatever
     # order its keys happen to be in (e.g. ranking-score order) can access a
@@ -109,7 +113,7 @@ def generate_with_feature_suppression(
     ) as tracer:
         for step in tracer.iter[:max_new_tokens]:
             for layer_idx, feats in ordered_layers:
-                out = model.model.layers[layer_idx].output
+                out = hook_module(model, layer_idx, hookpoint).output
                 correction = torch.zeros_like(out)
                 for sae, feature_idx in feats:
                     feature_row = sae.W_enc[feature_idx].to(out.dtype).to(out.device)
@@ -120,6 +124,21 @@ def generate_with_feature_suppression(
                 out[:] = out - correction
         out_ids = model.generator.output.save()
     return model.tokenizer.decode(out_ids[0][-max_new_tokens:], skip_special_tokens=True)
+
+
+@torch.no_grad()
+def generate_reasoning_trace(model: LanguageModel, instruction: str, max_new_tokens: int = 2048) -> str | None:
+    prompt = format_prompt(model, instruction)
+    with model.generate(
+        prompt, min_new_tokens=1, max_new_tokens=max_new_tokens, do_sample=False
+    ) as tracer:
+        out_ids = model.generator.output.save()
+    generated = out_ids[0][-max_new_tokens:].tolist()
+    if THINK_CLOSE_ID not in generated:
+        return None
+    close_idx = generated.index(THINK_CLOSE_ID)
+    reasoning_text = model.tokenizer.decode(generated[:close_idx + 1], skip_special_tokens=True)
+    return prompt + reasoning_text
 
 
 @torch.no_grad()

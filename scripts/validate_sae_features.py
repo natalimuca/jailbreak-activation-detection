@@ -38,20 +38,24 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from src.activations.cache import load_cache
 from src.activations.extract import load_model
 from src.direction.interventions import generate_baseline, generate_with_feature_suppression
-from src.direction.refusal_classifier import is_degenerate, refusal_stats
-from src.sae.registry import SAE_PROVIDERS
+from src.direction.refusal_classifier import is_degenerate, refusal_stats, resolve_completions
+from src.sae.registry import SAE_PROVIDERS, hookpoint_for
 
 DEFAULT_MODEL = "Qwen/Qwen3-8B"
 RESULTS_DIR = Path(__file__).resolve().parents[1] / "results"
 N_VAL_PROMPTS = 50
 MAX_PROMPT_CHARS = 150  # consistent with scripts/rank_sae_features.py's ranking-pass cap; see DECISIONS.md
 MAX_NEW_TOKENS = 40
+NEEDS_4BIT = {"Qwen/Qwen3-8B", "meta-llama/Llama-3.1-8B-Instruct", "google/gemma-2-9b-it"}
 
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser()
     p.add_argument("model", nargs="?", default=DEFAULT_MODEL)
     p.add_argument("--seed", type=int, default=1)  # different seed from scripts/rank_sae_features.py's eval sample
+    p.add_argument("--reasoning-model", action="store_true")
+    p.add_argument("--max-new-tokens", type=int, default=MAX_NEW_TOKENS)
+    p.add_argument("--n-val-prompts", type=int, default=N_VAL_PROMPTS)
     return p.parse_args()
 
 
@@ -80,15 +84,17 @@ def main() -> None:
         if lab == "harmful" and sp == "val" and len(t) <= MAX_PROMPT_CHARS
     ]
     rng = random.Random(args.seed)
-    val_prompts = rng.sample(eligible, N_VAL_PROMPTS)
+    val_prompts = rng.sample(eligible, args.n_val_prompts)
     print(f"Sampled {len(val_prompts)} held-out VAL prompts (seed={args.seed}) "
           f"from {len(eligible)} eligible")
 
     print(f"Loading SAE checkpoints for layers {layers}...")
     saes = {l: load_sae(l) for l in layers}
 
-    print(f"Loading model: {model_name} (4-bit)")
-    model = load_model(model_name, load_in_4bit=True)
+    load_in_4bit = model_name in NEEDS_4BIT
+    print(f"Loading model: {model_name}" + (" (4-bit)" if load_in_4bit else ""))
+    model = load_model(model_name, load_in_4bit=load_in_4bit)
+    hookpoint = hookpoint_for(model_name)
     for l in layers:
         saes[l].to(device="cuda:0", dtype=torch.float16)
 
@@ -107,23 +113,28 @@ def main() -> None:
         completions = []
         for i, prompt in enumerate(val_prompts):
             if features_by_layer is None:
-                out = generate_baseline(model, prompt, max_new_tokens=MAX_NEW_TOKENS)
+                out = generate_baseline(model, prompt, max_new_tokens=args.max_new_tokens)
             else:
                 out = generate_with_feature_suppression(
-                    model, prompt, features_by_layer, max_new_tokens=MAX_NEW_TOKENS
+                    model, prompt, features_by_layer, max_new_tokens=args.max_new_tokens, hookpoint=hookpoint
                 )
             completions.append(out)
             print(f"  [{i+1}/{len(val_prompts)}] {out[:60]!r}")
 
-        stats = refusal_stats(completions)
-        degenerate_count = sum(is_degenerate(c) for c in completions)
+        if args.reasoning_model:
+            resolved, n_truncated = resolve_completions(completions)
+        else:
+            resolved, n_truncated = completions, 0
+        stats = refusal_stats(resolved)
+        degenerate_count = sum(is_degenerate(c) for c in resolved)
         results[name] = {
             "refusal_stats": stats,
             "degenerate_count": degenerate_count,
+            "n_truncated": n_truncated,
             "completions": completions,
         }
         print(f"  -> refusal_rate={stats['rate']} (95% CI [{stats['ci_low']}, {stats['ci_high']}]), "
-              f"degenerate={degenerate_count}/{len(completions)}")
+              f"degenerate={degenerate_count}/{len(resolved)}, truncated={n_truncated}")
 
     print("\n=== Summary ===")
     for name, r in results.items():
@@ -133,9 +144,10 @@ def main() -> None:
 
     payload = {
         "model": model_name,
-        "n_val_prompts": N_VAL_PROMPTS,
+        "n_val_prompts": args.n_val_prompts,
         "max_prompt_chars": MAX_PROMPT_CHARS,
-        "max_new_tokens": MAX_NEW_TOKENS,
+        "max_new_tokens": args.max_new_tokens,
+        "reasoning_model": args.reasoning_model,
         "seed": args.seed,
         "val_prompts": val_prompts,
         "results": results,

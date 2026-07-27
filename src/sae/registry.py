@@ -23,10 +23,19 @@ from __future__ import annotations
 
 from typing import Callable
 
-from src.sae import gemma_scope, llama_scope, qwen_scope
+from src.sae import eleuther_scope, gemma_scope, llama_scope, qwen_scope
 
 SAE_PROVIDERS: dict[str, tuple[Callable[..., object], list[int], int | None]] = {
     "Qwen/Qwen3-8B": (qwen_scope.load_sae, [23, 25, 24], None),
     "meta-llama/Llama-3.1-8B-Instruct": (llama_scope.load_sae, [27, 26, 21], None),
     "google/gemma-2-9b-it": (gemma_scope.load_sae, [34, 35, 33], 2),
+    "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B": (eleuther_scope.load_sae, [7, 8, 11], 2),
 }
+
+SAE_HOOKPOINT: dict[str, str] = {
+    "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B": "mlp",
+}
+
+
+def hookpoint_for(model_name: str) -> str:
+    return SAE_HOOKPOINT.get(model_name, "resid")

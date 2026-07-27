@@ -83,3 +83,34 @@ def test_generate_with_feature_suppression_runs_without_error(model):
     )
     assert isinstance(completion, str)
     assert len(completion.strip()) > 0
+
+
+@pytest.fixture(scope="module")
+def reasoning_model():
+    from src.activations.extract import load_model
+
+    return load_model("deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B")
+
+
+def test_generate_reasoning_trace_resolves_or_returns_none(reasoning_model):
+    from src.direction.extract_answer import THINK_CLOSE
+    from src.direction.interventions import generate_reasoning_trace
+
+    prefix = generate_reasoning_trace(reasoning_model, "What is 2+2?", max_new_tokens=200)
+    if prefix is not None:
+        assert isinstance(prefix, str)
+        assert prefix.endswith(THINK_CLOSE)
+
+
+def test_generate_with_addition_accepts_prompt_override(reasoning_model):
+    from src.activations.extract import format_prompt
+    from src.direction.interventions import generate_with_addition
+
+    d_model = reasoning_model.config.hidden_size
+    raw_direction = torch.zeros(d_model)
+    prompt = format_prompt(reasoning_model, "What is 2+2?") + "some reasoning</think>"
+    completion = generate_with_addition(
+        reasoning_model, "", raw_direction, layer_idx=5, alpha=1.0, max_new_tokens=10, prompt_override=prompt
+    )
+    assert isinstance(completion, str)
+    assert len(completion.strip()) > 0

@@ -2359,3 +2359,227 @@ limitations (why, not just what, remains unestablished; token-level
 attribution conflates identity and position), in RESULTS.md; all 42
 prompts' full top-5 lists in `results/token_attribution.json` (gitignored,
 matching this project's `results/` convention).
+
+## Adding DeepSeek-R1-Distill-Qwen-1.5B: the mandatory `<think>` block breaks "last-prompt-token / first-generated-token" methodology (2026-07-26)
+
+Every model onboarded so far answers immediately after its formatted
+prompt. Two places in the pipeline hardcode that assumption: (1)
+`refusal_classifier.is_refusal` only inspects the first 200 characters of
+a generated completion, fed by `interventions.py`'s `generate_*` functions
+(default `max_new_tokens=40`); (2) `causal_ranking.py`'s
+`feature_ig_attribution` reads `model.lm_head.output[:, -1, :]` -- the
+logits at the position immediately after the prompt -- for the
+differentiable refusal-vs-compliance metric used in SAE causal ranking.
+
+DeepSeek-R1-Distill-Qwen-1.5B's chat template (`tokenizer_config.json`,
+verified directly) auto-appends `<｜Assistant｜><think>\n` whenever
+`add_generation_prompt=True`. There is no `enable_thinking`-style flag --
+the template's only way to suppress the tag is `add_generation_prompt=False`,
+which removes the generation prompt entirely and isn't usable. So for this
+model both (1) and (2) land inside the reasoning trace, not the answer.
+Activation *extraction* (`src/activations/extract.py`, last prompt-token
+residual stream) is unaffected -- it runs before generation starts.
+
+**Fix**: `src/direction/extract_answer.py::extract_answer(text)` splits on
+the first `</think>` (confirmed a plain, non-special token for this
+tokenizer -- id 151649, `skip_special_tokens=True` does not strip it) and
+returns the post-tag text, or `None` if the tag never appears (a genuine
+truncated/non-converging trace, not silently classified anyway). New
+`refusal_classifier.resolve_completions()` partitions a batch of raw
+completions into resolved answers plus a truncated count, so causal-
+validation scripts can classify only the real answer and report truncation
+honestly as its own outcome, not folded into refusal or compliance.
+`reproduce_direction.py` and `calibrate_alpha.py` both gained
+`--reasoning-model` and `--max-new-tokens` flags (default off/40, so every
+other model's behavior is byte-identical) that route through this path.
+
+Budget calibration was empirical, not assumed (`scripts/think_length_probe.py`
+-- see RESULTS.md for the numbers and the discovery that ~a third of
+prompts trigger a genuine non-converging reasoning loop that no reasonable
+budget fixes, not just "needs more tokens"). Settled on
+`max_new_tokens=2048` for Phase 1 and calibration runs.
+
+**Not a bug, corrected after further checking**: `is_degenerate()`'s
+completions initially looked like false positives on a quick, truncated
+(~500-char) read -- written up here as a bug at first. Full-text inspection
+during the later suppression-validation run (see RESULTS.md) found this
+was wrong: those completions genuinely do collapse into verbatim-repeated
+sentences later in the text, past what a short preview shows. The
+threshold is correct as-is; the lesson is to read full completions, not
+previews, before concluding a classifier is wrong on this model.
+
+**Investigating a genuine null result**: the alpha-calibration sweep found
+0% refusal at all 7 tested alphas (0.25-4.0). Two hypotheses were tested
+before accepting this as real: (a) that applying the addition intervention
+across the *entire* reasoning trace (not just a 40-token window like every
+other model) compounds too much, degrading the answer instead of inducing
+refusal -- tested by building `interventions.py::generate_reasoning_trace()`
+(a plain, unhooked generation pass that resolves the prompt + reasoning
+text through `</think>`) plus a `prompt_override` parameter on
+`generate_with_addition`/`generate_with_ablation`, so the intervention can
+be applied only during the post-think answer. Still 0/5 refusal at alpha
+1-8. (b) That layer 9 (chosen by separation score, not validated for
+causal potency) or the tested alpha range was simply wrong -- alpha 16/32
+at layer 9 finally broke coherence entirely (confirming `is_degenerate()`
+does work at genuine breakdown), and alpha 2/8 at a mid-network layer (14)
+stayed coherent but still complied. **Both hypotheses ruled out. This is a
+genuine null result**: necessity is present (weak, from a low ~14%
+baseline), sufficiency is absent, across the full tested space. Same
+asymmetry already documented for Llama-3.1-8B, more extreme here.
+
+`prompt_override` on `generate_with_addition` (and `generate_with_ablation`,
+added for symmetry / future use) is the same mechanism Fix B (the two-stage
+resolve/attribute path added to `causal_ranking.py` and
+`generate_with_feature_suppression` for the SAE-feature work below) reuses
+-- same "freeze the reasoning trace once, then treat it as the fixed
+prefix" pattern.
+
+## DeepSeek-R1-Distill-Qwen-1.5B SAE-feature causal ranking: hookpoint plumbing, a real OOM, and its actual cause (2026-07-27)
+
+**Registry**: `EleutherAI/sae-DeepSeek-R1-Distill-Qwen-1.5B-65k` is trained
+on MLP-module output, not the residual stream like the three existing SAE
+providers (Qwen-Scope/LlamaScope/GemmaScope all hook
+`model.model.layers[i].output`). `SAE_PROVIDERS` is unpacked as a 3-tuple
+in 10 call sites across scripts/API/tests -- widening it to carry a
+hookpoint field would have touched all 10 for no reason, so hookpoint got
+its own small `SAE_HOOKPOINT` lookup + `hookpoint_for()` helper in
+`src/sae/registry.py` instead, defaulting to `"resid"` for every existing
+model. A new `src/activations/extract.py::hook_module(model, layer_idx,
+hookpoint)` resolves the right nnsight Envoy (`layer` or `layer.mlp`), used
+by `causal_ranking.py::_ig_chunk` and
+`interventions.py::generate_with_feature_suppression`. Layers [7, 8, 11]:
+top-3 by separation score on the full corpus (`scripts/extract_activations.py`),
+superseding Phase 1's smaller ad-hoc [8, 7, 9] read -- EleutherAI's suite
+covers all 28 layers, so no HfApi check needed unlike the partial-coverage
+providers.
+
+**Checkpoint verified directly** (not assumed from the `sae` library's
+typical convention): `layers.{n}.mlp/sae.safetensors` has keys
+`encoder.weight`/`encoder.bias` (same (d_sae, d_model) convention as
+Qwen-Scope's W_enc/b_enc) but `W_dec` shaped **(d_sae, d_model)** -- the
+*transpose* of Qwen-Scope's (d_model, d_sae) convention, no separate
+`decoder.weight` key. `src/sae/eleuther_scope.py` reuses `TopKSAE`
+unchanged (no need for a new class) by transposing `W_dec` once at load
+time; `k=32` from the checkpoint's own `cfg.json`, not assumed from the
+paper's stated default.
+
+**A real OOM, and the wrong hypothesis about it, before the right one**:
+`rank_sae_features.py` crashed with "15.93/15.95 GiB is allocated" on a
+6GB card on the very first candidate, both at the default full-batch
+micro_batch_size and after cutting it to 2 (gemma-2-9b-it's own fix for an
+earlier OOM) -- the number barely moved between the two, which should have
+been the tell that this wasn't really about batch size. First hypothesis
+(wrong, but reasonable): the new `hook_module`/MLP-hookpoint code path.
+Ruled out directly -- an isolated single-call test with `hookpoint="resid"`
+(the same code path already proven working for the other 3 models)
+allocated the identical 7.14GB as `hookpoint="mlp"` on the same short
+prompt. **Actual cause**: `rank_sae_features.py` hardcoded
+`load_in_4bit=True` for every model, inherited from when it only ever ran
+against Qwen3-8B/Llama-3.1-8B/gemma-2-9b-it (all needing 4-bit just to
+fit). DeepSeek-1.5B doesn't need 4-bit for its own size and runs Phase
+1/calibration fine in fp16, but the IG backward pass specifically is far
+more memory-hungry in fp16 than in 4-bit -- measured directly, 7.14GB vs.
+2.58GB for the identical single tiny call. Fixed with a small
+`NEEDS_4BIT` set gating `load_in_4bit` per-script per-model, now including
+DeepSeek for this script only (Phase 1/`calibrate_alpha.py` stay fp16 --
+forward-pass-only generation doesn't have this problem, confirmed by Phase
+1 already having run successfully in fp16). Windows' WDDM driver silently
+pages GPU allocations into system RAM rather than failing immediately when
+VRAM is exceeded, which is why `torch.cuda.memory_allocated()` could
+report a real, live 7.14GB on a 6GB card without erroring until the
+combined VRAM+RAM commit was finally exhausted -- worth remembering next
+time a PyTorch CUDA OOM message reports an "allocated" figure that looks
+physically impossible on this machine; it's a real number, not a
+mis-report.
+
+`generate_with_feature_suppression` (used by the causal-validation step
+below) got the same `hookpoint`/`prompt_override` treatment as
+`generate_with_addition`/`generate_with_ablation`, but did **not** need
+the 4-bit fix -- it's forward-pass-only per-token generation (like Phase
+1's ablation/addition), not a backward pass, so it stayed in the
+cheaper-but-sufficient cost class and ran fine in fp16.
+
+**Ranking result**: layer 11/feature 48719 is a clear top feature (score
+0.074) above the 2nd-ranked layer 7/feature 3715 (0.049) and the rest of
+the top-20's near-zero tail -- full numbers in RESULTS.md.
+
+**Suppression validation scoped down before running**: the original
+6-condition/N=50 protocol (used for the other 3 SAE models) would have
+taken ~13+ hours at this model's reasoning-inclusive budget (measured
+~10.8 tok/s under the per-token suppression hook, same rate as Phase 1's
+ablation). Flagged to the user before running (mirroring the Phase 1
+pre-flight cost check); reduced to N=15 (~4hr) rather than also cutting
+the number of conditions, to keep the dose-response resolution the other
+models got. Result and its honest "inconclusive, not negative" reading
+(near-floor baseline refusal rate plus real truncation shrinking effective
+N well below 15) are in RESULTS.md.
+
+**`is_degenerate()` correction**: the "false positive" claim written up
+earlier in this file and in RESULTS.md (Alpha calibration section, above)
+was wrong -- caught during this run by reading a full completion instead
+of a preview and finding genuine verbatim-repetition collapse partway
+through. Both files corrected in place rather than left standing; see
+RESULTS.md for the full account, including a new, actually-real finding
+this correction surfaced (this model's long-form answers have a real
+tendency to degenerate into repetition once they run out of content,
+present even at baseline).
+
+## Retrofitting DeepSeek into the 5-model statistical comparisons, and a real SAE-detector generalization failure (2026-07-27)
+
+Per the user's explicit request, extended the three cross-model
+statistical analyses that were built for 5 models to include DeepSeek
+(deferred as a separate ask from the earlier API/UI wiring, on the user's
+guidance):
+
+- **`scripts/extend_deepseek.py`** (new, mirrors `extend_llama_gemma.py`'s
+  pattern but single-model, no 4-bit -- DeepSeek doesn't need it):
+  populated `dense_direction_cross_model.json`. Layer 7, TEST accuracy
+  84.7% (AUROC 0.911) -- weakest of all 6 models -- and by far the worst
+  PAIR robustness (9.5% vs. next-lowest 38.1%).
+- **`scripts/extend_adversarial_small.py`** extended with a third model
+  entry (DeepSeek fits the same "small, no 4-bit needed" category as
+  Qwen2.5-1.5B/SmolLM2, reused rather than writing a near-duplicate
+  script) -- built `DeepSeek-R1-Distill-Qwen-1.5B_adversarial.pt`.
+- **`scripts/pair_margin_analysis.py`, `scripts/cross_model_significance.py`,
+  `scripts/paraphrase_decay_dense.py`**: each got a `DeepSeek-R1-Distill-Qwen-1.5B`
+  entry added to their existing per-model dicts/lists (`MODELS`,
+  `KNOWN_PAIR_DETECTION_RATE`, `SMALL_MODELS`) and were rerun.
+
+**Two real findings from the reruns, not just extended tables**:
+
+1. **Cochran's Q strengthens with DeepSeek included**: Q=34.44, df=5,
+   p=1.94e-6 (was Q=19.52, df=4, p=0.0006 at 5 models) -- DeepSeek's
+   extreme 9.5% PAIR detection rate widens the already-significant
+   cross-model spread further, not an artifact of adding a 6th data point.
+2. **The matched-pair paraphrase-decay Spearman correlation breaks**:
+   was rho=-1.0 (exact p=0.0167, n=5, a perfect rank match) between
+   projection-shift-under-paraphrase and known PAIR-detection rate;
+   drops to rho=-0.657, p=0.175 (n=6, no longer significant) with
+   DeepSeek added. DeepSeek's matched-pair delta (0.892) is unremarkable
+   in magnitude, similar to Llama's (0.767) or gemma's (1.030) -- but its
+   actual PAIR detection rate (9.5%) is far below what that delta would
+   predict from the other 5 models' pattern. **Reported as a genuine
+   break in a previously clean relationship, not silently absorbed into
+   an updated number** -- the earlier "matches exactly" framing in
+   RESULTS.md's matched-pair section needs updating alongside this.
+
+**A third, bigger finding surfaced computing DeepSeek's SAE-feature PAIR
+rate for `paraphrase_decay_sae.py`** (before mechanically adding it to that
+script's `KNOWN_SAE_PAIR_DETECTION_RATE` dict, paused to investigate
+first): the SAE-feature detector's calibrated threshold (6.899, Youden's J
+on VAL) gives only 4.4% recall on genuine VAL harmful prompts and 0/21 on
+PAIR. Verified this is not a calibration bug -- harmless VAL scores are
+100% exactly zero, so Youden's J correctly found the best achievable
+operating point given the real distribution; the cause is architectural
+(the SAE's hard k=32-of-65536 sparsity means 15 hand-picked features,
+ranked from a small n=10 resolved-prompt sample forced by this model's
+mandatory reasoning trace, have low odds of firing on any given VAL
+prompt). Full account, including how this connects to every other
+measurement in this project telling the same "diffuse refusal
+representation" story about this model, in RESULTS.md.
+
+Deliberately paused before folding that 0/21 number into
+`paraphrase_decay_sae.py`'s lookup dict and continuing mechanically -- it's
+a bigger, standalone finding than a footnote in a comparison table, and
+got its own RESULTS.md write-up first, per explicit user instruction
+("write it up first").

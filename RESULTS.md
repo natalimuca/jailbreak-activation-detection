@@ -802,7 +802,7 @@ in `results/token_attribution.json`.
   (no SAE trained for those models); the dense-direction detector and both
   baselines are extended to those two below.
 
-## Dense-direction detector: cross-model comparison (5 models)
+## Dense-direction detector: cross-model comparison (6 models)
 
 Extends the dense-direction detector (not the SAE-feature detector, which
 only has a trained SAE for Qwen3-8B) to four more models across Phase 4
@@ -832,50 +832,61 @@ ablation on a narrower dataset).
 
 | model | layer | TEST accuracy | TEST AUROC | XSTest-safe correctly-not-flagged | adversarial (pooled) | GCG | PAIR |
 |---|---|---|---|---|---|---|---|
+| DeepSeek-R1-Distill-Qwen-1.5B | 7 | 84.7% [80.1%, 88.4%] | 0.911 | **100.0%** [90.6%, 100%] | 40.0% [25.6%, 56.4%] | 85.7% [60.1%, 96.0%] | 9.5% [2.6%, 28.9%] |
 | Qwen2.5-1.5B-Instruct | 20 | 89.6% [85.5%, 92.6%] | 0.970 | 75.7% [59.9%, 86.6%] | 42.9% [28.0%, 59.1%] | 50.0% [26.8%, 73.2%] | 38.1% [20.7%, 59.1%] |
 | SmolLM2-1.7B-Instruct | 14 | 87.8% [83.6%, 91.1%] | 0.945 | **100.0%** [90.6%, 100%] | **91.4%** [77.6%, 97.0%] | **92.9%** [68.5%, 98.7%] | **90.5%** [71.1%, 97.4%] |
 | Qwen3-8B (from above) | 23 | 88.9% [84.7%, 92.0%] | 0.983 | 94.6% [82.3%, 98.5%] | 62.9% [46.3%, 76.8%] | 92.9% [68.5%, 98.7%] | 42.9% [24.5%, 63.4%] |
 | **Llama-3.1-8B-Instruct** | 27 | **93.1%** [89.5%, 95.5%] | **0.989** | 97.3% [86.2%, 99.5%] | 80.0% [64.1%, 90.0%] | **100.0%** [78.5%, 100%] | 66.7% [45.4%, 82.8%] |
 | Gemma-2-9B-it | 34 | 93.1% [89.5%, 95.5%] | 0.984 | 89.2% [75.3%, 95.7%] | 68.6% [52.0%, 81.5%] | **100.0%** [78.5%, 100%] | 47.6% [28.3%, 67.6%] |
 
-**All five models achieve comparably strong TEST-split accuracy**
-(87.8-93.1%, AUROC 0.94-0.99) -- the dense-direction approach isn't
-fragile to model choice on clean, in-distribution prompts.
-**Llama-3.1-8B-Instruct has the best TEST accuracy and AUROC of any model
-tried in this project so far**, including Qwen3-8B.
+**Five of six models achieve comparably strong TEST-split accuracy**
+(87.8-93.1%, AUROC 0.94-0.99); **DeepSeek is the outlier, weakest of all
+six** (84.7%, AUROC 0.911) -- still a working classifier, just measurably
+worse than every other model tried. **Llama-3.1-8B-Instruct has the best
+TEST accuracy and AUROC of any model tried in this project so far**,
+including Qwen3-8B.
 
-**PAIR-paraphrase robustness now shows a clear ranking across five
-models, not just an isolated SmolLM2 anomaly**: SmolLM2 (90.5%) >
-Llama-3.1-8B (66.7%) > Gemma-2-9B (47.6%) > Qwen3-8B (42.9%) > Qwen2.5-1.5B
-(38.1%). Tested formally with Cochran's Q across all five
+**PAIR-paraphrase robustness shows a clear ranking across six models,
+with DeepSeek a dramatic new low**: SmolLM2 (90.5%) > Llama-3.1-8B (66.7%)
+> Gemma-2-9B (47.6%) > Qwen3-8B (42.9%) > Qwen2.5-1.5B (38.1%) >
+**DeepSeek (9.5%)** -- roughly a quarter of the next-lowest model's rate.
+Tested formally with Cochran's Q across all six
 (`src.eval.detector_metrics.cochrans_q` -- generalizes McNemar's paired
 test to *k* related classifiers scored on the same 21 items, the correct
-tool instead of eyeballing pairwise CIs): **Q = 19.52, df = 4, p = 0.0006**
--- clearly significant, confirming this spread is real across all five
-models, not just a SmolLM2-vs-everyone-else artifact. This is not
-explained by this project's data alone. One plausible connection (not
-established, just a candidate
-hypothesis worth testing later): Phase 1 found SmolLM2's baseline refusal
-behavior itself is weaker and less "linear" than Qwen's -- lower baseline
-AdvBench refusal rate (63% vs. Qwen2.5's 100%), and its activation-addition
-sufficiency effect capped at 42% instead of reaching Qwen's ~97-100% (see
-this document's "Cross-model comparison" section above). A refusal
-representation that's less cleanly linear to begin with might, for reasons
-this project hasn't investigated, end up less disrupted by surface-level
-paraphrasing specifically -- or this could be unrelated model-specific
-noise, and it doesn't explain why Llama-3.1-8B (a strong, "linear"-looking
-refusal model per its high TEST/XSTest numbers) is also comparatively
-robust. **Not claimed as established** -- flagged as a concrete, testable
-open question, not asserted as an explanation.
+tool instead of eyeballing pairwise CIs): **Q = 34.44, df = 5, p = 1.94e-6**
+(recomputed 2026-07-27 with DeepSeek added; was Q=19.52, df=4, p=0.0006 at
+5 models -- DeepSeek's extreme outlier value widened an already-real
+spread further, not an artifact of adding a 6th model) -- clearly
+significant, confirming this spread is real across all six models, not
+just a SmolLM2-vs-everyone-else artifact. This is not explained by this
+project's data alone. One plausible connection (not established, just a
+candidate hypothesis worth testing later): Phase 1 found SmolLM2's
+baseline refusal behavior itself is weaker and less "linear" than Qwen's
+-- lower baseline AdvBench refusal rate (63% vs. Qwen2.5's 100%), and its
+activation-addition sufficiency effect capped at 42% instead of reaching
+Qwen's ~97-100% (see this document's "Cross-model comparison" section
+above). A refusal representation that's less cleanly linear to begin with
+might, for reasons this project hasn't investigated, end up less
+disrupted by surface-level paraphrasing specifically -- or this could be
+unrelated model-specific noise, and it doesn't explain why Llama-3.1-8B (a
+strong, "linear"-looking refusal model per its high TEST/XSTest numbers)
+is also comparatively robust, nor why DeepSeek (the *weakest* baseline
+refusal signal of all six, and the one with a genuinely null
+activation-addition result -- see its dedicated section above) is also by
+far the *least* robust, the one place this session's hypotheses actually
+line up directionally. **Still not claimed as established** -- flagged as
+a concrete, testable open question, not asserted as an explanation.
 
 **XSTest-safe false-positive rates also vary substantially by model**
-(75.7% / 94.6% / 100.0% / 97.3% / 89.2% correctly-not-flagged for Qwen2.5 /
-Qwen3-8B / SmolLM2 / Llama-3.1-8B / Gemma-2-9B respectively) -- Qwen2.5-1.5B's
-dense-direction detector flags roughly 1 in 4 safe-but-scary-looking
-prompts as harmful, a real practical difference in "safety tax" across
-models using the exact same detection method. Both new models
-(Llama-3.1-8B, Gemma-2-9B) sit in the upper-middle of this range, not at
-either extreme.
+(75.7% / 94.6% / 100.0% / 97.3% / 89.2% / **100.0%** correctly-not-flagged
+for Qwen2.5 / Qwen3-8B / SmolLM2 / Llama-3.1-8B / Gemma-2-9B / DeepSeek
+respectively) -- Qwen2.5-1.5B's dense-direction detector flags roughly 1
+in 4 safe-but-scary-looking prompts as harmful, a real practical
+difference in "safety tax" across models using the exact same detection
+method. DeepSeek ties SmolLM2 for the best (zero false positives on
+XSTest-safe) despite being the weakest classifier overall on TEST --
+a real, if unremarked-on-further, dissociation between "flags safe prompts
+correctly" and "catches harmful prompts reliably" for this model.
 
 #### PAIR-robustness spread: a continuous margin account (2026-07-24)
 
@@ -898,19 +909,25 @@ SmolLM2 needed a one-time forward-pass-only extraction first
 | gemma-2-9b-it | 1.018 | -0.049 | -0.049 | 47.6% |
 | Qwen2.5-1.5B-Instruct | 0.958 | -0.109 | -0.113 | 38.1% |
 | Qwen3-8B | 0.679 | -0.240 | -0.353 | 42.9% |
+| DeepSeek-R1-Distill-Qwen-1.5B | **0.308** | -0.221 | -0.719 | 9.5% |
 
 Recomputing each model's PAIR detection rate directly from these margins
 (fraction with projection above threshold) reproduces the published rates
-exactly (0.381/0.905/0.429/0.667/0.476) -- a sanity check that the
+exactly (0.381/0.905/0.429/0.667/0.476/0.095) -- a sanity check that the
 already-persisted directions/thresholds are being applied correctly, not new
 information on its own. **The real new result**: a formal Spearman rank
-correlation between mean PAIR margin and known detection rate across all 5
-models, **rho = 0.90, p = 0.037** (n=5) -- a real, if small-sample, rank
-relationship. The top 3 models (SmolLM2 > Llama-3.1-8B > gemma-2-9b-it) match
-the detection-rate ranking exactly; the bottom two (Qwen2.5-1.5B,
-Qwen3-8B) are swapped by mean margin relative to detection rate, both
-solidly negative and close together -- reported as the one genuine
-discrepancy, not smoothed into a perfect match.
+correlation between mean PAIR margin and known detection rate, **rho = 0.90,
+p = 0.037 at n=5** (original 5 models); **recomputed at n=6 with DeepSeek
+added (2026-07-27): rho = 0.83, p = 0.042** -- still significant, holds up
+under the addition, though modestly weaker. The top 3 models (SmolLM2 >
+Llama-3.1-8B > gemma-2-9b-it) match the detection-rate ranking exactly; the
+bottom three (Qwen2.5-1.5B, Qwen3-8B, DeepSeek) are not in perfect rank
+order by margin relative to detection rate, but DeepSeek's *harmful-prompt*
+margin itself (0.308) is starkly smaller than every other model's (0.679-
+1.018) -- roughly a third to half the size -- the clearest single number in
+this whole table for why DeepSeek's refusal signal is comparatively weak:
+even on genuine, unparaphrased harmful prompts, its dense direction sits
+much closer to the decision boundary than any other model's.
 
 **Honestly hedged, not a mechanism**: this sharpens the description of the
 phenomenon (continuous margin, formally tested, an n=5 correlation) and
@@ -956,24 +973,40 @@ matched pairs per model):
 |---|---|---|---|
 | SmolLM2-1.7B-Instruct | **0.250** | 0.0595 (n.s.) | 90.5% |
 | Llama-3.1-8B-Instruct | 0.767 | <0.0001 | 66.7% |
+| DeepSeek-R1-Distill-Qwen-1.5B | 0.892 | <0.0001 | 9.5% |
 | gemma-2-9b-it | 1.030 | <0.0001 | 47.6% |
 | Qwen3-8B | 1.067 | <0.0001 | 42.9% |
 | Qwen2.5-1.5B-Instruct | 1.118 | <0.0001 | 38.1% |
 
-**The delta ranking matches the known robustness ranking exactly across
-all 5 models** -- smallest delta (SmolLM2) is the most robust, largest
-(Qwen2.5) the least, monotonic in between. Spearman rho=-1.0 (perfect
-rank match); at n=5, scipy's default asymptotic p-value is not valid, so
-the script computes the **exact permutation p-value directly (all 5!
-orderings)**: p=0.0167 -- a real, formally significant result at the
-smallest sample size this project has, not an artifact of the wrong test.
-SmolLM2 is also the only model where the shift itself isn't statistically
-distinguishable from zero (p=0.0595) -- consistent with it being the most
-paraphrase-robust model by a wide margin.
+**Among the original 5 models, the delta ranking matched the known
+robustness ranking exactly** -- smallest delta (SmolLM2) was the most
+robust, largest (Qwen2.5) the least, monotonic in between (Spearman
+rho=-1.0, exact permutation p=0.0167). **Adding DeepSeek (2026-07-27)
+breaks this clean relationship**: its delta (0.892) is unremarkable,
+similar in magnitude to Llama's (0.767) or gemma's (1.030), but its actual
+PAIR detection rate (9.5%) is far below what that delta would predict from
+the other 5 models' pattern -- it sits where a ~45-55% detection rate
+"should" be, not 9.5%. **Recomputed Spearman at n=6: rho=-0.657, exact
+permutation p=0.175 -- no longer significant.** Reported as a genuine
+break in a previously clean result, not smoothed over: the paraphrase-
+induced *dense-direction projection shift* is a real, measurable, and
+statistically significant phenomenon for DeepSeek same as every other
+model (Wilcoxon p<0.0001) -- but the *magnitude of that shift* no longer
+predicts *how detectable the paraphrase ends up being*, once a model whose
+baseline harmful-prompt margin is already much smaller than the other five
+(0.308 vs. 0.679-1.018, see the PAIR-margin section) is included. A model
+that starts closer to its own decision boundary needs less absolute shift
+to cross it, which plausibly explains why the same-sized delta means
+something different for DeepSeek than for the other five -- a candidate
+explanation, not established by this data alone. SmolLM2 is also the only
+model where the shift itself isn't statistically distinguishable from zero
+(p=0.0595) -- consistent with it being the most paraphrase-robust model by
+a wide margin.
 
-**SAE-feature level, matched pairs, the 3 SAE models**
-(`scripts/paraphrase_decay_sae.py`) -- tests two related questions
-separately rather than conflating them:
+**SAE-feature level, matched pairs, the 3 original SAE models** (of the 4
+SAE-covered models as of 2026-07-27 -- DeepSeek deliberately excluded from
+this specific analysis, see below) (`scripts/paraphrase_decay_sae.py`) --
+tests two related questions separately rather than conflating them:
 
 | model | top-1 feature delta | top-1 feature p | full top-15 score delta | full score p |
 |---|---|---|---|---|
@@ -1004,6 +1037,18 @@ significantly (0.858, p=0.0038) even though its top feature alone does not
 other 14 features the detector also sums in are not, so the published
 SAE-feature detector's own PAIR robustness (80.9%) is somewhat *diluted*
 by non-causally-important features, not purely carried by the invariant one.
+
+**Why DeepSeek is deliberately excluded from this table (2026-07-27)**: not
+an oversight -- its SAE-feature detector already fails to fire on the vast
+majority of genuine harmful prompts (4.4% VAL recall, see the dedicated
+finding above), so both its "original" and "paraphrased" matched-pair
+scores are overwhelmingly exactly zero. A Wilcoxon test on that data
+would be measuring noise in a detector that doesn't functionally work for
+this model, not a real paraphrase-decay effect -- reporting a p-value from
+it would misrepresent a non-functioning detector as having a measurable
+signal. The dense-direction level (above) is unaffected by this and does
+include DeepSeek, since that detector genuinely does produce a real,
+non-degenerate signal for this model, just a weaker and less robust one.
 
 **Honestly hedged**: this is a matched-observational design, not a causal
 intervention -- it describes *what* changes under paraphrase with much
@@ -1333,3 +1378,163 @@ without resolving the original puzzle -- gemma simply confirms Llama is the
 one clear outlier on magnitude, while adding a new, separately-unexplained
 observation on alignment. No new GPU generation was needed for any of this,
 and none is proposed to go further on this specific question.
+
+## DeepSeek-R1-Distill-Qwen-1.5B: reasoning-trace methodology and Phase 1 (2026-07-26)
+
+Sixth model added. Its chat template auto-prefills `<think>\n` with no
+`enable_thinking`-style disable (verified directly against
+`tokenizer_config.json` -- see DECISIONS.md), so this model always reasons
+before answering, unlike every other model in the project. Full
+methodology fix in DECISIONS.md; results here.
+
+**Empirical think-length probe** (`scripts/think_length_probe.py`, 30
+AdvBench prompts, greedy decoding): among prompts that do close their
+`<think>` block, min 498 / median ~960 / p95 ~1370 tokens. But doubling the
+probe budget from 1536 to 3072 left the truncation rate exactly unchanged
+at 10/30 (33%) -- the same 10 prompts both times. A direct inspection at
+2500 tokens (one of the ten) found a 0.14 unique-word ratio, going in
+circles over the same few ideas -- a genuine non-converging reasoning loop
+on certain prompts, not "just needs a bigger budget." **Chose
+`max_new_tokens=2048`** for downstream runs: comfortably covers the
+converging distribution, and the non-converging ~third get reported
+honestly as a distinct "truncated" outcome (via `resolve_completions()`),
+not chased with an ever-larger budget.
+
+**Phase 1 (n_val=30, layer 8 selected by separation score)**:
+
+| condition | n resolved | n truncated | refusal rate |
+|---|---|---|---|
+| harmful baseline | 21 | 9 | 14.3% [5.0%, 34.6%] |
+| harmful + ablation | 16 | 14 | 0.0% [0.0%, 19.4%] |
+| harmless baseline | 25 | 5 | 0.0% [0.0%, 13.3%] |
+| harmless + addition (alpha=1.0) | 24 | 6 | 0.0% [0.0%, 13.8%] |
+
+Baseline harmful refusal is already low (14.3%) -- this model complies with
+most AdvBench-style requests even unmodified. Ablation drives it to 0%, a
+real if floor-constrained necessity signal. Addition induces no refusal at
+all at alpha=1.0, the "finding reproduced" check fails on the sufficiency
+side. Truncation rate roughly doubled under ablation (14/30) vs. baseline
+(9/30) -- noted, not chased further; plausibly the intervention makes some
+already-marginal reasoning traces less likely to converge.
+
+**Alpha calibration swept 0.25 through 4.0 (7 points, n=12 calib prompts,
+layer 9): 0% refusal at every single point (0/84 total).** The sweep's
+reported `degenerate_frac` (50-75% at every alpha) looked suspicious at
+first -- a few flagged completions read as coherent, fluent prose in a
+truncated (~500-char) preview, which was initially (and wrongly) written up
+here as `is_degenerate()` giving false positives on this model's longer
+answers. **Correction, found during the later suppression-validation run
+(below): those completions weren't actually clean -- reading the *full*
+text (not a preview) showed genuine repetition collapse later on** (e.g.
+one ~950-word completion is coherent for its first ~200 words, then
+repeats one 8-word sentence verbatim ~70 times to fill the rest of the
+budget). `is_degenerate()`'s unique-word-ratio<0.3 threshold was correct
+all along; the earlier "false positive" claim was a verification mistake
+(judging a long completion from its opening lines only), not a real bug.
+This model's completions do need full-text inspection, not a preview, when
+sanity-checking any classifier's output -- its tendency to open coherently
+and only degenerate later is exactly the failure mode a truncated preview
+misses.
+
+**Deeper investigation (three follow-up checks, all still null)**: (1)
+applying the addition intervention only during the post-`</think>` answer
+(via a new resolved-prefix mechanism, `generate_reasoning_trace()` +
+`prompt_override`) instead of across the whole reasoning trace -- still
+0/5 refusal at alpha 1, 2, 4, 8. (2) Pushing alpha to 16 and 32 at the same
+layer -- text genuinely breaks down into incoherent repeated-token garbage
+at this point (confirming `is_degenerate()` *does* fire correctly at the
+extreme, just not at moderate alphas), but still 0/4 refusal-shaped output.
+(3) A different, mid-network layer (14) at alpha 2 and 8 -- coherent text,
+still 0/4 refusal. **Conclusion: this is a genuine null result, not a
+methodology artifact** -- across 2 layers and an alpha range spanning
+coherent-compliant through incoherent-garbage, and whether applied
+throughout generation or only to the answer, this model never produces
+refusal-shaped output under activation addition. Necessity is present (if
+weak, from a low baseline); sufficiency is absent. This extends the same
+necessity/sufficiency asymmetry already documented for Llama-3.1-8B (see
+above), more extreme here (zero measurable effect vs. weak-but-real).
+
+**SAE-feature causal ranking** (`scripts/rank_sae_features.py`, EleutherAI's
+pretrained MLP-output SAE suite, layers 7/8/11 -- top-3 by separation score
+on the full 1345-prompt TRAIN / 289-prompt held-out VAL corpus, superseding
+Phase 1's smaller ad-hoc [8,7,9] read): needed the same reasoning-trace
+resolution as Phase 1, but for the *differentiable* IG metric this time --
+`causal_ranking.py` gained a `prompt_override` path so each of the 16
+sampled harmful TRAIN prompts is first resolved to its own
+prompt+reasoning-through-`</think>` prefix (10/16 resolved, 6 truncated and
+dropped) before running integrated gradients on the frozen prefix, so the
+readout position is the real answer, not a token inside the reasoning
+trace. **Top feature: layer 11/feature 48719 (score 0.074), a clear
+standout above the 2nd-ranked layer 7/feature 3715 (0.049)** and the rest
+of the top-20, which tapers to near-zero (several slightly negative) --
+same qualitative shape as every other model's ranking.
+
+**SAE-feature suppression validation** (`scripts/validate_sae_features.py`,
+6 conditions x N=15 held-out VAL prompts, reduced from the other models'
+N=50 to keep runtime to ~4hr instead of ~13hr given this model's
+reasoning-inclusive budget): **inconclusive, not negative** --
+refusal rates stayed near zero across every condition (baseline 0/6,
+top1 1/8, top5 0/10, top10 0/10, top15 0/10, top20 1/9) with heavily
+overlapping 95% CIs, no dose-response signal. Two things shrink the
+effective sample well below N=15 per condition: truncation (33-60% per
+condition, consistent with Phase 1) and this model's own baseline refusal
+rate already being near-floor (14.3% in Phase 1's larger n=30 sample, 0/6
+in this smaller one) -- there's little refusal left to suppress in the
+first place, on top of a small starting N. **Not the same finding as the
+addition-intervention null result above** -- that one was a genuine,
+thoroughly-investigated null (many alphas, layers, and application modes
+all agreeing); this one is underpowered, not conclusively null, and would
+need a larger N (impractical at this model's per-generation cost without
+a way to speed up the reasoning-inclusive budget) to actually resolve
+either way.
+
+**A genuinely new finding surfaced while sanity-checking this run**: this
+model's long-form answers have a real, substantial tendency to open
+coherently and then collapse into verbatim sentence-repetition once they
+run out of new content but haven't reached a natural stopping point --
+present even at baseline (no intervention at all), not something caused by
+suppression. In the small baseline sample here, 5/6 resolved completions
+showed this pattern (see the `is_degenerate()` correction above). This is
+a real characteristic of the model worth remembering for any future
+generation-based work on it, not a validation artifact.
+
+**The SAE-feature detector, built via the project's standard methodology
+(top-15 IG-ranked features), essentially fails to generalize as a
+classifier for this model.** Checked while computing DeepSeek's PAIR
+detection rate for the paraphrase-decay comparison below: at the
+calibrated threshold (Youden's J on VAL, threshold 6.899 -- a real,
+correctly-computed value, not a bug), harmless VAL scores are 100% exactly
+zero (expected), but so are **94.9% of genuine harmful VAL scores** (150 of
+158) -- only 8 harmful prompts out of 158 ever trigger even one of the 15
+selected features at all. **VAL harmful recall at the calibrated
+threshold: 4.4%. PAIR-paraphrase detection: 0/21.**
+
+Not a calibration bug -- with harmless scores universally zero, Youden's J
+correctly found the best achievable operating point given the actual score
+distribution; the real cause is architectural. The SAE's hard top-k=32
+sparsity (32 active features out of 65536, verified directly against the
+checkpoint's own `cfg.json`) means only 32 of 65536 features fire on any
+given input. 15 features hand-selected by attribution-patching on a small
+n=10 resolved-prompt sample (this model's mandatory reasoning trace left
+only 10 of the original 16 candidates usable, see the SAE-ranking section
+above) have low odds of landing in *any* given VAL prompt's active set --
+unlike the other 3 SAE-covered models, where the equivalent top-15 set
+reliably fires across their VAL and TEST distributions (see the SAE
+cross-model section elsewhere in this document).
+
+**This is not an isolated failure -- it's the same story every other
+measurement in this document tells about this model, from a fourth
+independent angle.** Activation addition never induces refusal at any
+tested dose (a thoroughly-investigated null, above). The dense-direction
+detector is the weakest of all 6 models on TEST (84.7% accuracy, AUROC
+0.911) and has by far the worst PAIR robustness (9.5%, next-lowest is
+38.1%) -- see the dense-direction cross-model section. Now the SAE-feature
+detector, which for every other SAE-covered model is a real, working
+classifier, essentially never fires. **DeepSeek-R1-Distill-Qwen-1.5B's
+refusal representation looks diffuse and hard to pin down to a small
+linear direction or a small feature set, across every measurement approach
+this project has, not just one.** Whether that's a property of R1-style
+distillation specifically, of this model's comparatively light safety
+training, or something else architectural is an open question this
+project's data doesn't resolve -- flagged as a genuine, real finding, not
+overclaimed as an explanation.

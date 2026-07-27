@@ -31,7 +31,7 @@ from __future__ import annotations
 import torch
 from nnsight import LanguageModel
 
-from src.activations.extract import format_prompt
+from src.activations.extract import format_prompt, hook_module
 from src.direction.refusal_metric import refusal_logit_diff
 from src.sae.qwen_scope import TopKSAE
 
@@ -47,6 +47,7 @@ def _ig_chunk(
     refusal_id: int,
     compliance_id: int,
     chunk_alphas: torch.Tensor,
+    hookpoint: str = "resid",
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """One forward+backward pass over a chunk of interpolation steps.
     Returns (natural_val, grad) for this chunk -- natural_val is the same
@@ -54,7 +55,8 @@ def _ig_chunk(
     unmodified residual, not on which alphas are in this chunk)."""
     chunk_size = len(chunk_alphas)
     with model.trace([templated] * chunk_size) as tracer:
-        orig_resid = model.model.layers[layer_idx].output[:, -1, :]
+        module = hook_module(model, layer_idx, hookpoint)
+        orig_resid = module.output[:, -1, :]
         feature_row = sae.W_enc[feature_idx].to(device=orig_resid.device, dtype=orig_resid.dtype)
         bias = sae.b_enc[feature_idx].to(device=orig_resid.device, dtype=orig_resid.dtype)
         direction = sae.feature_direction(feature_idx).to(device=orig_resid.device, dtype=orig_resid.dtype)
@@ -63,7 +65,7 @@ def _ig_chunk(
         alphas = chunk_alphas.to(device=orig_resid.device)
         v = (natural_val * alphas).clone().requires_grad_(True)
         perturbed = orig_resid.detach() + (v - natural_val).unsqueeze(-1) * direction
-        model.model.layers[layer_idx].output[:, -1, :] = perturbed
+        module.output[:, -1, :] = perturbed
 
         logits = model.lm_head.output[:, -1, :]
         metrics = refusal_logit_diff(logits, refusal_id, compliance_id)
@@ -84,6 +86,8 @@ def feature_ig_attribution(
     compliance_id: int,
     n_steps: int = N_STEPS_DEFAULT,
     micro_batch_size: int | None = None,
+    hookpoint: str = "resid",
+    prompt_override: str | None = None,
 ) -> float:
     """Integrated-gradients attribution of one SAE feature (at one layer) on
     one prompt: the estimated effect on the refusal-vs-compliance metric of
@@ -91,8 +95,15 @@ def feature_ig_attribution(
 
     micro_batch_size: if given and < n_steps, splits the n_steps
     interpolation points into chunks of this size, each its own
-    forward+backward pass -- see module docstring."""
-    templated = format_prompt(model, prompt)
+    forward+backward pass -- see module docstring.
+
+    prompt_override: if given, used as the model input instead of
+    format_prompt(model, prompt) -- for reasoning models, this should
+    already be the resolved prompt+reasoning-through-</think> prefix
+    (see interventions.generate_reasoning_trace), so the readout position
+    (the last token) lands on the real answer, not inside the reasoning
+    trace."""
+    templated = prompt_override if prompt_override is not None else format_prompt(model, prompt)
     micro_batch_size = micro_batch_size or n_steps
     alphas = torch.arange(1, n_steps + 1, dtype=torch.float32) / n_steps
 
@@ -101,7 +112,7 @@ def feature_ig_attribution(
     for start in range(0, n_steps, micro_batch_size):
         chunk_alphas = alphas[start:start + micro_batch_size]
         natural_val_saved, grad = _ig_chunk(
-            model, sae, feature_idx, layer_idx, templated, refusal_id, compliance_id, chunk_alphas
+            model, sae, feature_idx, layer_idx, templated, refusal_id, compliance_id, chunk_alphas, hookpoint
         )
         grads.append(grad)
         if torch.cuda.is_available():
@@ -122,6 +133,8 @@ def rank_pooled_candidates(
     k_star: int = 20,
     n_steps: int = N_STEPS_DEFAULT,
     micro_batch_size: int | None = None,
+    hookpoint: str = "resid",
+    prompt_overrides: list[str | None] | None = None,
 ) -> list[tuple[int, int, float]]:
     """candidates: (layer_idx, feature_idx) pairs pooled from
     src.sae.feature_selection.top_k0_by_cosine_similarity across the
@@ -130,15 +143,21 @@ def rank_pooled_candidates(
     (highest positive score = feature whose removal would most reduce the
     refusal-leaning metric, i.e. most causally responsible for refusal).
     micro_batch_size: passed through to feature_ig_attribution -- see its
-    docstring and the module docstring."""
+    docstring and the module docstring.
+
+    prompt_overrides: parallel to `prompts` -- see feature_ig_attribution's
+    prompt_override docstring. None (the default) leaves every model's
+    existing one-stage behavior unchanged."""
+    overrides = prompt_overrides or [None] * len(prompts)
     scored = []
     for i, (layer_idx, feature_idx) in enumerate(candidates):
         sae = saes[layer_idx]
         scores = [
             feature_ig_attribution(
-                model, sae, feature_idx, layer_idx, p, refusal_id, compliance_id, n_steps, micro_batch_size
+                model, sae, feature_idx, layer_idx, p, refusal_id, compliance_id, n_steps, micro_batch_size,
+                hookpoint, override,
             )
-            for p in prompts
+            for p, override in zip(prompts, overrides)
         ]
         scored.append((layer_idx, feature_idx, sum(scores) / len(scores)))
         print(f"  [{i+1}/{len(candidates)}] layer {layer_idx}, feature {feature_idx}: "
