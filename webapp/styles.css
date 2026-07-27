@@ -1,87 +1,110 @@
-/* Design tokens -- ui-ux-pro-max --design-system search ("security research
-   tool dashboard technical dark mode analytics") recommended Dark Mode
-   (OLED) + Fira Code/Fira Sans + blue/amber/red semantic palette. Leaned
-   further technical/instrument-panel (sharp corners, dot-grid texture,
-   monospace-first) rather than a soft rounded-card SaaS look, since this
-   is a thesis research instrument, not a consumer product. */
 :root {
-  color-scheme: dark;
-  --font-ui: "Fira Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 18px;
+  --font-ui: "Space Grotesk", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-mono: "Fira Code", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
-  --color-bg: #07070a;
-  --color-surface: #0f0f14;
-  --color-surface-2: #16161d;
-  --color-border: #24242e;
-  --color-border-strong: #33333f;
-  --color-text: #e9e9ef;
-  --color-text-muted: #8d8d9c;
-  --color-text-dim: #5c5c68;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --transition-fast: 140ms ease;
+}
 
-  --color-primary: #4f8cf7;
-  --color-accent: #d97706;
+/* Dark is the default (:root) and the explicit override (data-theme="dark"),
+   so a manual toggle can force dark even when the OS prefers light. Light
+   is applied automatically by the media query when no explicit choice has
+   been made (:root:not([data-theme])), or forced via data-theme="light" --
+   the toggle in app.js stamps data-theme on <html> and always wins over
+   the system preference in both directions. */
+:root,
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --color-bg: #0a0a0b;
+  --color-surface: #0e0e10;
+  --color-surface-2: #17171a;
+  --color-surface-hover: rgba(255, 255, 255, 0.035);
+  --color-border: rgba(255, 255, 255, 0.09);
+  --color-border-strong: rgba(255, 255, 255, 0.16);
+  --color-text: #f2f2f3;
+  --color-text-muted: #9a9aa2;
+  --color-text-dim: #626269;
 
-  --color-flagged: #f87171;
-  --color-flagged-dim: #7a3a3a;
-  --color-clear: #34d399;
-  --color-clear-dim: #2f6b56;
-  --color-unavailable: #8d8d9c;
-  --color-idle: #5c5c68;
+  --color-primary: #6ea8fe;
+  --color-primary-ink: #0a0a0b;
+  --color-accent: #6ea8fe;
 
-  /* Chart series -- validated via dataviz skill's validate_palette.js
-     (CVD ΔE 29.4/28.9, normal-vision ΔE 32.3, all >= target) against this
-     dark surface. Kept separate from --color-primary/--color-accent so the
-     light-mode chart blue can be tuned for the lightness-band check
-     independently of the UI accent blue used elsewhere. */
-  --chart-blue: #4f8cf7;
-  --chart-amber: #d97706;
-  --chart-gray: #5c5c68;
+  --color-flagged: #f0576b;
+  --color-flagged-bg: rgba(240, 87, 107, 0.13);
+  --color-clear: #37d399;
+  --color-clear-bg: rgba(55, 211, 153, 0.13);
+  --color-unavailable: #9a9aa2;
+  --color-idle: #626269;
 
-  --radius-sm: 4px;
-  --radius-md: 6px;
-  --transition-fast: 150ms ease-out;
+  --chart-blue: #6ea8fe;
+  --chart-amber: #e0a94f;
+  --chart-gray: #4a4a52;
 }
 
 @media (prefers-color-scheme: light) {
-  :root {
+  :root:not([data-theme]) {
     color-scheme: light;
-    --color-bg: #eef0f4;
+    --color-bg: #fafafa;
     --color-surface: #ffffff;
-    --color-surface-2: #f2f3f7;
-    --color-border: #dcdfe6;
-    --color-border-strong: #c6cad4;
-    --color-text: #171923;
-    --color-text-muted: #565a6b;
-    --color-text-dim: #8b8fa0;
+    --color-surface-2: #f2f2f4;
+    --color-surface-hover: rgba(0, 0, 0, 0.025);
+    --color-border: rgba(0, 0, 0, 0.09);
+    --color-border-strong: rgba(0, 0, 0, 0.16);
+    --color-text: #131316;
+    --color-text-muted: #6b6b74;
+    --color-text-dim: #9a9aa2;
 
-    --color-primary: #1e40af;
-    --color-accent: #b45309;
+    --color-primary: #2f5fd6;
+    --color-primary-ink: #ffffff;
+    --color-accent: #2f5fd6;
 
-    --color-flagged: #b3261e;
-    --color-flagged-dim: #f3c8c6;
-    --color-clear: #15803d;
-    --color-clear-dim: #c3e6cf;
-    --color-unavailable: #565a6b;
-    --color-idle: #9a9dac;
+    --color-flagged: #d1293f;
+    --color-flagged-bg: rgba(209, 41, 63, 0.1);
+    --color-clear: #0d8f5c;
+    --color-clear-bg: rgba(13, 143, 92, 0.1);
+    --color-unavailable: #6b6b74;
+    --color-idle: #9a9aa2;
 
-    /* #2f5fc4, not --color-primary's #1e40af -- the validator's lightness-
-       band check (L 0.43-0.77) fails on #1e40af as a bar fill (L=0.424);
-       #2f5fc4 clears it and still passes CVD/contrast against #ffffff. */
-    --chart-blue: #2f5fc4;
-    --chart-amber: #b45309;
-    --chart-gray: #9a9dac;
+    --chart-blue: #2f5fd6;
+    --chart-amber: #a5710a;
+    --chart-gray: #b4b4bc;
   }
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --color-bg: #fafafa;
+  --color-surface: #ffffff;
+  --color-surface-2: #f2f2f4;
+  --color-surface-hover: rgba(0, 0, 0, 0.025);
+  --color-border: rgba(0, 0, 0, 0.09);
+  --color-border-strong: rgba(0, 0, 0, 0.16);
+  --color-text: #131316;
+  --color-text-muted: #6b6b74;
+  --color-text-dim: #9a9aa2;
+
+  --color-primary: #2f5fd6;
+  --color-primary-ink: #ffffff;
+  --color-accent: #2f5fd6;
+
+  --color-flagged: #d1293f;
+  --color-flagged-bg: rgba(209, 41, 63, 0.1);
+  --color-clear: #0d8f5c;
+  --color-clear-bg: rgba(13, 143, 92, 0.1);
+  --color-unavailable: #6b6b74;
+  --color-idle: #9a9aa2;
+
+  --chart-blue: #2f5fd6;
+  --chart-amber: #a5710a;
+  --chart-gray: #b4b4bc;
 }
 
 * {
   box-sizing: border-box;
 }
 
-/* Without this, `.layout { display: grid }` and `.findings { display: ... }`
-   below (author rules) silently outrank the browser's default
-   `[hidden] { display: none }` (a lower-priority UA-stylesheet rule) --
-   so toggling the `hidden` attribute on #panel-detector/#panel-findings
-   would flip the DOM property but never actually stop rendering. */
 [hidden] {
   display: none !important;
 }
@@ -90,17 +113,10 @@ body {
   margin: 0;
   font-family: var(--font-ui);
   background-color: var(--color-bg);
-  background-image: radial-gradient(var(--color-border) 1px, transparent 1px);
-  background-size: 22px 22px;
   color: var(--color-text);
-  line-height: 1.5;
-  font-size: 15.5px;
-}
-
-@media (prefers-color-scheme: light) {
-  body {
-    background-image: radial-gradient(var(--color-border) 1px, transparent 1px);
-  }
+  line-height: 1.55;
+  font-size: 17.5px;
+  -webkit-font-smoothing: antialiased;
 }
 
 button,
@@ -112,6 +128,11 @@ input {
 
 a {
   color: var(--color-primary);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
 }
 
 /* -- App bar -- */
@@ -120,15 +141,15 @@ a {
   position: sticky;
   top: 0;
   z-index: 10;
-  background: color-mix(in srgb, var(--color-bg) 92%, transparent);
-  backdrop-filter: blur(10px);
+  background: color-mix(in srgb, var(--color-bg) 88%, transparent);
+  backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--color-border);
 }
 
 .app-bar-inner {
-  max-width: 1180px;
+  max-width: 100%;
   margin: 0 auto;
-  padding: 0.95rem 1.5rem;
+  padding: 0.9rem 1.75rem;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -139,19 +160,19 @@ a {
 .brand {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.7rem;
 }
 
 .brand-mark {
   display: grid;
   place-items: center;
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   flex-shrink: 0;
-  border-radius: var(--radius-md);
-  background: color-mix(in srgb, var(--color-primary) 18%, transparent);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-2);
   color: var(--color-primary);
-  border: 1px solid color-mix(in srgb, var(--color-primary) 35%, transparent);
+  border: 1px solid var(--color-border);
 }
 
 .brand-mark svg {
@@ -161,34 +182,34 @@ a {
 
 .brand-title {
   margin: 0;
-  font-weight: 700;
-  font-size: 1rem;
+  font-weight: 600;
+  font-size: 0.94rem;
   letter-spacing: -0.01em;
+  color: var(--color-text);
 }
 
 .brand-subtitle {
   margin: 0.1rem 0 0;
-  font-size: 0.74rem;
-  color: var(--color-text-muted);
-  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--color-text-dim);
 }
 
 .stat-strip {
   display: flex;
-  gap: 1.5rem;
+  gap: 1.75rem;
   margin: 0;
 }
 
 .stat-strip > div {
   display: flex;
   flex-direction: column;
-  gap: 0.15rem;
+  gap: 0.2rem;
 }
 
 .stat-strip dt {
-  font-size: 0.65rem;
+  font-size: 0.66rem;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.06em;
   color: var(--color-text-dim);
 }
 
@@ -201,18 +222,52 @@ a {
   white-space: nowrap;
 }
 
+.theme-toggle {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-2);
+  color: var(--color-text-muted);
+  border: 1px solid var(--color-border);
+  cursor: pointer;
+  transition: color var(--transition-fast), border-color var(--transition-fast), transform 200ms ease;
+}
+
+.theme-toggle:hover {
+  color: var(--color-text);
+  border-color: var(--color-border-strong);
+}
+
+.theme-toggle:active {
+  transform: scale(0.92);
+}
+
+.theme-toggle svg {
+  width: 18px;
+  height: 18px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .theme-toggle {
+    transition: none;
+  }
+}
+
 /* -- Layout -- */
 
 main {
-  max-width: 1180px;
+  max-width: 100%;
   margin: 0 auto;
-  padding: 1.5rem 1.5rem 3rem;
+  padding: 1.75rem 1.75rem 3.5rem;
 }
 
 .layout {
   display: grid;
   grid-template-columns: 320px 1fr;
-  gap: 1.1rem;
+  gap: 1.25rem;
   align-items: start;
 }
 
@@ -225,7 +280,7 @@ main {
 .rail {
   display: flex;
   flex-direction: column;
-  gap: 1.1rem;
+  gap: 1.25rem;
   position: sticky;
   top: 5.5rem;
 }
@@ -243,33 +298,47 @@ main {
 }
 
 .panel-title {
-  margin: 0 0 0.9rem;
+  margin: 0 0 1rem;
   font-size: 0.72rem;
-  font-weight: 700;
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--color-text-dim);
-  padding-bottom: 0.6rem;
-  border-bottom: 1px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.panel-title .tag {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  background: var(--color-surface-2);
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
 }
 
 .controls {
-  padding: 1.1rem 1.2rem 1.2rem;
+  padding: 1.25rem 1.25rem 1.35rem;
 }
 
 .field {
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
-  margin-bottom: 1rem;
+  gap: 0.45rem;
+  margin-bottom: 1.1rem;
 }
 
 .field label {
-  font-size: 0.72rem;
-  font-weight: 600;
+  font-size: 0.78rem;
+  font-weight: 500;
   color: var(--color-text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
 }
 
 .select-wrap {
@@ -281,19 +350,51 @@ select {
   appearance: none;
   color: var(--color-text);
   background: var(--color-surface-2);
-  border: 1px solid var(--color-border-strong);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
-  padding: 0.65rem 2.2rem 0.65rem 0.8rem;
-  font-size: 0.88rem;
-  font-family: var(--font-mono);
-  min-height: 44px;
+  padding: 0.65rem 2.2rem 0.65rem 0.85rem;
+  font-size: 0.86rem;
+  min-height: 42px;
   cursor: pointer;
-  transition: border-color var(--transition-fast);
+  transition: border-color var(--transition-fast), background var(--transition-fast);
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]) select {
+    color-scheme: light;
+  }
+}
+
+:root[data-theme="light"] select {
+  color-scheme: light;
+}
+
+select option {
+  background: #1a1a1e;
+  color: #f2f2f3;
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]) select option {
+    background: #ffffff;
+    color: #131316;
+  }
+}
+
+:root[data-theme="light"] select option {
+  background: #ffffff;
+  color: #131316;
 }
 
 select:disabled {
   cursor: not-allowed;
-  opacity: 0.6;
+  opacity: 0.5;
+}
+
+select:hover:not(:disabled) {
+  background: var(--color-surface-hover);
+  border-color: var(--color-border-strong);
 }
 
 .select-chevron {
@@ -303,7 +404,7 @@ select:disabled {
   transform: translateY(-50%);
   width: 15px;
   height: 15px;
-  color: var(--color-text-muted);
+  color: var(--color-text-dim);
   pointer-events: none;
 }
 
@@ -311,26 +412,29 @@ textarea {
   width: 100%;
   color: var(--color-text);
   background: var(--color-surface-2);
-  border: 1px solid var(--color-border-strong);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   padding: 0.7rem 0.85rem;
-  font-size: 0.88rem;
-  font-family: var(--font-mono);
+  font-size: 0.86rem;
   line-height: 1.5;
   resize: vertical;
   transition: border-color var(--transition-fast);
+}
+
+textarea::placeholder {
+  color: var(--color-text-dim);
 }
 
 select:focus-visible,
 textarea:focus-visible,
 button:focus-visible {
   outline: 2px solid var(--color-primary);
-  outline-offset: 2px;
+  outline-offset: 1px;
 }
 
-select:hover,
-textarea:hover {
-  border-color: var(--color-primary);
+textarea:hover,
+textarea:focus-visible {
+  border-color: var(--color-border-strong);
 }
 
 button#analyze-button {
@@ -339,20 +443,20 @@ button#analyze-button {
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  min-height: 44px;
+  min-height: 42px;
   font-weight: 600;
-  font-size: 0.9rem;
-  color: #ffffff;
+  font-size: 0.86rem;
+  color: var(--color-primary-ink);
   background: var(--color-primary);
   border: none;
   border-radius: var(--radius-sm);
   padding: 0.65rem 1.2rem;
   cursor: pointer;
-  transition: background var(--transition-fast), transform 120ms ease-out;
+  transition: opacity var(--transition-fast), transform 120ms ease-out;
 }
 
 button#analyze-button:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--color-primary) 88%, white);
+  opacity: 0.88;
 }
 
 button#analyze-button:active:not(:disabled) {
@@ -360,7 +464,7 @@ button#analyze-button:active:not(:disabled) {
 }
 
 button#analyze-button:disabled {
-  opacity: 0.5;
+  opacity: 0.4;
   cursor: not-allowed;
 }
 
@@ -373,8 +477,8 @@ button#analyze-button:disabled {
   width: 15px;
   height: 15px;
   border-radius: 50%;
-  border: 2px solid rgba(255, 255, 255, 0.35);
-  border-top-color: #ffffff;
+  border: 2px solid rgba(10, 10, 11, 0.3);
+  border-top-color: var(--color-primary-ink);
   animation: spin 0.7s linear infinite;
 }
 
@@ -391,10 +495,9 @@ button#analyze-button:disabled {
 }
 
 .status-line {
-  margin: 0.6rem 0 0;
+  margin: 0.65rem 0 0;
   font-size: 0.78rem;
   color: var(--color-text-muted);
-  font-family: var(--font-mono);
   min-height: 1.1rem;
 }
 
@@ -405,15 +508,15 @@ button#analyze-button:disabled {
 /* model validation stat panel */
 
 .model-stats {
-  padding: 1.1rem 1.2rem 1.2rem;
+  padding: 1.25rem 1.25rem 1.35rem;
 }
 
 .model-stat-row {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  font-size: 0.8rem;
-  padding: 0.35rem 0;
+  font-size: 0.82rem;
+  padding: 0.45rem 0;
   border-bottom: 1px solid var(--color-border);
 }
 
@@ -428,22 +531,18 @@ button#analyze-button:disabled {
 .model-stat-row .v {
   font-family: var(--font-mono);
   font-weight: 600;
+  color: var(--color-text);
 }
 
 .model-stat-note {
-  margin: 0.7rem 0 0;
-  font-size: 0.74rem;
+  margin: 0.75rem 0 0;
+  font-size: 0.76rem;
   color: var(--color-text-dim);
   line-height: 1.5;
 }
 
-/* method note -- collapsed by default (<details>): the rail (controls +
-   model-stats + method) would otherwise run noticeably taller than the
-   4-card results grid next to it, leaving a dead gap under the shorter
-   column since both share one grid row's height. */
-
 .method-note {
-  padding: 1.1rem 1.2rem;
+  padding: 1.25rem 1.25rem;
 }
 
 .method-note summary.panel-title {
@@ -453,7 +552,7 @@ button#analyze-button:disabled {
 }
 
 .method-note[open] summary.panel-title {
-  margin-bottom: 0.9rem;
+  margin-bottom: 0.95rem;
 }
 
 .method-note summary.panel-title::-webkit-details-marker {
@@ -462,7 +561,7 @@ button#analyze-button:disabled {
 
 .method-note summary.panel-title::after {
   content: "+";
-  float: right;
+  margin-left: auto;
   font-family: var(--font-mono);
   color: var(--color-text-dim);
 }
@@ -473,9 +572,9 @@ button#analyze-button:disabled {
 
 .method-text {
   margin: 0;
-  font-size: 0.78rem;
+  font-size: 0.8rem;
   color: var(--color-text-muted);
-  line-height: 1.6;
+  line-height: 1.65;
 }
 
 .method-text em {
@@ -485,11 +584,6 @@ button#analyze-button:disabled {
 
 /* -- Result cards -- */
 
-/* Single column, not a 2x2 grid: the sticky rail is meant to be the
-   shorter column next to a taller, scrollable main content area (the
-   standard sticky-sidebar pattern) -- a compact 2x2 card grid inverted
-   that, leaving dead space under the shorter results column once the
-   grid row stretched to match the taller rail. */
 .results {
   display: grid;
   grid-template-columns: 1fr;
@@ -501,65 +595,108 @@ button#analyze-button:disabled {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  padding: 1.1rem 1.2rem 1.2rem;
+  padding: 1.3rem 1.4rem 1.4rem;
   transition: border-color var(--transition-fast);
+}
+
+@keyframes cardEnter {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.card-enter {
+  animation: cardEnter 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes panelEnter {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.panel-enter {
+  animation: panelEnter 260ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card-enter,
+  .panel-enter {
+    animation: none;
+  }
+
+  .depth-marker,
+  .calib-marker,
+  .baseline-fill,
+  .axis-fill,
+  .bar-fill {
+    transition: none;
+  }
 }
 
 .card-header {
   display: flex;
   align-items: flex-start;
-  gap: 0.65rem;
-  margin-bottom: 0.9rem;
-  padding-bottom: 0.75rem;
+  gap: 0.75rem;
+  margin-bottom: 1.1rem;
+  padding-bottom: 0.9rem;
   border-bottom: 1px solid var(--color-border);
 }
 
-.card-icon {
+.card-index {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: 0.72rem;
+  color: var(--color-text-dim);
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
   display: grid;
   place-items: center;
-  width: 28px;
-  height: 28px;
-  flex-shrink: 0;
   border-radius: var(--radius-sm);
   background: var(--color-surface-2);
-  color: var(--color-text-muted);
-  margin-top: 0.1rem;
+  border: 1px solid var(--color-border);
+  margin-top: 0.05rem;
 }
 
-.card-icon svg {
-  width: 16px;
-  height: 16px;
+.card-icon {
+  display: none;
 }
 
 .card h2 {
-  font-size: 0.92rem;
+  font-size: 0.95rem;
   font-weight: 600;
   margin: 0;
+  color: var(--color-text);
 }
 
 .card-spec {
-  margin: 0.2rem 0 0;
-  font-size: 0.72rem;
+  margin: 0.25rem 0 0;
+  font-size: 0.76rem;
   color: var(--color-text-dim);
-  font-family: var(--font-mono);
   line-height: 1.4;
 }
 
-/* status pill */
+/* status pill -- soft tinted, not flood fill */
 
 .pill {
   display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
+  gap: 0.4rem;
   font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  font-family: var(--font-mono);
-  padding: 0.22rem 0.55rem;
-  border-radius: var(--radius-sm);
-  margin-bottom: 0.8rem;
-  border: 1px solid transparent;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  padding: 0.28rem 0.65rem;
+  border-radius: 999px;
+  margin-bottom: 0.9rem;
 }
 
 .pill svg {
@@ -568,27 +705,23 @@ button#analyze-button:disabled {
 }
 
 .pill.flagged {
-  background: color-mix(in srgb, var(--color-flagged) 14%, transparent);
+  background: var(--color-flagged-bg);
   color: var(--color-flagged);
-  border-color: color-mix(in srgb, var(--color-flagged) 35%, transparent);
 }
 
 .pill.clear {
-  background: color-mix(in srgb, var(--color-clear) 14%, transparent);
+  background: var(--color-clear-bg);
   color: var(--color-clear);
-  border-color: color-mix(in srgb, var(--color-clear) 35%, transparent);
 }
 
 .pill.unavailable {
-  background: color-mix(in srgb, var(--color-unavailable) 12%, transparent);
+  background: var(--color-surface-2);
   color: var(--color-unavailable);
-  border-color: var(--color-border-strong);
 }
 
 .pill.idle {
-  background: transparent;
+  background: var(--color-surface-2);
   color: var(--color-idle);
-  border-color: var(--color-border-strong);
 }
 
 /* score display */
@@ -596,15 +729,17 @@ button#analyze-button:disabled {
 .score-stats {
   display: flex;
   align-items: baseline;
-  gap: 0.55rem;
-  font-family: var(--font-mono);
-  margin-bottom: 0.6rem;
+  gap: 0.6rem;
+  margin-bottom: 0.75rem;
 }
 
 .score-value {
-  font-size: 1.3rem;
+  font-family: var(--font-mono);
+  font-size: 1.85rem;
   font-weight: 600;
+  letter-spacing: -0.01em;
   font-variant-numeric: tabular-nums;
+  color: var(--color-text);
 }
 
 .score-value.flagged {
@@ -616,19 +751,15 @@ button#analyze-button:disabled {
 }
 
 .score-threshold {
-  font-size: 0.74rem;
+  font-size: 0.78rem;
   color: var(--color-text-dim);
   font-variant-numeric: tabular-nums;
 }
 
-/* diverging axis meter: real signed value relative to a zero-anchored
-   scale, with the calibrated decision threshold marked as a dashed line --
-   deliberately not a plain 0-100% progress bar, since dense-direction and
-   SAE-feature scores are real signed magnitudes, not probabilities. */
 .axis {
   position: relative;
   height: 20px;
-  margin-bottom: 0.85rem;
+  margin-bottom: 0.9rem;
 }
 
 .axis-track {
@@ -636,8 +767,9 @@ button#analyze-button:disabled {
   top: 9px;
   left: 0;
   right: 0;
-  height: 2px;
-  background: var(--color-border-strong);
+  height: 3px;
+  border-radius: 2px;
+  background: var(--color-surface-2);
 }
 
 .axis-zero {
@@ -645,13 +777,13 @@ button#analyze-button:disabled {
   top: 3px;
   width: 1px;
   height: 14px;
-  background: var(--color-text-dim);
+  background: var(--color-border-strong);
 }
 
 .axis-fill {
   position: absolute;
-  top: 7px;
-  height: 6px;
+  top: 7.5px;
+  height: 5px;
   border-radius: 3px;
   transition: width 400ms ease-out, left 400ms ease-out;
 }
@@ -669,16 +801,220 @@ button#analyze-button:disabled {
   top: 0;
   width: 0;
   height: 20px;
-  border-left: 2px dashed var(--color-accent);
+  border-left: 2px dashed var(--color-text-dim);
 }
 
 .detail-label {
-  font-size: 0.7rem;
+  font-size: 0.72rem;
   font-weight: 600;
   color: var(--color-text-dim);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin: 0.75rem 0 0.4rem;
+  letter-spacing: 0.04em;
+  margin: 0.9rem 0 0.5rem;
+}
+
+/* network-depth diagram (dense-direction card) */
+
+.depth-diagram {
+  position: relative;
+  height: 16px;
+  margin-bottom: 0.3rem;
+}
+
+.depth-track {
+  position: absolute;
+  top: 7px;
+  left: 0;
+  right: 0;
+  height: 3px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--color-surface-2), var(--color-border-strong), var(--color-surface-2));
+}
+
+.depth-marker {
+  position: absolute;
+  top: 1px;
+  width: 14px;
+  height: 14px;
+  margin-left: -7px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  border: 3px solid var(--color-surface);
+  box-shadow: 0 0 0 1px var(--color-primary);
+}
+
+.depth-scale {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.72rem;
+  color: var(--color-text-dim);
+  margin-bottom: 0.2rem;
+}
+
+.depth-current {
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+/* calibration-context strip (dense-direction card) */
+
+.calib-strip {
+  position: relative;
+  height: 22px;
+  margin-bottom: 0.4rem;
+}
+
+.calib-track {
+  position: absolute;
+  top: 10px;
+  left: 0;
+  right: 0;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--color-surface-2);
+}
+
+.calib-zero {
+  position: absolute;
+  top: 4px;
+  width: 1px;
+  height: 14px;
+  background: var(--color-border-strong);
+}
+
+.calib-marker {
+  position: absolute;
+  top: 6.5px;
+  width: 10px;
+  height: 10px;
+  margin-left: -5px;
+  border-radius: 50%;
+}
+
+.calib-marker.calib-typical {
+  background: var(--color-text-dim);
+  border: 2px solid var(--color-surface);
+}
+
+.calib-marker.calib-live {
+  width: 13px;
+  height: 13px;
+  margin-left: -6.5px;
+  top: 5px;
+  background: var(--color-primary);
+  border: 2px solid var(--color-surface);
+  box-shadow: 0 0 0 1px var(--color-primary);
+}
+
+.depth-marker,
+.calib-marker {
+  transition: left 480ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+[data-tip] {
+  cursor: default;
+}
+
+[data-tip]::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: 130%;
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  background: var(--color-text);
+  color: var(--color-bg);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 600;
+  white-space: nowrap;
+  padding: 0.32rem 0.6rem;
+  border-radius: 6px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease, transform 120ms ease;
+  z-index: 5;
+}
+
+[data-tip]::before {
+  content: "";
+  position: absolute;
+  bottom: 130%;
+  left: 50%;
+  transform: translateX(-50%) translateY(-2px);
+  border: 4px solid transparent;
+  border-top-color: var(--color-text);
+  margin-bottom: -6px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+  z-index: 5;
+}
+
+[data-tip]:hover::after,
+[data-tip]:hover::before,
+[data-tip]:focus-visible::after,
+[data-tip]:focus-visible::before {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-tip]::after {
+    transition: opacity 120ms ease;
+  }
+}
+
+/* baseline-vs-activation comparison (keyword / perplexity cards) */
+
+.baseline-compare {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.baseline-row {
+  display: grid;
+  grid-template-columns: 88px 1fr 46px;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.baseline-label {
+  font-size: 0.76rem;
+  color: var(--color-text-muted);
+}
+
+.baseline-track {
+  position: relative;
+  height: 12px;
+  background: var(--color-surface-2);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.baseline-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  border-radius: 3px;
+  transition: width 600ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.baseline-fill-weak {
+  background: var(--chart-gray);
+}
+
+.baseline-fill-strong {
+  background: var(--color-primary);
+}
+
+.baseline-value {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-align: right;
+  color: var(--color-text);
 }
 
 .term-list,
@@ -686,13 +1022,13 @@ button#analyze-button:disabled {
   margin: 0;
   padding: 0;
   list-style: none;
-  font-size: 0.82rem;
+  font-size: 0.83rem;
   font-family: var(--font-mono);
 }
 
 .term-list li,
 .feature-list li {
-  padding: 0.22rem 0;
+  padding: 0.32rem 0;
   border-bottom: 1px solid var(--color-border);
   display: flex;
   justify-content: space-between;
@@ -719,7 +1055,7 @@ button#analyze-button:disabled {
   flex: 1;
   height: 4px;
   border-radius: 2px;
-  background: var(--color-border);
+  background: var(--color-surface-2);
   overflow: hidden;
 }
 
@@ -730,7 +1066,7 @@ button#analyze-button:disabled {
 }
 
 .empty-note {
-  font-size: 0.82rem;
+  font-size: 0.83rem;
   color: var(--color-text-muted);
   margin: 0;
 }
@@ -745,7 +1081,7 @@ button#analyze-button:disabled {
     var(--color-surface-2) 63%
   );
   background-size: 400% 100%;
-  border-radius: 3px;
+  border-radius: 4px;
   animation: shimmer 1.4s ease-in-out infinite;
 }
 
@@ -784,17 +1120,16 @@ button#analyze-button:disabled {
 /* footer */
 
 .page-footer {
-  max-width: 1180px;
+  max-width: 100%;
   margin: 0 auto;
-  padding: 0 1.5rem 2.5rem;
-  font-size: 0.75rem;
+  padding: 0 1.75rem 2.5rem;
+  font-size: 0.78rem;
   color: var(--color-text-dim);
-  font-family: var(--font-mono);
 }
 
 .page-footer p {
   margin: 0;
-  padding-top: 1rem;
+  padding-top: 1.1rem;
   border-top: 1px solid var(--color-border);
 }
 
@@ -802,8 +1137,8 @@ button#analyze-button:disabled {
   .app-bar-inner,
   main,
   .page-footer {
-    padding-left: 1rem;
-    padding-right: 1rem;
+    padding-left: 1.1rem;
+    padding-right: 1.1rem;
   }
 
   .stat-strip {
@@ -815,27 +1150,24 @@ button#analyze-button:disabled {
 
 .tabs {
   display: flex;
-  gap: 0.3rem;
-  margin-bottom: 1.1rem;
+  gap: 0.2rem;
+  margin-bottom: 1.25rem;
   border-bottom: 1px solid var(--color-border);
 }
 
 .tab {
   font: inherit;
-  font-size: 0.85rem;
+  font-size: 1.15rem;
   font-weight: 600;
   color: var(--color-text-muted);
   background: none;
   border: none;
   border-bottom: 2px solid transparent;
-  padding: 0.6rem 0.2rem;
+  padding: 0.65rem 0.2rem;
   margin-bottom: -1px;
+  margin-right: 1.5rem;
   cursor: pointer;
   transition: color var(--transition-fast), border-color var(--transition-fast);
-}
-
-.tab + .tab {
-  margin-left: 1.2rem;
 }
 
 .tab:hover {
@@ -845,6 +1177,7 @@ button#analyze-button:disabled {
 .tab.active {
   color: var(--color-text);
   border-bottom-color: var(--color-primary);
+  font-weight: 600;
 }
 
 /* -- Findings view -- */
@@ -857,12 +1190,12 @@ button#analyze-button:disabled {
 
 .chart-figure {
   margin: 0;
-  padding: 1.1rem 1.2rem 1.2rem;
+  padding: 1.3rem 1.4rem 1.4rem;
 }
 
 .chart-caption {
-  margin: 0.3rem 0 1rem;
-  font-size: 0.76rem;
+  margin: 0.3rem 0 1.1rem;
+  font-size: 0.78rem;
   color: var(--color-text-dim);
   line-height: 1.55;
 }
@@ -871,9 +1204,8 @@ button#analyze-button:disabled {
   display: flex;
   gap: 1.1rem;
   margin-bottom: 0.9rem;
-  font-size: 0.76rem;
+  font-size: 0.78rem;
   color: var(--color-text-muted);
-  font-family: var(--font-mono);
 }
 
 .legend-swatch {
@@ -884,49 +1216,42 @@ button#analyze-button:disabled {
 
 .legend-swatch::before {
   content: "";
-  width: 10px;
-  height: 10px;
-  border-radius: 2px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
   background: var(--swatch-color, currentColor);
 }
 
-/* bar chart -- see references/marks-and-anatomy.md: <=24px thick bars,
-   4px rounded data-end, square at the baseline, direct value labels at
-   the tip rather than a number on every gridline. */
 .bar-chart {
-  border-left: 1px solid var(--color-border-strong);
+  border-left: 1px solid var(--color-border);
 }
 
 .bar-group + .bar-group {
-  margin-top: 0.7rem;
+  margin-top: 0.75rem;
 }
 
 .bar-group-title {
   margin: 0 0 0.3rem 0.7rem;
-  font-size: 0.76rem;
+  font-size: 0.78rem;
   font-weight: 600;
   color: var(--color-text-muted);
 }
 
-/* Emphasis form (dataviz skill): ties the findings back to the model
-   actually selected in the live detector above -- its bar/group stays at
-   full color, everything else recedes. */
 .bar-row-current .bar-label {
   color: var(--color-text);
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .bar-group-current .bar-group-title {
   color: var(--color-text);
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .bar-group-dim {
-  opacity: 0.45;
+  opacity: 0.42;
 }
 
 .bar-group-note {
-  font-family: var(--font-mono);
   font-weight: 400;
   color: var(--color-text-dim);
   margin-left: 0.5rem;
@@ -934,16 +1259,15 @@ button#analyze-button:disabled {
 
 .bar-row {
   display: grid;
-  grid-template-columns: 128px 1fr 54px;
+  grid-template-columns: 150px 1fr 54px;
   align-items: center;
   gap: 0.6rem;
-  padding: 3px 0 3px 0.7rem;
+  padding: 4px 0 4px 0.7rem;
 }
 
 .bar-label {
-  font-size: 0.74rem;
+  font-size: 0.78rem;
   color: var(--color-text-muted);
-  font-family: var(--font-mono);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -951,7 +1275,10 @@ button#analyze-button:disabled {
 
 .bar-track {
   position: relative;
-  height: 16px;
+  height: 14px;
+  background: var(--color-surface-2);
+  border-radius: 3px;
+  overflow: hidden;
 }
 
 .bar-fill {
@@ -959,27 +1286,27 @@ button#analyze-button:disabled {
   left: 0;
   top: 0;
   height: 100%;
-  border-radius: 0 4px 4px 0;
+  border-radius: 3px;
   transition: width 500ms ease-out;
 }
 
 .bar-value {
   font-family: var(--font-mono);
-  font-size: 0.78rem;
+  font-size: 0.8rem;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   text-align: right;
+  color: var(--color-text);
 }
 
 .table-toggle {
-  margin-top: 0.9rem;
+  margin-top: 1rem;
 }
 
 .table-toggle summary {
   cursor: pointer;
-  font-size: 0.75rem;
+  font-size: 0.78rem;
   color: var(--color-text-muted);
-  font-family: var(--font-mono);
   user-select: none;
 }
 
@@ -990,23 +1317,23 @@ button#analyze-button:disabled {
 .data-table {
   width: 100%;
   border-collapse: collapse;
-  margin-top: 0.6rem;
-  font-size: 0.78rem;
-  font-family: var(--font-mono);
+  margin-top: 0.7rem;
+  font-size: 0.8rem;
 }
 
 .data-table th,
 .data-table td {
   text-align: left;
-  padding: 0.35rem 0.6rem 0.35rem 0;
+  padding: 0.4rem 0.6rem 0.4rem 0;
   border-bottom: 1px solid var(--color-border);
+  font-family: var(--font-mono);
 }
 
 .data-table th {
   color: var(--color-text-dim);
   font-weight: 600;
   text-transform: uppercase;
-  font-size: 0.68rem;
+  font-size: 0.66rem;
   letter-spacing: 0.04em;
 }
 
@@ -1017,10 +1344,10 @@ button#analyze-button:disabled {
 
 @media (max-width: 480px) {
   .bar-row {
-    grid-template-columns: 92px 1fr 48px;
+    grid-template-columns: 100px 1fr 48px;
   }
 
   .bar-label {
-    font-size: 0.68rem;
+    font-size: 0.72rem;
   }
 }

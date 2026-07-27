@@ -1,3 +1,27 @@
+const themeToggle = document.getElementById("theme-toggle");
+const iconSun = themeToggle.querySelector(".icon-sun");
+const iconMoon = themeToggle.querySelector(".icon-moon");
+
+function effectiveTheme() {
+  return document.documentElement.dataset.theme || (window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
+}
+
+function syncThemeIcon() {
+  const isLight = effectiveTheme() === "light";
+  iconSun.hidden = isLight;
+  iconMoon.hidden = !isLight;
+  themeToggle.setAttribute("aria-label", isLight ? "Switch to dark mode" : "Switch to light mode");
+}
+
+themeToggle.addEventListener("click", () => {
+  const next = effectiveTheme() === "light" ? "dark" : "light";
+  document.documentElement.dataset.theme = next;
+  localStorage.setItem("theme", next);
+  syncThemeIcon();
+});
+
+syncThemeIcon();
+
 const modelSelect = document.getElementById("model-select");
 const promptInput = document.getElementById("prompt-input");
 const analyzeButton = document.getElementById("analyze-button");
@@ -18,9 +42,9 @@ const ICONS = {
 
 const LOADING_MESSAGES = [
   "Scoring keyword filter…",
-  "Loading target model & extracting activations…",
-  "Scoring dense-direction detector…",
-  "Scoring SAE-feature detector…",
+  "Loading model, extracting residual-stream activations…",
+  "Projecting onto the refusal direction…",
+  "Scoring SAE-feature channel…",
   "Swapping in the perplexity backbone…",
   "Scoring perplexity filter…",
 ];
@@ -31,11 +55,40 @@ const LOADING_MESSAGES = [
 // If RESULTS.md is ever updated, update this table to match; don't let it
 // drift silently.
 const MODEL_VALIDATION = {
-  "Qwen/Qwen2.5-1.5B-Instruct": { layer: 20, testAcc: "89.6%", testAuroc: "0.970", pair: "38.1%", saeAuroc: null },
-  "HuggingFaceTB/SmolLM2-1.7B-Instruct": { layer: 14, testAcc: "87.8%", testAuroc: "0.945", pair: "90.5%", saeAuroc: null },
-  "Qwen/Qwen3-8B": { layer: 23, testAcc: "88.9%", testAuroc: "0.983", pair: "42.9%", saeAuroc: "0.975" },
-  "meta-llama/Llama-3.1-8B-Instruct": { layer: 27, testAcc: "93.1%", testAuroc: "0.989", pair: "66.7%", saeAuroc: "0.978" },
-  "google/gemma-2-9b-it": { layer: 34, testAcc: "93.1%", testAuroc: "0.984", pair: "47.6%", saeAuroc: "0.966" },
+  "Qwen/Qwen2.5-1.5B-Instruct": { layer: 20, testAcc: "89.6%", testAuroc: "0.970", pair: "38.1%", saeAuroc: null, saeNote: "n/a — no SAE suite" },
+  "HuggingFaceTB/SmolLM2-1.7B-Instruct": { layer: 14, testAcc: "87.8%", testAuroc: "0.945", pair: "90.5%", saeAuroc: null, saeNote: "n/a — no SAE suite" },
+  "Qwen/Qwen3-8B": { layer: 23, testAcc: "88.9%", testAuroc: "0.983", pair: "42.9%", saeAuroc: "0.975", saeNote: null },
+  "meta-llama/Llama-3.1-8B-Instruct": { layer: 27, testAcc: "93.1%", testAuroc: "0.989", pair: "66.7%", saeAuroc: "0.978", saeNote: null },
+  "google/gemma-2-9b-it": { layer: 34, testAcc: "93.1%", testAuroc: "0.984", pair: "47.6%", saeAuroc: "0.966", saeNote: null },
+  "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B": { layer: 7, testAcc: "84.7%", testAuroc: "0.911", pair: "9.5%", saeAuroc: null, saeNote: "n/a — fires on 4.4% of harmful VAL prompts, see RESULTS.md" },
+};
+
+// Real transformer decoder-layer counts, verified directly against each
+// model's own HF config (AutoConfig.num_hidden_layers), not assumed from
+// parameter count. Powers the layer-depth diagram on the dense-direction
+// card.
+const NETWORK_DEPTH = {
+  "Qwen/Qwen2.5-1.5B-Instruct": 28,
+  "HuggingFaceTB/SmolLM2-1.7B-Instruct": 24,
+  "Qwen/Qwen3-8B": 36,
+  "meta-llama/Llama-3.1-8B-Instruct": 32,
+  "google/gemma-2-9b-it": 42,
+  "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B": 28,
+};
+
+// Real calibration-split statistics from results/pair_margin_analysis.json
+// (pooled_std, the same normalization separation_score uses) and
+// results/detector_thresholds_*.json (harmful_val_margin_mean: how many
+// pooled-std units above threshold a typical harmful VAL prompt lands) --
+// static reference context for plotting a live score against the real
+// calibration distribution, never recomputed at request time.
+const CALIBRATION_STATS = {
+  "Qwen/Qwen2.5-1.5B-Instruct": { pooledStd: 17.5063, harmfulMarginSigma: 0.9581 },
+  "HuggingFaceTB/SmolLM2-1.7B-Instruct": { pooledStd: 23.2969, harmfulMarginSigma: 0.6811 },
+  "Qwen/Qwen3-8B": { pooledStd: 54.8916, harmfulMarginSigma: 0.6794 },
+  "meta-llama/Llama-3.1-8B-Instruct": { pooledStd: 10.5256, harmfulMarginSigma: 0.9356 },
+  "google/gemma-2-9b-it": { pooledStd: 200.4978, harmfulMarginSigma: 1.018 },
+  "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B": { pooledStd: 5.6679, harmfulMarginSigma: 0.3081 },
 };
 
 let loadingMessageTimer = null;
@@ -49,7 +102,7 @@ function setBusy(isBusy) {
   analyzeButton.disabled = isBusy;
   buttonSpinner.hidden = !isBusy;
   buttonIcon.hidden = isBusy;
-  buttonLabel.textContent = isBusy ? "Analyzing…" : "Analyze";
+  buttonLabel.textContent = isBusy ? "Running…" : "Run";
 
   if (isBusy) {
     let i = 0;
@@ -77,7 +130,7 @@ function renderModelStats(hfName) {
     ["TEST accuracy (n=288)", stats.testAcc],
     ["TEST AUROC", stats.testAuroc],
     ["PAIR-paraphrase robustness", stats.pair],
-    ["SAE-feature AUROC", stats.saeAuroc ?? "n/a (no SAE suite)"],
+    ["SAE-feature AUROC", stats.saeAuroc ?? stats.saeNote],
   ];
   modelStatsBody.innerHTML = rows
     .map(([k, v]) => `<div class="model-stat-row"><span class="k">${k}</span><span class="v">${v}</span></div>`)
@@ -131,7 +184,7 @@ function renderMagnitudeAxis(flagged, score, threshold) {
     <div class="axis">
       <div class="axis-track"></div>
       <div class="axis-fill ${stateClass}" style="left:0; width:${fillPct}%"></div>
-      <div class="axis-threshold" style="left:${thresholdPct}%"></div>
+      <div class="axis-threshold" tabindex="0" style="left:${thresholdPct}%" data-tip="Decision threshold: ${formatScore(threshold)}"></div>
     </div>
   `;
 }
@@ -154,10 +207,44 @@ function renderDivergingAxis(flagged, score, threshold) {
     </div>
     <div class="axis">
       <div class="axis-track"></div>
-      <div class="axis-zero" style="left:50%"></div>
+      <div class="axis-zero" tabindex="0" style="left:50%" data-tip="Score = 0"></div>
       <div class="axis-fill ${stateClass}" style="left:${fillLeft}%; width:${fillWidth}%"></div>
-      <div class="axis-threshold" style="left:${50 + thresholdPct}%"></div>
+      <div class="axis-threshold" tabindex="0" style="left:${50 + thresholdPct}%" data-tip="Decision threshold: ${formatScore(threshold)}"></div>
     </div>
+  `;
+}
+
+// Real TEST-split AUROC for the two text-only baselines, from RESULTS.md's
+// "Baseline detectors and adversarial evaluation" section -- model-agnostic
+// (they never touch activations, so this number doesn't vary by selected
+// model) and never recomputed here.
+const BASELINE_AUROC = { keyword: 0.603, perplexity: 0.52 };
+
+/* Puts a text-only baseline's real weakness in context against the
+   activation-based dense-direction detector for the currently selected
+   model -- the actual finding this project reports (baselines sit near
+   chance; activation-based detection is why the rest of this page exists),
+   not a decorative comparison. */
+function renderBaselineContext(kind) {
+  const baseline = BASELINE_AUROC[kind];
+  const modelStats = MODEL_VALIDATION[modelSelect.value];
+  if (!modelStats) return "";
+  const activationAuroc = parseFloat(modelStats.testAuroc);
+  return `
+    <p class="detail-label">TEST AUROC vs. activation-based</p>
+    <div class="baseline-compare">
+      <div class="baseline-row">
+        <span class="baseline-label">This filter</span>
+        <div class="baseline-track"><div class="baseline-fill baseline-fill-weak" style="width:${baseline * 100}%"></div></div>
+        <span class="baseline-value">${baseline.toFixed(3)}</span>
+      </div>
+      <div class="baseline-row">
+        <span class="baseline-label">Dense-direction</span>
+        <div class="baseline-track"><div class="baseline-fill baseline-fill-strong" style="width:${activationAuroc * 100}%"></div></div>
+        <span class="baseline-value">${activationAuroc.toFixed(3)}</span>
+      </div>
+    </div>
+    <p class="empty-note">0.5 AUROC = coin flip. This is the actual reason the other detectors read activations instead of text.</p>
   `;
 }
 
@@ -169,23 +256,80 @@ function renderKeyword(result) {
       .map((term) => `<li>${term}</li>`)
       .join("")}</ul>`;
   } else {
-    html += `<p class="empty-note">No lexicon terms matched.</p>`;
+    html += `<p class="empty-note">Zero lexicon hits.</p>`;
   }
+  html += renderBaselineContext("keyword");
   return html;
 }
 
 function renderPerplexity(result) {
   return (
     renderPill(result.flagged ? "flagged" : "clear", result.flagged ? "Flagged" : "Clear") +
-    renderMagnitudeAxis(result.flagged, result.score, result.threshold)
+    renderMagnitudeAxis(result.flagged, result.score, result.threshold) +
+    renderBaselineContext("perplexity")
   );
+}
+
+/* Where in the network this detector actually reads -- a horizontal track
+   over the model's real decoder-layer count (NETWORK_DEPTH, verified
+   against each model's own HF config), with a marker per probed layer.
+   Makes the "residual-stream projection" language in the card description
+   concrete instead of abstract. Accepts one layer (dense-direction) or
+   several (SAE-feature, whose top-ranked features span multiple layers). */
+function renderDepthDiagram(hfName, layers) {
+  const total = NETWORK_DEPTH[hfName];
+  const layerList = Array.isArray(layers) ? layers : [layers];
+  if (!total || layerList.length === 0) return "";
+  const sorted = [...new Set(layerList)].sort((a, b) => a - b);
+  const markers = sorted
+    .map((l) => `<div class="depth-marker" tabindex="0" style="left:${(l / (total - 1)) * 100}%" data-tip="Layer ${l}"></div>`)
+    .join("");
+  const currentLabel = sorted.length === 1 ? `Layer ${sorted[0]} of ${total}` : `Layers ${sorted.join(", ")} of ${total}`;
+  return `
+    <p class="detail-label">${sorted.length === 1 ? "Layer probed" : "Layers probed"}</p>
+    <div class="depth-diagram">
+      <div class="depth-track"></div>
+      ${markers}
+    </div>
+    <div class="depth-scale">
+      <span>Layer 0</span>
+      <span class="depth-current">${currentLabel}</span>
+      <span>Layer ${total - 1}</span>
+    </div>
+  `;
+}
+
+/* Plots the live score against the real VAL calibration distribution
+   (CALIBRATION_STATS, from results/pair_margin_analysis.json +
+   detector_thresholds_*.json) rather than just a bare score-vs-threshold
+   bar -- shows how this specific reading compares to where a typical
+   harmful prompt actually lands for this model, in pooled-std units. */
+function renderCalibrationContext(hfName, score, threshold) {
+  const stats = CALIBRATION_STATS[hfName];
+  if (!stats) return "";
+  const liveSigma = (score - threshold) / stats.pooledStd;
+  const typicalSigma = stats.harmfulMarginSigma;
+  const domain = Math.max(Math.abs(liveSigma), Math.abs(typicalSigma), 1) * 1.35;
+  const toPct = (sigma) => 50 + (sigma / domain) * 50;
+  const sign = liveSigma >= 0 ? "+" : "";
+  return `
+    <p class="detail-label">Score in calibration context</p>
+    <div class="calib-strip">
+      <div class="calib-track"></div>
+      <div class="calib-zero" tabindex="0" style="left:50%" data-tip="Threshold (0σ)"></div>
+      <div class="calib-marker calib-typical" tabindex="0" style="left:${toPct(typicalSigma)}%" data-tip="Typical harmful VAL prompt: +${typicalSigma.toFixed(2)}σ"></div>
+      <div class="calib-marker calib-live" tabindex="0" style="left:${toPct(liveSigma)}%" data-tip="This prompt: ${sign}${liveSigma.toFixed(2)}σ"></div>
+    </div>
+    <p class="empty-note">This prompt: <strong>${sign}${liveSigma.toFixed(2)}σ</strong> from threshold &middot; typical harmful VAL prompt sits at <strong>+${typicalSigma.toFixed(2)}σ</strong></p>
+  `;
 }
 
 function renderDenseDirection(result) {
   return (
     renderPill(result.flagged ? "flagged" : "clear", result.flagged ? "Flagged" : "Clear") +
     renderDivergingAxis(result.flagged, result.score, result.threshold) +
-    `<p class="detail-label">Layer</p><p class="empty-note">${result.layer}</p>`
+    renderDepthDiagram(modelSelect.value, result.layer) +
+    renderCalibrationContext(modelSelect.value, result.score, result.threshold)
   );
 }
 
@@ -195,6 +339,7 @@ function renderSAEFeature(result) {
   }
   let html = renderPill(result.flagged ? "flagged" : "clear", result.flagged ? "Flagged" : "Clear");
   html += renderMagnitudeAxis(result.flagged, result.score, result.threshold);
+  html += renderDepthDiagram(modelSelect.value, result.top_features.map((f) => f.layer));
 
   const maxContribution = Math.max(...result.top_features.map((f) => Math.abs(f.contribution)), 1e-6);
   html += `<p class="detail-label">Top contributing features</p><ul class="feature-list">${result.top_features
@@ -224,7 +369,7 @@ function renderIdleCards() {
     const card = document.getElementById(`card-${detector}`);
     card.dataset.state = "idle";
     card.querySelector(".card-body").innerHTML =
-      renderPill("idle", "Not run yet") + `<p class="empty-note">Run an analysis to see this detector's result.</p>`;
+      renderPill("idle", "Standby") + `<p class="empty-note">Awaiting input on channel.</p>`;
   }
 }
 
@@ -242,11 +387,21 @@ function renderSkeletonCards() {
 }
 
 function renderResults(analysis) {
+  let i = 0;
   for (const [detector, render] of Object.entries(RENDERERS)) {
     const card = document.getElementById(`card-${detector}`);
     const result = analysis[detector];
     card.dataset.state = result ? "done" : "idle";
     card.querySelector(".card-body").innerHTML = result ? render(result) : `<p class="empty-note">Not requested.</p>`;
+
+    // Staggered entrance -- restart the animation on every run (not just the
+    // first) by removing the class, forcing a reflow, then re-adding it with
+    // a per-card delay (dataviz "stagger-sequence" convention: ~50ms/item).
+    card.classList.remove("card-enter");
+    void card.offsetWidth;
+    card.style.animationDelay = `${i * 55}ms`;
+    card.classList.add("card-enter");
+    i++;
   }
 }
 
@@ -302,6 +457,7 @@ const AUROC_BY_MODEL = [
   { label: "Qwen3-8B", value: 0.983 },
   { label: "Qwen2.5-1.5B-Instruct", value: 0.97 },
   { label: "SmolLM2-1.7B-Instruct", value: 0.945 },
+  { label: "DeepSeek-R1-Distill-Qwen-1.5B", value: 0.911 },
 ];
 
 const PAIR_ROBUSTNESS_BY_MODEL = [
@@ -310,6 +466,7 @@ const PAIR_ROBUSTNESS_BY_MODEL = [
   { label: "gemma-2-9b-it", value: 47.6 },
   { label: "Qwen3-8B", value: 42.9 },
   { label: "Qwen2.5-1.5B-Instruct", value: 38.1 },
+  { label: "DeepSeek-R1-Distill-Qwen-1.5B", value: 9.5 },
 ];
 
 const DENSE_VS_SAE_AUROC = [
@@ -473,6 +630,11 @@ function switchTab(target) {
   tabFindings.classList.toggle("active", showFindings);
   tabDetector.setAttribute("aria-selected", String(!showFindings));
   tabFindings.setAttribute("aria-selected", String(showFindings));
+
+  const shown = showFindings ? panelFindings : panelDetector;
+  shown.classList.remove("panel-enter");
+  void shown.offsetWidth;
+  shown.classList.add("panel-enter");
 }
 
 tabDetector.addEventListener("click", () => switchTab("detector"));
