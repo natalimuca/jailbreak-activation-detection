@@ -30,7 +30,7 @@ RANKING_RESULTS_PATH = Path(__file__).resolve().parents[2] / "results" / "sae_ca
 
 def load_top_features(k: int = 15, path: Path = RANKING_RESULTS_PATH) -> list[tuple[int, int]]:
     """Top-k (layer, feature) pairs from Phase 3's causal ranking, in ranked
-    order. Default k=15 matches RESULTS.md's finding that suppressing the
+    order. Default k=15 matches reports/RESULTS.md's finding that suppressing the
     top-15 gives the strongest causal-validation effect."""
     with open(path) as fh:
         ranked = json.load(fh)["ranked_features"]
@@ -62,7 +62,7 @@ def calibrate(
     features: list[tuple[int, int]],
 ) -> float:
     """Calibrates the decision threshold on a labeled split (VAL, per Phase
-    4's split discipline -- see DECISIONS.md) via Youden's J."""
+    4's split discipline -- see reports/DECISIONS.md) via Youden's J."""
     scores = score(val_activations_by_layer, saes, features).tolist()
     return youden_threshold(scores, val_labels)
 

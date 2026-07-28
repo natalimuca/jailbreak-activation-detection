@@ -6,7 +6,7 @@ model, assembled from artifacts every earlier phase already produced
 `results/sae_causal_ranking_*.json`) -- this module never recalibrates or
 re-derives anything, it only looks up already-computed values, so a live
 prompt's score is always directly comparable to the numbers already
-reported in RESULTS.md.
+reported in reports/RESULTS.md.
 
 4 of the 6 models have a pretrained SAE suite (Qwen3-8B,
 Llama-3.1-8B-Instruct, gemma-2-9b-it, DeepSeek-R1-Distill-Qwen-1.5B -- see

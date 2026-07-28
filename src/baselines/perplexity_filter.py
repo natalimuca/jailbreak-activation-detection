@@ -14,7 +14,7 @@ set built in `src/eval/adversarial_paraphrase.py` includes both attack types
 so this distinction shows up in the results rather than being asserted here.
 
 **Backbone: Olmo-3-1025-7B (AI2, base/pretrained, October 2025), not GPT-2,
-GPT-Neo, an instruction-tuned model, or OLMo-2-0425-1B** (see DECISIONS.md
+GPT-Neo, an instruction-tuned model, or OLMo-2-0425-1B** (see reports/DECISIONS.md
 for the full history: GPT-2 -> GPT-Neo-1.3B -> Phi-4-mini-instruct ->
 OLMo-2-0425-1B -> here). Requirements: (1) as current as reasonably
 possible; (2) independent of every model family already used or reserved

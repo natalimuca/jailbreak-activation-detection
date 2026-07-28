@@ -29,12 +29,12 @@ kwargs can override), which pulls Phi-4-mini-instruct's own stale
 `modeling_phi3.py` from the HF cache instead of the current `transformers`
 version's maintained native implementation -- confirmed to hit two
 successive real incompatibilities that way (a renamed symbol, then a
-structural tied-weights API break; see DECISIONS.md). Loading directly
+structural tied-weights API break; see reports/DECISIONS.md). Loading directly
 via `AutoModelForCausalLM.from_pretrained` without `trust_remote_code`
 uses the library's own up-to-date Phi3 support and avoids both.
 (A same-day attempt with `HuggingFaceTB/SmolLM2-1.7B-Instruct` as a
 proven-nnsight-compatible fallback validated cleanly on parsing but
-failed on actual accuracy -- see DECISIONS.md: it defaulted to "moralize"
+failed on actual accuracy -- see reports/DECISIONS.md: it defaulted to "moralize"
 for 71/98 rows regardless of content, essentially not discriminating at
 all. 1.7B turned out to be a real capability ceiling for this task, not
 a prompt-engineering problem.)
@@ -66,7 +66,7 @@ judging its own completions vs. 62.0% on rows from other models -- though
 even the "independent" accuracy isn't good enough to trust. **Still
 "validated, found unreliable with locally-available models"** -- direct
 labeling remains the only validated approach for this task. See
-DECISIONS.md and RESULTS.md for the full account.
+reports/DECISIONS.md and reports/RESULTS.md for the full account.
 """
 
 from __future__ import annotations

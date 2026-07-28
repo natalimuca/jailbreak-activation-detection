@@ -17,7 +17,7 @@ Every score is computed by calling the actual Phase 4 detector code
 thresholds from `src.api.model_registry` -- this module only handles
 model residency and live activation extraction, never scoring logic
 itself, so a live prompt's classification can never silently drift from
-what RESULTS.md reports.
+what reports/RESULTS.md reports.
 """
 
 from __future__ import annotations
@@ -102,7 +102,7 @@ class DetectorInferenceManager:
         `src.activations.extract.get_last_token_resid_acts`'s full-corpus
         extraction). Layers must be visited in ascending order inside the
         trace -- nnsight raises `MissedProviderError` on out-of-order Envoy
-        access (see DECISIONS.md), so callers must pass `layers` sorted."""
+        access (see reports/DECISIONS.md), so callers must pass `layers` sorted."""
         prompt = format_prompt(self._target_model, prompt_text)
         saved = {}
         with self._target_model.trace(prompt, use_cache=False):

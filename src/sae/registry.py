@@ -6,7 +6,7 @@ Shared by both scripts so a layer-selection update can't drift between the
 ranking and validation steps.
 
 Layers are the top-3 by separation score (VAL-scored, TRAIN-derived
-direction -- see DECISIONS.md), verified via HfApi().list_repo_files to
+direction -- see reports/DECISIONS.md), verified via HfApi().list_repo_files to
 actually have checkpoints in the corresponding provider's repo before being
 hardcoded here.
 
@@ -14,7 +14,7 @@ micro_batch_size is None (batch all N_STEPS integrated-gradients steps into
 one forward+backward pass, scripts/rank_sae_features.py's original behavior) for every model
 except gemma-2-9b-it: its 42 layers leave much less headroom after the
 quantized weights than Llama-3.1-8B's 32, and a real OOM at the default
-full batch confirmed it needs a smaller pass (see DECISIONS.md and
+full batch confirmed it needs a smaller pass (see reports/DECISIONS.md and
 src.sae.causal_ranking's module docstring for why this doesn't change the
 actual result, just how it's computed).
 """

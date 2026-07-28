@@ -8,7 +8,7 @@ top-K pre-activations survive, everything else is zeroed.
 
 These SAEs are trained on Qwen3-8B-**Base** activations, not the chat model
 we actually run (Qwen3-8B). This is a documented, accepted compromise (see
-DECISIONS.md and the close-read of arXiv:2505.23556 in LITERATURE.md) --
+reports/DECISIONS.md and the close-read of arXiv:2505.23556 in LITERATURE.md) --
 each `layer{n}.sae.pt` is ~2GB (two 65536x4096 fp32 matrices), so only the
 specific layer(s) selected by separation-score analysis are downloaded,
 never the full 36-layer set.

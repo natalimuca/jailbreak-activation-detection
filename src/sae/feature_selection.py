@@ -35,7 +35,7 @@ def pool_top_k0_across_layers(
 ) -> list[tuple[int, int]]:
     """Runs top_k0_by_cosine_similarity independently per layer and pools the
     results into a flat (layer_idx, feature_idx) candidate list -- step 2 of
-    the methodology, extended across multiple layers (see DECISIONS.md's
+    the methodology, extended across multiple layers (see reports/DECISIONS.md's
     "Multi-layer K0 pooling" entry for why: K*=20 > K0=10 only makes sense
     if candidates are pooled from more than one layer)."""
     pooled = []

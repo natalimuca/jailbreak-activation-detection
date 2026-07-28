@@ -39,7 +39,7 @@ def youden_threshold(scores: list[float], labels: list[bool]) -> float:
     continuous detector score into a binary decision without an arbitrary
     hand-picked constant, in the same spirit as this project's existing
     alpha-calibration sweep (`scripts/calibrate_alpha.py`).
-    Intended to be called on VAL (see DECISIONS.md's split-discipline
+    Intended to be called on VAL (see reports/DECISIONS.md's split-discipline
     entry for Phase 4), never on the split final metrics are reported on."""
     fpr, tpr, thresholds = roc_curve(labels, scores)
     j = tpr - fpr

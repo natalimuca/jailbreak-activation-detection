@@ -23,7 +23,7 @@ step's gradient is independent; the chunking is purely about how many are
 computed in one pass), just slower. Needed for Gemma-2-9B: its 42 layers
 leave much less headroom after the quantized weights than Llama-3.1-8B's
 32 (confirmed via a real OOM at the default full batch size -- see
-DECISIONS.md), so it needs a smaller per-pass batch to fit in 6GB.
+reports/DECISIONS.md), so it needs a smaller per-pass batch to fit in 6GB.
 """
 
 from __future__ import annotations

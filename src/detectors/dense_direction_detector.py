@@ -35,7 +35,7 @@ def project(activations: torch.Tensor, direction: torch.Tensor) -> torch.Tensor:
 
 def calibrate(val_activations: torch.Tensor, val_labels: list[bool], direction: torch.Tensor) -> float:
     """Calibrates the decision threshold on a labeled split (VAL, per Phase
-    4's split discipline -- see DECISIONS.md) via Youden's J."""
+    4's split discipline -- see reports/DECISIONS.md) via Youden's J."""
     scores = project(val_activations, direction).tolist()
     return youden_threshold(scores, val_labels)
 
@@ -54,10 +54,10 @@ def select_layer_and_calibrate(
     already spoken for by Phase 3's causal validation at the time). Reusing
     TEST for both layer selection and final reported metrics is a mild
     leakage pattern this project explicitly avoids elsewhere (see
-    METHODOLOGY.md's "Train/calib/val separation" note); doing both steps on
+    reports/METHODOLOGY.md's "Train/calib/val separation" note); doing both steps on
     VAL instead keeps TEST untouched until final reporting. For Qwen3-8B
     specifically, this makes no practical difference (layer 23 is selected
-    either way -- verified directly, see DECISIONS.md), but this is the
+    either way -- verified directly, see reports/DECISIONS.md), but this is the
     correct discipline going forward for additional models.
 
     acts: [n_layers, n_prompts, d_model]. labels/is_train/is_val: [n_prompts]
@@ -77,7 +77,7 @@ def resolve_layer_for_model(model_name: str) -> int:
 
     - Qwen3-8B: `dense_direction_ablation_Qwen3-8B.json`'s `ablation_layer`
       -- a TEST-split-selected layer, a known/accepted leakage pattern
-      specific to this original Phase 4 run (see DECISIONS.md's "Found
+      specific to this original Phase 4 run (see reports/DECISIONS.md's "Found
       (and fixed going forward) a mild leakage pattern" entry, which fixed
       the discipline for future models via `select_layer_and_calibrate`
       above but deliberately left Qwen3-8B's already-merged numbers as-is

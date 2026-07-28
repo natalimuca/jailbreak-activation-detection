@@ -11,7 +11,7 @@ import os
 
 # Must be set before CUDA initializes. Reduces allocator fragmentation over a
 # long run that alternates between very short and very long (~1000-token)
-# prompts on a memory-constrained GPU -- see DECISIONS.md.
+# prompts on a memory-constrained GPU -- see reports/DECISIONS.md.
 os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
 
 import torch
@@ -49,7 +49,7 @@ def format_prompt(model: LanguageModel, instruction: str) -> str:
     # has even decided whether to think, and the first *generated* token in
     # any causal-validation/ranking step would be the start of that
     # reasoning preamble, not of the actual answer -- silently measuring the
-    # wrong thing for Qwen3-8B (see DECISIONS.md). Non-thinking models'
+    # wrong thing for Qwen3-8B (see reports/DECISIONS.md). Non-thinking models'
     # chat templates (SmolLM2, Qwen2.5) ignore this unused kwarg.
     return model.tokenizer.apply_chat_template(
         messages, tokenize=False, add_generation_prompt=True, enable_thinking=False

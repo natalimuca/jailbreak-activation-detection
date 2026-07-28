@@ -16,7 +16,7 @@ completion per (prompt, condition) would conflate the intervention's true
 effect with sampling noise -- the opposite of what a causal-validation
 measurement wants. Discovered late in Phase 3, then Phase 1 was re-run
 with this fix too (both are on the same deterministic footing now; see
-DECISIONS.md for the full account and confirmation that effect sizes
+reports/DECISIONS.md for the full account and confirmation that effect sizes
 barely moved).
 """
 
