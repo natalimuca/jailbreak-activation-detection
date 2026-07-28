@@ -33,7 +33,7 @@ checkpoint.** Rationale:
   base-trained SAE to instruct-model activations is standard, published
   practice in this exact literature -- "Understanding Refusal in Language
   Models with Sparse Autoencoders" (arXiv:2505.23556, see
-  [LITERATURE.md](LITERATURE.md)) does the same thing with GemmaScope/LlamaScope
+  [LITERATURE.md](../LITERATURE.md)) does the same thing with GemmaScope/LlamaScope
   and reports it as a limitation, not a disqualifying flaw. We do the same:
   proceed, document it, don't pretend it's not a compromise.
 

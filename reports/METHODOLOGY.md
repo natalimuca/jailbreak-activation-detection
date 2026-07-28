@@ -124,7 +124,7 @@ separately below.
 ## SAE-feature detector (Qwen3-8B)
 
 Adapted from "Understanding Refusal in Language Models with Sparse
-Autoencoders" (arXiv:2505.23556, close-read in [LITERATURE.md](LITERATURE.md)).
+Autoencoders" (arXiv:2505.23556, close-read in [LITERATURE.md](../LITERATURE.md)).
 Where the reproduction above finds one dense direction, this asks a finer
 question: which specific sparse, interpretable internal components (out of
 tens of thousands per layer) are causally responsible for refusal, using a
