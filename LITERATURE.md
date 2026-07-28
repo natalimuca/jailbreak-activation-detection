@@ -15,7 +15,7 @@ Shows a single residual-stream direction, estimated as a harmful/harmless
 activation mean-difference, causally controls refusal across 13 open chat
 models up to 72B params -- ablating it suppresses refusal, adding it induces
 refusal. This is the finding reproduced in Phase 1 (see
-[METHODOLOGY.md](METHODOLOGY.md), [RESULTS.md](RESULTS.md)).
+[METHODOLOGY.md](reports/METHODOLOGY.md), [RESULTS.md](reports/RESULTS.md)).
 
 ## Direct challenge to the foundational finding
 
@@ -74,7 +74,7 @@ filter" alone.
   (expansion 32) and LlamaScope (expansion 8), both **base-model SAEs
   applied to the instruct/chat model's activations** -- the same
   methodological choice this project makes with Qwen-Scope (see
-  [DECISIONS.md](DECISIONS.md)), which the paper itself flags as a
+  [DECISIONS.md](reports/DECISIONS.md)), which the paper itself flags as a
   limitation rather than treating as disqualifying.
   Method: (1) compute a difference-in-means refusal direction exactly like
   Phase 1's `compute_directions()`; (2) restrict the SAE's full feature
@@ -123,7 +123,7 @@ filter" alone.
 ## Where this project's contribution sits
 
 Given the above, "activation-based jailbreak detector" alone is not novel.
-This project's differentiation (per [DECISIONS.md](DECISIONS.md) and the
+This project's differentiation (per [DECISIONS.md](reports/DECISIONS.md) and the
 original scoping) is:
 
 1. **Cross-model generalization**: none of the papers found so far directly
