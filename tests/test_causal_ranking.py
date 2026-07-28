@@ -50,7 +50,7 @@ def test_feature_ig_attribution_returns_a_finite_float(model):
 def test_feature_ig_attribution_micro_batching_matches_full_batch(model):
     """micro_batch_size splits the N interpolation steps into smaller
     forward+backward passes (needed for Gemma-2-9B, which OOMs at full
-    batch size on a 6GB GPU -- see DECISIONS.md); this only saves memory if
+    batch size on a 6GB GPU -- see reports/DECISIONS.md); this only saves memory if
     it's mathematically equivalent to the full-batch default."""
     d_model = model.config.hidden_size
     sae = _toy_sae(d_model)
