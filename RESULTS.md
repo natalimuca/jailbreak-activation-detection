@@ -1444,22 +1444,120 @@ extremely well with the refusal label, hence the best classifier AUROC in
 the project), while Qwen3-8B's causal signal is distributed broadly enough
 that the same coarse average happens to capture it well.
 
-**Honestly hedged, not a forced conclusion**: this is a real, multi-pronged
-comparison (two candidate mechanical explanations tested, one ruled out for
-the two models where a full causal test exists) but ultimately a
-correlational finding from n=2 models with full necessity/sufficiency data
-(Llama vs. Qwen3-8B). No mechanistic account of *why* Llama's refusal
-computation would be more concentrated than Qwen3-8B's is established here
--- that would need genuine mechanistic-interpretability work (e.g. tracing
-what the ~0.20-aligned component of the dense direction vs. its ~0.98-
-orthogonal remainder each individually contribute), a different and heavier
-scope than this re-analysis. Extending the two cheap mechanical checks to
-gemma-2-9b-it added a real third data point (unremarkable magnitude ratio,
-notably higher dense-SAE alignment, a third distinct causal-effect shape)
-without resolving the original puzzle -- gemma simply confirms Llama is the
-one clear outlier on magnitude, while adding a new, separately-unexplained
-observation on alignment. No new GPU generation was needed for any of this,
-and none is proposed to go further on this specific question.
+**Honestly hedged, not a forced conclusion, at the time**: this was a real,
+multi-pronged comparison (two candidate mechanical explanations tested, one
+ruled out for the two models where a full causal test exists) but
+ultimately a correlational finding from n=2 models with full necessity/
+sufficiency data (Llama vs. Qwen3-8B). Extending the two cheap mechanical
+checks to gemma-2-9b-it added a real third data point (unremarkable
+magnitude ratio, notably higher dense-SAE alignment, a third distinct
+causal-effect shape) without resolving the original puzzle -- gemma simply
+confirms Llama is the one clear outlier on magnitude, while adding a new,
+separately-unexplained observation on alignment. **The genuine mechanistic
+test flagged here as needed -- tracing what the ~0.20-aligned component of
+the dense direction vs. its ~0.98-orthogonal remainder each individually
+contribute -- was done in a follow-up session; see the next section.**
+
+### Component decomposition: which piece of the dense direction is the causal lever? (2026-07-28)
+
+Goes one level deeper than the alignment check above: rather than just
+measuring cosine similarity between each model's dense direction and its
+own top causal SAE feature, this decomposes the (unit-normalized) dense
+direction into the component parallel to the feature's own decoder
+direction and the orthogonal remainder, then causally ablates each
+component *separately* (`scripts/decompose_llama_causal_gap.py`), reusing
+the exact same intervention already used everywhere in this project
+(`generate_with_ablation`, unchanged) and the identical 50-prompt held-out
+VAL set already used for the cross-model transfer experiment. Both
+components are renormalized to unit length before ablation -- this tests
+"is this axis alone a sufficient/necessary causal lever," not "how much
+does this component contribute at its true small weight"; the
+parallel/orthogonal results below are not directly commensurate with the
+full-direction number for that reason, stated explicitly rather than left
+implicit. Decomposition verified via a Pythagorean sanity check
+(`||parallel||^2 + ||orthogonal||^2 = 1.000001`/`1.000000`) and exact
+reconstruction (`error < 2e-8`) for both models before trusting any
+generation.
+
+**A real data bug found and fixed while building this**: `results/
+cross_model_direction_transfer.json` stores *stale*, pre-apostrophe-bugfix
+refusal stats for every Llama condition (baseline stored as 80%, should be
+92%; own_ablation stored as 86%, should be 88% -- the fix from 2026-07-23
+was applied to this document's published numbers but never written back
+into that JSON file; Qwen3-8B's entries in the same file are unaffected,
+ASCII apostrophes throughout). Caught by a Plan-agent design review before
+any GPU time was spent. The decomposition script reloads the file's raw
+completions and rescores them fresh rather than trusting the stored
+`refusal_stats` field -- confirmed the fresh rescore reproduces this
+document's already-published 92%/88% (Llama) and 84%/8% (Qwen3-8B) exactly.
+
+| Llama-3.1-8B-Instruct | Refusal rate | 95% CI | vs. baseline (McNemar p) |
+|---|---|---|---|
+| baseline | 92.0% | [81.2%, 96.9%] | -- |
+| own (full-direction) ablation | 88.0% | [76.2%, 94.4%] | 0.5 (n.s.) |
+| **parallel-component ablation** | **38.0%** | **[25.9%, 51.9%]** | **0.0** |
+| orthogonal-component ablation | 92.0% | [81.2%, 96.9%] | 1.0 (identical) |
+
+Omnibus Cochran's Q across all 4 conditions: Q=73.8, df=3, p<0.0001.
+Post-hoc pairwise McNemar (not independently pre-registered, reported as
+such): parallel-vs-baseline p=0.0 (27/50 discordant), parallel-vs-own p=0.0
+(25/50 discordant), orthogonal-vs-baseline p=1.0 (2/50 discordant,
+literally the same rate), orthogonal-vs-own p=0.5 (2/50 discordant). Zero
+degenerate completions across all 200 new generations for this model.
+
+**A genuinely clean, informative result**: the small feature-aligned
+component (only 20% of the unit direction's own "weight" by cosine, before
+renormalization) ablated *alone* produces a far larger, clearly significant
+drop in refusal (92%->38%) than ablating the *entire* dense direction does
+(92%->88%, not significant even at n=75 elsewhere in this document) -- and
+the large orthogonal remainder (98% of the vector) ablated alone does
+*nothing at all*, identical to baseline down to the exact rate. This
+directly explains why Llama's full dense-direction ablation is such a weak
+causal lever despite being the best passive classifier in this project:
+the vector is dominated by norm from an axis that, on its own, has zero
+causal necessity effect, diluting the real (and substantial) effect that
+lives specifically along the axis aligned with its dominant SAE feature.
+Ablating the *full* direction removes a diluted, off-target combination;
+isolating just the causally-relevant axis removes it far more efficiently.
+
+**Qwen3-8B, run as a contrast, tells a genuinely different story**:
+
+| Qwen3-8B | Refusal rate | 95% CI | vs. baseline (McNemar p) |
+|---|---|---|---|
+| baseline | 84.0% | [71.5%, 91.7%] | -- |
+| own (full-direction) ablation | 8.0% | [3.2%, 18.8%] | 0.0 |
+| parallel-component ablation | 0.0% | [0.0%, 7.1%] | 0.0 |
+| orthogonal-component ablation | 0.0% | [0.0%, 7.1%] | 0.0 |
+
+Omnibus Cochran's Q: Q=115.48, df=3, p<0.0001. Post-hoc pairwise:
+own-vs-parallel p=0.125 (n.s., 4/50 discordant), own-vs-orthogonal p=0.125
+(n.s., 4/50 discordant), parallel-vs-orthogonal p=1.0 (0/50 discordant,
+identical). One degenerate completion out of 50 in the parallel condition
+(2%, not flagged as concerning at this rate).
+
+**Unlike Llama, both components independently crash Qwen3-8B's refusal to
+near-zero, matching or exceeding the full direction's already-strong
+effect** -- there is no single dominant axis here; ablating *either* piece
+alone is already sufficient. This is consistent with, and now gives a
+second independent line of evidence for, this project's standing
+concentration-vs-distribution account of the two models (Qwen3-8B's SAE
+causal effect is similarly distributed across its ranked feature set,
+where Llama's collapses into one feature, see the SAE cross-model section
+above): for Llama, the dense direction's causal necessity really is
+concentrated in one narrow, identifiable axis; for Qwen3-8B, it is
+genuinely spread across the space, not recoverable by isolating any one
+sub-component either.
+
+**What this does and does not establish**: this is now a real, targeted,
+statistically significant mechanistic account of *why* Llama's dense
+direction is a weak causal lever -- not just a correlational observation.
+It does not fully close the remaining gap to the SAE feature's own
+even-stronger single-feature effect (98%->10%, Section above) -- the
+isolated dense-direction axis (92%->38%) is a large, real effect but not
+as complete a causal lever as the SAE feature itself, suggesting the SAE
+feature's decoder direction and the *exact* causally-optimal axis are
+correlated but not identical. Results in
+`results/llama_causal_gap_decomposition.json`.
 
 ## DeepSeek-R1-Distill-Qwen-1.5B: reasoning-trace methodology and Phase 1 (2026-07-26)
 

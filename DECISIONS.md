@@ -2672,3 +2672,68 @@ the memory (5.8GB -> 0.6GB). Worth checking `Get-CimInstance Win32_Process
 `--multiprocessing-fork` children with a stale `parent_pid` if `nvidia-smi`
 ever shows memory used with 0% utilization and no obviously-corresponding
 live process.
+
+## Llama causal-gap component decomposition (2026-07-28)
+
+Closes the specific gap flagged in `scripts/analyze_llama_causal_gap.py`'s
+own hedging: cosine alignment (~0.20) between Llama's dense direction and
+its own top causal SAE feature was measured but never causally tested --
+identical alignment for Qwen3-8B (~0.196) meant it couldn't differentiate
+why Llama's dense direction is a weak causal lever while Qwen3-8B's is a
+strong one. Built `scripts/decompose_llama_causal_gap.py`: decomposes each
+model's own unit dense direction into the component parallel to its top
+feature's decoder direction and the orthogonal remainder, ablates each
+separately via the unchanged `generate_with_ablation`. See RESULTS.md's
+new "Component decomposition" subsection for the numbers -- a genuinely
+clean result, not the murkier one hoped-for-but-not-guaranteed going in:
+Llama's isolated feature-aligned axis alone (92%->38%) causes a far larger
+effect than the full direction (92%->88%), the orthogonal remainder alone
+does nothing (92%->92%, identical); Qwen3-8B shows the opposite pattern,
+both components independently crash refusal same as the full direction.
+
+**Planned via `EnterPlanMode` + a Plan-agent design-review pass**, same
+pattern as the wrapper-swap experiment two entries above. **The review
+caught a real, concrete data bug before any GPU time was spent**: `results/
+cross_model_direction_transfer.json` stores stale, pre-apostrophe-bugfix
+refusal stats for every Llama condition (baseline stored as 0.80, fresh
+recompute 0.92; own_ablation stored as 0.86, fresh recompute 0.88) -- the
+2026-07-23 `is_refusal` curly-apostrophe fix was applied to RESULTS.md's
+published numbers at the time but never written back into this JSON file.
+Confirmed via direct recompute: Qwen3-8B's entries in the same file are
+unaffected (ASCII apostrophes only). Fixed by having the new script reload
+the file's raw `completions` and rescore fresh via `is_refusal()`/
+`refusal_stats()` rather than trusting the stored `refusal_stats` field --
+otherwise a new McNemar/Cochran's Q test would have silently paired
+fresh-classifier labels (new conditions) against stale-classifier labels
+(reused baseline/own conditions) within the same significance test. The
+stale JSON file itself was left as-is (gitignored, regenerable, and
+correcting it in place wasn't necessary once the new script stopped
+trusting its stored stats) -- worth remembering if anything else ever
+reads that specific file's `refusal_stats` fields directly for Llama.
+
+**Framing correction from the same review**: renormalizing each component
+to unit length before ablation changes the causal question from "how much
+does this component contribute at its true small weight" to "is this axis
+alone -- independent of how little of the original vector's mass sits on
+it -- a sufficient/necessary causal lever." Stated explicitly next to the
+results rather than left implicit, since the parallel/orthogonal numbers
+are not directly commensurate with the already-published full-direction
+number for that reason. The review also flagged running 6 uncorrected
+pairwise McNemar tests per model as a real multiplicity risk (this
+project's own `cochrans_q` exists for exactly this reasoning, previously
+only ever applied across k different models on the same items rather than
+k conditions within one model) -- fixed by running an omnibus Cochran's Q
+across all 4 conditions first and reporting the pairwise tests explicitly
+as post-hoc, not independently pre-registered comparisons.
+
+**A real interruption during execution, not a script bug**: the first
+background run of this script was killed mid-generation by an unrelated
+environment/session disruption (visible as an MCP-server disconnect/
+reconnect churn around the same time) with zero progress saved -- the
+script only wrote its output JSON after both new conditions finished per
+model, losing a full Llama model load and partial generation. Added
+per-prompt checkpointing (`results/_decompose_llama_causal_gap_checkpoint.json`,
+resumable both at the per-condition and per-model level) before rerunning
+-- same "any long GPU script should checkpoint incrementally" lesson this
+project has hit before (see the Tier-2 token-attribution debugging saga
+entry above), reapplied here rather than re-learned the hard way twice.
