@@ -14,6 +14,7 @@ models/
 data/cache/
 results/
 activations_cache/
+thesis_figures/
 
 # secrets
 .env
