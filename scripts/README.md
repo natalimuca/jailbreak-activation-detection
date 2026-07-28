@@ -38,6 +38,7 @@ encoding that order; this table replaces it.
 | 30 | `paraphrase_decay_dense.py` | Matched-pair dense-direction signal decay under PAIR paraphrase, 5 models |
 | 31 | `paraphrase_decay_sae.py` | Matched-pair SAE-feature signal decay under PAIR paraphrase, 3 models |
 | 32 | `token_attribution.py` | Token-level leave-one-out ablation: what drives Llama's paraphrase-invariant feature |
+| 33 | `wrapper_swap_variance.py` | Controlled core-request x wrapper factorial: does the top feature track content or framing |
 
 Full rationale for every methodology choice is in
 [DECISIONS.md](../DECISIONS.md); results are in

@@ -776,6 +776,88 @@ attribution also conflates token identity with position (no separate
 positional-embedding ablation). Results (all 42 prompts' full top-5 lists)
 in `results/token_attribution.json`.
 
+### Closing the "why": controlled wrapper-swap variance decomposition (2026-07-28)
+
+The section above found a real but qualitative, confounded pattern: real
+PAIR prompts vary *which* harmful request is being made and *how* it's
+framed at the same time, so "core content vs. wrapper" were never
+independently manipulated. This section does that directly via
+`scripts/wrapper_swap_variance.py`: a full factorial of **10 real core
+requests** (the 10 unique blunt `goal` strings already in
+`results/adversarial_paraphrase_manifest.json`, dataset-sourced from
+JBB-Behaviors, no new harmful text authored) x **5 wrapper conditions**
+(a `bare` control plus 4 generic, topic-agnostic templates --
+creative-writing/fiction, hypothetical/thought-experiment,
+security-research/red-team, roleplay/persona), 50 constructed prompts per
+model, each model's own top causal feature read via one deterministic
+forward pass (no generation).
+
+**Analysis**: a two-way ANOVA sum-of-squares decomposition with no
+per-cell replication (each of the 50 cells is exactly one prompt, so
+`ss_residual` is ~pure core x wrapper interaction, not
+interaction-confounded-with-measurement-noise -- there's no sampling
+noise in a single deterministic readout). Significance via **within-block
+(Manly-style) permutation** rather than an asymptotic F-test, matching
+this project's standing preference for exact/permutation-based p-values at
+small n: for the core-effect null, independently permute the 10
+core-labels *within each wrapper column*; for the wrapper-effect null,
+independently permute the 5 wrapper-labels *within each core-request row*.
+(A whole-row/whole-column relabeling would have been a no-op -- caught by
+a Plan-agent design review before any GPU time was spent, and separately
+verified against synthetic planted-effect arrays before trusting real
+results.) Both tests are exact for "this factor's identity has *some*
+association with the readout" -- not a clean main-effect-net-of-interaction
+test, which no n=1/cell design can isolate.
+
+**Result: both predictions from the qualitative token-attribution finding
+hold up quantitatively, with real significance**:
+
+| Model | eta-sq (core) | eta-sq (wrapper) | eta-sq (residual) | core p | wrapper p |
+|---|---|---|---|---|---|
+| Qwen3-8B | 0.227 | **0.656** | 0.117 | 0.0001 | 0.0001 |
+| Llama-3.1-8B-Instruct | **0.407** | 0.029 | 0.564 | 0.0148 | 0.7915 |
+
+Qwen3-8B's top feature's activation is dominated by **wrapper identity**
+(65.6% of variance, both effects significant but wrapper roughly 3x
+core); Llama's is dominated by **core-request identity** (40.7%), with the
+wrapper effect not distinguishable from noise (p=0.79). This is exactly
+the asymmetry the qualitative token-level reading suggested, now backed by
+a controlled design and a real permutation-test p-value rather than an
+eyeballed tally.
+
+**A real, honestly-reported wrinkle**: Llama's residual (interaction) term
+is much larger than Qwen3-8B's (56.4% vs. 11.7%) -- meaning a sizeable
+chunk of Llama's feature variance isn't explained by either factor alone;
+the core effect and wrapper framing interact non-additively for Llama in a
+way they largely don't for Qwen3-8B. Not chased further here (would need a
+replicated design, e.g. multiple phrasing-variants per wrapper category, to
+separate genuine interaction from any remaining idiosyncrasy) -- reported
+as a real, open asymmetry rather than smoothed into the headline numbers.
+
+**The qualitative activation-patching-style subset (8 runs: 2 core
+requests x 2 wrapper conditions x 2 models, reusing `token_attribution.py`'s
+existing single-token leave-one-out method -- a degenerate single-token
+case of activation patching; see Meng et al. 2022 "Locating and Editing
+Factual Associations in GPT" (ROME), Vig et al. 2020, and Zhang & Nanda
+2024 for the general method) is messier than the aggregate stat, reported
+as such**: Qwen3-8B's top-5 tokens shift cleanly toward wrapper words
+(`"novelist"`, `"character"`) under the fiction wrapper for one core
+request, but still include the literal core word (`"illegally"`) for the
+other; Llama's top-5 stays core-content-dominated under the bare condition
+(`"sexual"`, `"Design"`, `"illegally"`, `"Nigerian"`, `"falling"`) but
+shifts partway toward wrapper words under the fiction wrapper too
+(`"scene"`, `"as"`, `"would"`, `"exactly"`). The aggregate quantitative
+result is clear and significant; the small per-example qualitative read is
+noisier and doesn't cleanly replicate example-by-example -- both are
+reported, not just the clean one.
+
+**Caveat stated explicitly, not glossed over**: this is a confirmatory,
+in-sample formalization of the same 10 goals whose real PAIR transcripts
+originally generated the core-vs-wrapper hypothesis in
+`scripts/token_attribution.py`, not an independent held-out test. Full
+per-cell activation grids, stats, and qualitative subset in
+`results/wrapper_swap_variance.json`.
+
 ### Known limitations (baseline detectors and adversarial evaluation)
 
 - **Adversarial set is small** (n=35, spanning only 11 of TEST's JBB-sourced

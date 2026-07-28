@@ -77,6 +77,7 @@ if hasattr(sys.stdout, "reconfigure"):
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from src.activations.extract import format_prompt, load_model
+from src.sae.feature_probe import feature_value
 from src.sae.registry import SAE_PROVIDERS
 
 RESULTS_DIR = Path(__file__).resolve().parents[1] / "results"
@@ -99,32 +100,6 @@ MODELS = {
 TOP_FEATURE = {"Qwen3-8B": (25, 65291), "Llama-3.1-8B-Instruct": (27, 13363)}
 
 
-@torch.no_grad()
-def _feature_value(model, layer_idx: int, sae, feature_idx: int, input_ids: torch.Tensor) -> torch.Tensor:
-    """input_ids: (batch, seq_len). Returns (batch,): the feature's raw
-    pre-activation at the last token, per batch row. No grad needed --
-    matches sae.encode()'s own math (linear encoder row + bias) without
-    calling the @torch.no_grad()-decorated encode() itself, same reuse
-    reasoning as src.sae.causal_ranking._ig_chunk.
-
-    **The missing @torch.no_grad() here was the actual memory-leak bug**:
-    without it, every forward pass built and retained a full autograd
-    graph it never used (this function never calls .backward()) -- these
-    accumulated across the ablation loop's many calls per prompt and
-    across prompts until a later prompt's allocation finally exceeded the
-    6GB card ("15.87 GiB allocated by PyTorch" in the crash, absurd for a
-    single forward pass). The pre-existing `_metric_at_alpha` sanity-check
-    function *was* already `@torch.no_grad()`-decorated and never showed
-    this symptom in any test run -- consistent with this being the cause,
-    not a coincidence."""
-    with model.trace(input_ids) as tracer:
-        resid = model.model.layers[layer_idx].output[:, -1, :]
-        feature_row = sae.W_enc[feature_idx].to(device=resid.device, dtype=resid.dtype)
-        bias = sae.b_enc[feature_idx].to(device=resid.device, dtype=resid.dtype)
-        vals = (resid @ feature_row + bias).save()
-    return vals.detach().cpu()
-
-
 def token_ablation_importance(
     model, layer_idx: int, sae, feature_idx: int, prompt: str, baseline_token_id: int,
     batch_size: int = ABLATION_BATCH_SIZE,
@@ -136,7 +111,7 @@ def token_ablation_importance(
     input_ids = model.tokenizer(templated, return_tensors="pt")["input_ids"]  # (1, seq_len)
     seq_len = input_ids.shape[1]
 
-    natural_val = _feature_value(model, layer_idx, sae, feature_idx, input_ids)[0]
+    natural_val = feature_value(model, layer_idx, sae, feature_idx, input_ids)[0]
 
     ablated_ids = input_ids.repeat(seq_len, 1).clone()
     positions = torch.arange(seq_len)
@@ -145,7 +120,7 @@ def token_ablation_importance(
     ablated_vals = []
     for start in range(0, seq_len, batch_size):
         chunk = ablated_ids[start:start + batch_size]
-        ablated_vals.append(_feature_value(model, layer_idx, sae, feature_idx, chunk))
+        ablated_vals.append(feature_value(model, layer_idx, sae, feature_idx, chunk))
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
     ablated_vals = torch.cat(ablated_vals, dim=0)  # (seq_len,)

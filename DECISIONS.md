@@ -2583,3 +2583,92 @@ Deliberately paused before folding that 0/21 number into
 a bigger, standalone finding than a footnote in a comparison table, and
 got its own RESULTS.md write-up first, per explicit user instruction
 ("write it up first").
+
+## Wrapper-swap variance decomposition: closing the token-attribution "why" gap (2026-07-28)
+
+`scripts/token_attribution.py` (2026-07-25) found a real but confounded
+qualitative pattern: Llama-3.1-8B's top feature reads core-content words,
+Qwen3-8B's reads wrapper/framing words, on real (uncontrolled) PAIR
+prompts where WHICH request and HOW it's framed vary together. Built
+`scripts/wrapper_swap_variance.py` to disentangle the two factors with a
+controlled 2-factor design (10 real core requests x 5 wrapper conditions,
+full factorial, each model's own top feature's activation as the readout
+via one forward pass, no generation) -- see RESULTS.md's new "Closing the
+'why'" subsection for the numbers.
+
+**Design planned via `EnterPlanMode` + a Plan-agent design-review pass**
+(mirrors this project's standing practice for genuinely non-trivial
+investigations -- the matched-pair mechanistic dig and Tier-2
+token-attribution work both used the same pattern). **The review caught a
+real bug before any GPU time was spent**: the first-draft permutation-test
+design ("permute which of the 10 core-labels is attached to which prompt,
+holding the grid structure fixed") is ambiguous between relabeling whole
+rows (a no-op -- `ss_core` only depends on which values are grouped
+together, not what the group is called) and the correct method, **within-block
+(Manly-style) resampling** -- independently permuting the 10 core-labels
+*within each wrapper column* for the core-effect null, and symmetrically
+the 5 wrapper-labels *within each core-request row* for the wrapper-effect
+null. Implemented the corrected version, then verified it on synthetic
+planted-effect arrays (a planted row-only effect correctly gives
+eta_sq_core~1.0, p<0.01, eta_sq_wrapper~0, p>0.1, and vice versa for a
+planted column-only effect; confirmed the permutation null distribution
+has real variance across draws, ruling out the no-op failure mode) before
+trusting real GPU results.
+
+**Framing correction from the same review**: because this is a single
+deterministic forward pass (no dropout, no sampling), `ss_residual` in the
+no-replication two-way ANOVA is ~pure core x wrapper interaction, not
+"interaction confounded with measurement noise" as initially described --
+there is no noise source in this measurement. Reported both eta-squared
+(`ss_factor/ss_total`) and partial eta-squared
+(`ss_factor/(ss_factor+ss_residual)`) per the review's recommendation,
+since raw eta-squared alone can understate a factor's explanatory power
+when residual/interaction is large for one model but not the other (which
+turned out to be exactly the case: Llama's residual is 56% vs. Qwen3-8B's
+12%).
+
+**Core requests**: the 10 unique blunt `goal` strings already in
+`results/adversarial_paraphrase_manifest.json` (dataset-sourced from
+JBB-Behaviors via this project's own real PAIR records) -- reused verbatim,
+no new harmful content authored. Explicitly noted as a limitation (in
+RESULTS.md): these are the same 10 goals that originally generated the
+hypothesis being tested, so this is an in-sample confirmatory test, not an
+independent held-out replication (the review flagged JBB-Behaviors' other
+~90 behaviors as a cheap future held-out extension, not done here).
+
+**Wrapper templates**: one `bare` control plus 4 project-authored, generic
+`{request}`-templated framings (creative-writing/fiction,
+hypothetical/thought-experiment, security-research/red-team,
+roleplay/persona) representing categories already implicit in the
+project's real PAIR corpus -- deliberately not the literal branded "DAN"
+prompt, just the same general shape, to avoid reproducing a specific known
+jailbreak template verbatim.
+
+**Secondary qualitative check reframed as activation-patching-style**, per
+the review's citability recommendation: the existing single-token
+leave-one-out method (`token_attribution.py`) is a degenerate single-token
+case of activation patching (Meng et al. 2022 ROME; Vig et al. 2020; Zhang
+& Nanda 2024) -- more standard/citable framing than an unlabeled "ablation
+subset" for an MSc thesis write-up.
+
+**Code reuse**: promoted `token_attribution.py`'s private `_feature_value`
+into a shared `src/sae/feature_probe.py::feature_value` (now used by 2
+scripts -- real duplication, not premature abstraction), with a
+`@pytest.mark.model` test (`tests/test_feature_probe.py`, mirroring
+`test_causal_ranking.py`'s real-small-model pattern -- nnsight's
+`model.trace()` proxy/context semantics aren't meaningfully stubbable, so
+this project's convention for any function that calls `.trace()` is a real
+small-model test, not a mock).
+
+**GPU-memory operational note**: before this run, `nvidia-smi` showed
+5.8/6.1GB already in use with the GPU otherwise idle -- traced to an
+orphaned multiprocessing worker (`--multiprocessing-fork`, `parent_pid`
+pointing at an already-force-killed uvicorn dev-server process from
+earlier browser-based frontend verification this session). Force-killing
+a parent process on Windows does not clean up its children -- they stay
+alive holding the CUDA context. Killing the orphaned child directly freed
+the memory (5.8GB -> 0.6GB). Worth checking `Get-CimInstance Win32_Process
+-Filter "Name='python.exe'" | Select ProcessId,CommandLine` for
+`--multiprocessing-fork` children with a stale `parent_pid` if `nvidia-smi`
+ever shows memory used with 0% utilization and no obviously-corresponding
+live process.
