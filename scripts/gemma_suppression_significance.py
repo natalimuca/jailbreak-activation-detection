@@ -14,7 +14,7 @@ test (`src.eval.detector_metrics.mcnemar_exact`) between baseline and
 each suppression condition -- the correct paired test for "does
 suppressing these features change the SAME 50 prompts' refusal calls",
 same discipline this project already applies to paired detector
-comparisons (see DECISIONS.md's Phase 4/Wave 3 entries).
+comparisons (see reports/DECISIONS.md's Phase 4/Wave 3 entries).
 
 Usage: python scripts/gemma_suppression_significance.py
 """

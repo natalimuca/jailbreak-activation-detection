@@ -1,7 +1,7 @@
 """Investigates the one case in this project where SAE-feature numerically
 beats dense-direction on PAIR-paraphrase detection: Llama-3.1-8B-Instruct
 (SAE 80.9% vs. dense 66.7%, McNemar p=0.25 -- not significant at n=21, see
-RESULTS.md's cross-model SAE-feature extension section). Applies the same
+reports/RESULTS.md's cross-model SAE-feature extension section). Applies the same
 continuous-margin method used for the dense-direction PAIR-robustness
 analysis (`scripts/pair_margin_analysis.py`) to the SAE-feature score
 instead, to see whether a finer-grained measure shows a real underlying
@@ -43,7 +43,7 @@ THRESHOLDS_PATH = RESULTS_DIR / "detector_thresholds_Llama-3.1-8B-Instruct.json"
 CROSS_MODEL_PATH = RESULTS_DIR / "dense_direction_cross_model.json"
 DENSE_DIRECTIONS_PATH = RESULTS_DIR / "dense_directions.pt"
 
-# Already known from RESULTS.md's dense-direction PAIR-margin analysis (scripts/pair_margin_analysis.py),
+# Already known from reports/RESULTS.md's dense-direction PAIR-margin analysis (scripts/pair_margin_analysis.py),
 # repeated here only for side-by-side comparison, not recomputed.
 DENSE_HARMFUL_MARGIN = 0.936
 DENSE_PAIR_MARGIN = 0.332

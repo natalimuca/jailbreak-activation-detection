@@ -11,7 +11,7 @@ Layer selection and threshold calibration both happen on VAL (never TEST)
 for both models, via `dense_direction_detector.select_layer_and_calibrate`
 -- a cleaner split discipline than the TEST-based layer selection
 Qwen3-8B's pipeline used (`scripts/ablate_qwen3_direction.py`), even though that made no practical
-difference there (see that function's docstring and DECISIONS.md).
+difference there (see that function's docstring and reports/DECISIONS.md).
 
 Usage: python scripts/extend_qwen_smollm.py
 """

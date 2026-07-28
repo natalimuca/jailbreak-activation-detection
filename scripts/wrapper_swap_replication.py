@@ -39,7 +39,7 @@ globally, then re-fitting -- a naive global shuffle of raw values would also des
 the main effects and contaminate the interaction test. Both the F-test and the
 Freedman-Lane scheme were verified on synthetic data (a pure-additive case with no
 planted interaction, and a case with a real planted interaction) before being trusted
-on real activations -- see DECISIONS.md.
+on real activations -- see reports/DECISIONS.md.
 
 Usage: python scripts/wrapper_swap_replication.py
 """
@@ -143,7 +143,7 @@ def measure_activation_grid(model, layer_idx: int, feature_idx: int, sae) -> np.
 def balanced_anova(grid: np.ndarray) -> dict:
     """Balanced two-way ANOVA with replication (core x category, n=3/cell).
     Formulas verified on synthetic data (additive-only and planted-interaction
-    cases) before use -- see module docstring and DECISIONS.md."""
+    cases) before use -- see module docstring and reports/DECISIONS.md."""
     n_core, n_cat, n_rep = grid.shape
     grand_mean = grid.mean()
     row_means = grid.mean(axis=(1, 2))

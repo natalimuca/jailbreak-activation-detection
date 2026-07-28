@@ -6,7 +6,7 @@ Scoped to Qwen3-8B <-> Llama-3.1-8B-Instruct (both d_model=4096, so a raw
 direction vector is dimensionally injectable into either model's residual
 stream) -- gemma-2-9b-it (d_model=3584) is excluded rather than attempting
 a learned cross-dimension mapping, which would confound "does it transfer"
-with "is the mapping any good" (see DECISIONS.md).
+with "is the mapping any good" (see reports/DECISIONS.md).
 
 A raw copied vector is only "the same direction" if the two models'
 residual-stream bases happen to be meaningfully aligned -- not guaranteed

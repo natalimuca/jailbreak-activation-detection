@@ -25,12 +25,12 @@ axis identity, not a magnitude-faithful split of the real vector's effect.
 **A real data bug found and fixed while building this**: results/cross_model_direction_
 transfer.json stores STALE pre-bugfix refusal stats for every Llama condition (baseline
 stored as 0.80, own_ablation as 0.86) -- the curly-apostrophe is_refusal fix (see
-DECISIONS.md, 2026-07-23) was applied to RESULTS.md's published numbers but never
+reports/DECISIONS.md, 2026-07-23) was applied to reports/RESULTS.md's published numbers but never
 written back into this JSON file. Qwen3-8B's conditions in the same file are unaffected
 (ASCII apostrophes throughout). This script reloads the file's raw completions and
 rescores them fresh via is_refusal()/refusal_stats() rather than trusting the file's
 stored refusal_stats field, for both models, before using either as a baseline for a
-new McNemar/Cochran's Q comparison -- confirmed the fresh rescore reproduces RESULTS.md's
+new McNemar/Cochran's Q comparison -- confirmed the fresh rescore reproduces reports/RESULTS.md's
 published 92%/88% (Llama) and 84%/8% (Qwen3-8B) exactly before trusting the new
 conditions' comparisons against them.
 
@@ -141,7 +141,7 @@ def run_new_conditions(hf_model_name: str, cache_label: str, prompts: list[str],
     condition on rerun -- a background run of this exact script was killed mid-generation
     by an unrelated environment disruption with zero progress saved the first time this was
     attempted, losing a full model load. Any long GPU script here should checkpoint
-    incrementally, not just at the very end (established lesson, see DECISIONS.md)."""
+    incrementally, not just at the very end (established lesson, see reports/DECISIONS.md)."""
     checkpoint = {}
     if CHECKPOINT_PATH.exists():
         with open(CHECKPOINT_PATH) as fh:

@@ -34,7 +34,7 @@ the one that did NOT survive:
 
 Extended to gemma-2-9b-it (2026-07-24) as a third data point for the SAE causal-effect-
 concentration spread (Llama concentrated in 1 feature, Qwen3-8B distributed, gemma modest/
-gradual with no sharp ranking-score standout at all -- see RESULTS.md). Note: gemma has no
+gradual with no sharp ranking-score standout at all -- see reports/RESULTS.md). Note: gemma has no
 own-direction dense-ablation causal-generation test in this project at all (only Qwen3-8B,
 Llama-3.1-8B were tested that way, plus the two small Phase-1 models) -- this script's two
 checks don't depend on that test existing, but the necessity/sufficiency correlation framing
@@ -42,14 +42,14 @@ from the Llama-vs-Qwen3-8B comparison can't be extended to gemma the same way, r
 honestly rather than glossed over.
 
 What the data DOES support, pulled directly from already-saved results (no new computation
-needed): a genuine concentration-vs-distribution asymmetry already documented in RESULTS.md's
+needed): a genuine concentration-vs-distribution asymmetry already documented in reports/RESULTS.md's
 SAE cross-model section -- Llama's causal effect collapses into a single dominant feature
 (top-1 alone: 86%->10%) where Qwen3-8B's is spread across the ranked set (top-1 alone: no
 effect, 82%->84%) and gemma's declines modestly and gradually (96%->82% by top-15/20, no
 single feature dominates). This asymmetry co-occurs with which model's *dense*-direction
 necessity/sufficiency is clean vs. null for the two models where that causal test exists,
 but this script does not claim to have found the mechanism connecting the two -- see
-RESULTS.md for the full, hedged write-up.
+reports/RESULTS.md for the full, hedged write-up.
 
 Usage: python scripts/analyze_llama_causal_gap.py
 """

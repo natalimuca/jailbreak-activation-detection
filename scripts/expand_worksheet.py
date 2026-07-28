@@ -6,7 +6,7 @@ labels come from Phase 1's smaller models, zero from any Qwen3-8B
 intervention experiment, let alone Llama/Gemma. A classifier validated
 only against the original worksheet risks learning "which experiment
 produced this" rather than "did this text contain harmful content" (see
-DECISIONS.md).
+reports/DECISIONS.md).
 
 Samples non-refuse completions (via `is_refusal`) from the previously-
 uncovered files, stratified by (source, condition), same worksheet format

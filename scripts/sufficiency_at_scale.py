@@ -1,5 +1,5 @@
 """Extends Phase 1's sufficiency (activation-addition) test to 7-9B scale
-(Qwen3-8B, Llama-3.1-8B-Instruct) -- closes a gap flagged in RESULTS.md's
+(Qwen3-8B, Llama-3.1-8B-Instruct) -- closes a gap flagged in reports/RESULTS.md's
 "Known limitations": necessity (ablation) has since been tested at this
 scale (Wave 2, `scripts/transfer_direction.py`'s cross-model-transfer test) but sufficiency
 hadn't, and remained tested only on the two small Phase 1 models

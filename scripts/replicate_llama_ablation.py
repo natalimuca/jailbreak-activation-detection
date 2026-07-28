@@ -1,7 +1,7 @@
 """Re-runs Llama-3.1-8B-Instruct's own dense-direction causal ablation
 (baseline vs. own-direction ablation, NOT the cross-model foreign-direction
 comparison) at a larger sample -- closes a specific gap flagged in
-RESULTS.md's cross-model-direction-transfer section: `scripts/transfer_direction.py`'s n=50
+reports/RESULTS.md's cross-model-direction-transfer section: `scripts/transfer_direction.py`'s n=50
 found this effect real but small (92% -> 88% refusal) and NOT significant
 via paired McNemar's test, "worth an independent re-run at a larger sample
 before leaning on it further."

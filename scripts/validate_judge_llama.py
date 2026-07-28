@@ -3,7 +3,7 @@ judge: Llama-3.1-8B-Instruct (8B) vs. the two prior failures (Phi-4-mini-
 instruct, 3.8B; SmolLM2-1.7B-Instruct, 1.7B -- both defaulted to one
 category regardless of content, a real capability ceiling, not a prompt
 problem, see `src.direction.moralize_comply_classifier`'s docstring and
-DECISIONS.md). Same worksheets, same reporting structure as
+reports/DECISIONS.md). Same worksheets, same reporting structure as
 `scripts/validate_classifier.py`, so results are directly comparable --
 no new human/Claude labeling needed.
 

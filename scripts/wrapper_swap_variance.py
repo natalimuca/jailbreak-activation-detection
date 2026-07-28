@@ -44,7 +44,7 @@ noise source in this measurement. Eta-squared (`ss_factor / ss_total`) and
 partial eta-squared (`ss_factor / (ss_factor + ss_residual)`) are both reported
 per model. Significance via **within-block (Manly-style) permutation**, not an
 asymptotic F-test, matching this project's standing preference for
-exact/permutation-based p-values at small n (see DECISIONS.md's exact-Spearman
+exact/permutation-based p-values at small n (see reports/DECISIONS.md's exact-Spearman
 and exact-McNemar precedents): for the core-effect null, independently permute
 the 10 core-labels WITHIN each wrapper column (NOT a whole-row relabeling,
 which is a no-op -- `ss_core` only depends on which 5 values are grouped as a
@@ -201,7 +201,7 @@ def permutation_test_core_effect(grid: np.ndarray, n_perm: int, rng: np.random.G
     which values are grouped as a row, not what that row is called). This
     fix came from a Plan-agent design review before any GPU time was spent;
     verified against synthetic planted-effect arrays (see bottom of this
-    file's __main__ guard note in DECISIONS.md) before trusting real results."""
+    file's __main__ guard note in reports/DECISIONS.md) before trusting real results."""
     n_core, n_wrapper = grid.shape
     observed = sum_of_squares(grid)["ss_core"]
     count_ge = 0

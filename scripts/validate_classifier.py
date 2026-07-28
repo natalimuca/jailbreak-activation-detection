@@ -12,7 +12,7 @@ condition, not one aggregate number -- the whole point of this classifier
 is not smearing easy cases (harmless-prompt compliance) into the hard,
 actually load-bearing case (harmful-prompt post-intervention). This is
 the same "don't trust the aggregate" discipline that originally found the
-moralize confound (see scripts/ablate_qwen3_direction.py/RESULTS.md).
+moralize confound (see scripts/ablate_qwen3_direction.py/reports/RESULTS.md).
 
 Usage: python scripts/validate_classifier.py
 """
@@ -51,7 +51,7 @@ def load_rows() -> list[dict]:
                 # "refuse" rows ARE included: they test whether the classifier's
                 # refuse safety net correctly catches what is_refusal missed
                 # (e.g. the curly-apostrophe bug found while building this
-                # worksheet -- see DECISIONS.md), not excluded as out of scope.
+                # worksheet -- see reports/DECISIONS.md), not excluded as out of scope.
                 rows.append({
                     "worksheet": path.name,
                     "source": row["source"],

@@ -1,7 +1,7 @@
 """Investigates the real, formally-significant PAIR-paraphrase robustness spread
 across all 5 models (Cochran's Q = 19.52, df=4, p=0.0006 -- SmolLM2 90.5% >
 Llama-3.1-8B 66.7% > gemma-2-9b-it 47.6% > Qwen3-8B 42.9% > Qwen2.5-1.5B 38.1%,
-see RESULTS.md's cross-model dense-direction section). The one candidate
+see reports/RESULTS.md's cross-model dense-direction section). The one candidate
 hypothesis floated there (SmolLM2's weaker/less-linear baseline refusal
 correlating with its own robustness) was explicitly flagged as not explaining
 Llama's position (a strong, "linear"-looking refusal model that's also
@@ -47,7 +47,7 @@ DENSE_DIRECTIONS_PATH = RESULTS_DIR / "dense_directions.pt"
 CROSS_MODEL_PATH = RESULTS_DIR / "dense_direction_cross_model.json"
 QWEN3_THRESHOLDS_PATH = RESULTS_DIR / "detector_thresholds_Qwen3-8B.json"
 
-# Known PAIR detection rates (RESULTS.md's cross-model dense-direction section),
+# Known PAIR detection rates (reports/RESULTS.md's cross-model dense-direction section),
 # repeated here only for side-by-side comparison against the new margin numbers,
 # not recomputed.
 KNOWN_PAIR_DETECTION_RATE = {

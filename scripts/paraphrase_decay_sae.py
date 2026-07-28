@@ -7,7 +7,7 @@ n=5). This script goes one level deeper, at the SAE-feature level, for the
 3 models with a trained SAE (Qwen3-8B, Llama-3.1-8B-Instruct, gemma-2-9b-it)
 -- the ones whose causal-suppression effect ranges from concentrated in one
 dominant feature (Llama) to fully distributed (Qwen3-8B) to modest/gradual
-with no standout (gemma), see RESULTS.md's SAE cross-model section.
+with no standout (gemma), see reports/RESULTS.md's SAE cross-model section.
 
 Two related but distinct questions, kept separate rather than conflated:
 
@@ -73,7 +73,7 @@ TOP_FEATURE = {
     "Llama-3.1-8B-Instruct": (27, 13363),
     "gemma-2-9b-it": (35, 52410),
 }
-# Known SAE-feature-detector PAIR detection rates (RESULTS.md), for comparison only.
+# Known SAE-feature-detector PAIR detection rates (reports/RESULTS.md), for comparison only.
 KNOWN_SAE_PAIR_DETECTION_RATE = {"Qwen3-8B": 0.333, "Llama-3.1-8B-Instruct": 0.809, "gemma-2-9b-it": 0.238}
 
 

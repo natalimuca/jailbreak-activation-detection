@@ -86,7 +86,7 @@ TOP_K_TOKENS = 5
 # and bnb's on-the-fly dequantization plus nnsight's trace overhead pushed
 # a batch of 32 into OOM directly (measured, not assumed) -- same
 # "needs a smaller per-pass batch to fit in 6GB" situation this project
-# already hit for gemma-2-9b-it's causal ranking (see DECISIONS.md).
+# already hit for gemma-2-9b-it's causal ranking (see reports/DECISIONS.md).
 # Measured 4 vs. 8: nearly identical wall-clock (~300s/prompt either way --
 # throughput is not batch-bound here), so 8 halves the number of trace()
 # calls for free.

@@ -1,7 +1,7 @@
 """Calibrates decision thresholds for all four Phase 4 detectors (keyword
 filter, perplexity filter, dense-direction projection, SAE-feature score) on
 the VAL split -- never touched by direction estimation, SAE causal ranking,
-or the final TEST-split reporting (see DECISIONS.md's Phase 4 split-
+or the final TEST-split reporting (see reports/DECISIONS.md's Phase 4 split-
 discipline entry). Reuses the already-selected dense-direction layer and
 the top-15 SAE features already ranked, rather than re-deriving either.
 
@@ -9,7 +9,7 @@ Keyword/perplexity operate on prompt text only, and VAL-split membership is
 prompt-manifest-based (identical across every model's cache) -- for any
 model other than Qwen3-8B, this reuses Qwen3-8B's already-calibrated
 keyword/perplexity thresholds instead of recomputing numerically identical
-output from a fresh model load (see DECISIONS.md's Phase 6 Wave 3 entry).
+output from a fresh model load (see reports/DECISIONS.md's Phase 6 Wave 3 entry).
 
 Usage: python scripts/calibrate_thresholds.py [model]
 """

@@ -15,7 +15,7 @@ extraction or feature ranking:
   - suppress top-15 features (combined)
   - suppress top-20 features (combined, the full ranked set)
 
-Per DECISIONS.md's capability-check requirement: also checks completions
+Per reports/DECISIONS.md's capability-check requirement: also checks completions
 for degeneracy (src.direction.refusal_classifier.is_degenerate) alongside
 the refusal rate, since a refusal-rate drop caused by incoherent garbage
 output isn't a real causal finding.
@@ -44,7 +44,7 @@ from src.sae.registry import SAE_PROVIDERS, hookpoint_for
 DEFAULT_MODEL = "Qwen/Qwen3-8B"
 RESULTS_DIR = Path(__file__).resolve().parents[1] / "results"
 N_VAL_PROMPTS = 50
-MAX_PROMPT_CHARS = 150  # consistent with scripts/rank_sae_features.py's ranking-pass cap; see DECISIONS.md
+MAX_PROMPT_CHARS = 150  # consistent with scripts/rank_sae_features.py's ranking-pass cap; see reports/DECISIONS.md
 MAX_NEW_TOKENS = 40
 NEEDS_4BIT = {"Qwen/Qwen3-8B", "meta-llama/Llama-3.1-8B-Instruct", "google/gemma-2-9b-it"}
 

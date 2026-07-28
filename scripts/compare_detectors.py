@@ -113,7 +113,7 @@ def main() -> None:
     # dense-direction (AUROC 0.983) vs SAE-feature (0.975) on TEST-overall is
     # close enough to be worth a formal paired test rather than eyeballing
     # the gap -- DeLong's test is the right tool for two AUROCs measured on
-    # the same items (see DECISIONS.md's significance-testing entry).
+    # the same items (see reports/DECISIONS.md's significance-testing entry).
     results["test_overall_delong_dense_vs_sae"] = delong_auc_test(
         test_scores["dense_direction"], test_scores["sae_feature"], test_labels
     )
@@ -155,7 +155,7 @@ def main() -> None:
     # a perplexity filter catching GCG suffixes says nothing about whether
     # it can catch fluent paraphrase, the case this phase is named for).
     # Same "don't trust the aggregate, break it down" discipline as the
-    # Phase 3 head-to-head's moralize-vs-comply finding (see RESULTS.md).
+    # Phase 3 head-to-head's moralize-vs-comply finding (see reports/RESULTS.md).
     results["adversarial_paraphrase_by_method"] = {}
     for method in sorted({r["method"] for r in adv_records}):
         method_idx = [i for i, r in enumerate(adv_records) if r["method"] == method]
@@ -173,7 +173,7 @@ def main() -> None:
     # project's write-up makes a "no significant difference" claim about on
     # PAIR -- worth a real paired test (McNemar's exact, on the SAME
     # prompts scored by both detectors), not just eyeballing whether two
-    # independent Wilson CIs overlap (see DECISIONS.md).
+    # independent Wilson CIs overlap (see reports/DECISIONS.md).
     dense_preds_pooled = classify(adv_scores["dense_direction"], thresholds["dense_direction"])
     sae_preds_pooled = classify(adv_scores["sae_feature"], thresholds["sae_feature"])
     results["dense_vs_sae_mcnemar"] = {"pooled": mcnemar_exact(dense_preds_pooled, sae_preds_pooled)}

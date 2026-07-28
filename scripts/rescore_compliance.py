@@ -7,7 +7,7 @@ much smaller" but never measured.
 
 **Not run through the automated `moralize_comply_classifier`** -- both
 candidate local judge models tried (SmolLM2-1.7B-Instruct, Phi-4-mini-
-instruct) failed validation on this task (see DECISIONS.md:
+instruct) failed validation on this task (see reports/DECISIONS.md:
 `results/moralize_comply_classifier_validation.json`): each collapsed to
 a single default category regardless of actual completion content,
 rather than genuinely discriminating. Rather than report an automated
@@ -107,7 +107,7 @@ def main() -> None:
         "dense_direction_ablation": dense,
         "sae_suppression_top15": sae_top15,
         "method": "Claude-labeled (blind re-read of every non-refuse completion), not the automated "
-                  "moralize_comply_classifier (see DECISIONS.md for why that classifier's validation failed)",
+                  "moralize_comply_classifier (see reports/DECISIONS.md for why that classifier's validation failed)",
     }
     out_path = RESULTS_DIR / "scripts06_true_harmful_compliance.json"
     with open(out_path, "w") as fh:

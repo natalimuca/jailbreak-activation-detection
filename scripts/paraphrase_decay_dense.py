@@ -54,7 +54,7 @@ DENSE_DIRECTIONS_PATH = RESULTS_DIR / "dense_directions.pt"
 CROSS_MODEL_PATH = RESULTS_DIR / "dense_direction_cross_model.json"
 QWEN3_THRESHOLDS_PATH = RESULTS_DIR / "detector_thresholds_Qwen3-8B.json"
 
-# Known PAIR detection rates (RESULTS.md), for side-by-side comparison only.
+# Known PAIR detection rates (reports/RESULTS.md), for side-by-side comparison only.
 KNOWN_PAIR_DETECTION_RATE = {
     "SmolLM2-1.7B-Instruct": 0.905,
     "Llama-3.1-8B-Instruct": 0.667,

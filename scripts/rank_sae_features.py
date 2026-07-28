@@ -1,6 +1,6 @@
 """SAE-detector feature selection: attribution-patching causal ranking.
 
-Pipeline (see DECISIONS.md for the layer/prompt-count/length-cap rationale):
+Pipeline (see reports/DECISIONS.md for the layer/prompt-count/length-cap rationale):
   1. Load the cached activations for the given model, compute per-layer
      difference-in-means directions on TRAIN.
   2. Load the model's top-3-by-separation-score layers' SAE checkpoints
@@ -42,7 +42,7 @@ K0 = 10
 K_STAR = 20
 N_STEPS = 10
 N_EVAL_PROMPTS = 16
-MAX_PROMPT_CHARS = 150  # see DECISIONS.md: backward-pass memory risk on long outliers
+MAX_PROMPT_CHARS = 150  # see reports/DECISIONS.md: backward-pass memory risk on long outliers
 RESULTS_DIR = Path(__file__).resolve().parents[1] / "results"
 NEEDS_4BIT = {
     "Qwen/Qwen3-8B",
@@ -100,7 +100,7 @@ def main() -> None:
     # for the whole ranking pass was pure waste -- confirmed as the actual
     # cause of a real OOM on gemma-2-9b-it (its width_131k SAEs are ~1.9GB
     # each; three of them left almost no headroom on a 6GB card). See
-    # DECISIONS.md.
+    # reports/DECISIONS.md.
     refusal_id, compliance_id = refusal_compliance_token_ids(model.tokenizer)
     hookpoint = hookpoint_for(model_name)
 

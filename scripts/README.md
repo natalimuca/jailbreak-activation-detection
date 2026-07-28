@@ -44,6 +44,6 @@ encoding that order; this table replaces it.
 | 36 | `wrapper_swap_replication.py` | Replicated wrapper-swap factorial: decomposes the core x wrapper interaction term |
 
 Full rationale for every methodology choice is in
-[DECISIONS.md](../DECISIONS.md); results are in
-[RESULTS.md](../RESULTS.md); how each technique works is in
-[METHODOLOGY.md](../METHODOLOGY.md).
+[DECISIONS.md](../reports/DECISIONS.md); results are in
+[RESULTS.md](../reports/RESULTS.md); how each technique works is in
+[METHODOLOGY.md](../reports/METHODOLOGY.md).
