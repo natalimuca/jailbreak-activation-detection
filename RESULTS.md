@@ -829,10 +829,12 @@ eyeballed tally.
 is much larger than Qwen3-8B's (56.4% vs. 11.7%) -- meaning a sizeable
 chunk of Llama's feature variance isn't explained by either factor alone;
 the core effect and wrapper framing interact non-additively for Llama in a
-way they largely don't for Qwen3-8B. Not chased further here (would need a
-replicated design, e.g. multiple phrasing-variants per wrapper category, to
-separate genuine interaction from any remaining idiosyncrasy) -- reported
-as a real, open asymmetry rather than smoothed into the headline numbers.
+way they largely don't for Qwen3-8B. At the time, this was not chased
+further (would need a replicated design, e.g. multiple phrasing-variants
+per wrapper category, to separate genuine interaction from any remaining
+idiosyncrasy) -- reported as a real, open asymmetry rather than smoothed
+into the headline numbers. **The replicated design was built as a
+follow-up the same day; see below.**
 
 **The qualitative activation-patching-style subset (8 runs: 2 core
 requests x 2 wrapper conditions x 2 models, reusing `token_attribution.py`'s
@@ -857,6 +859,67 @@ originally generated the core-vs-wrapper hypothesis in
 `scripts/token_attribution.py`, not an independent held-out test. Full
 per-cell activation grids, stats, and qualitative subset in
 `results/wrapper_swap_variance.json`.
+
+### Decomposing the interaction term: a replicated design (2026-07-28)
+
+Adds real per-cell replication to the design above -- 2 additional
+project-authored phrasing variants per non-bare wrapper category (3 total
+per category), 10 core requests x 4 categories x 3 phrasings = 120
+forward-pass readings per model (`scripts/wrapper_swap_replication.py`,
+`bare` excluded, no phrasing dimension exists to replicate for zero-wrapper
+text). With genuine replication, the previously unexaminable residual
+(pure interaction, no error term possible) splits into two separable
+quantities: a real core x category interaction term, and a genuine
+within-cell (phrasing-to-phrasing) error term -- stated explicitly as such,
+since this is a deterministic forward pass with no measurement noise, so
+"replication" here means different wordings, not repeated trials; treating
+phrasing variance as an ANOVA error term is an explicit modeling choice.
+
+| Model | η² core | η² category | η² interaction | η² residual (phrasing) | interaction F-test p | interaction permutation p |
+|---|---|---|---|---|---|---|
+| Qwen3-8B | 0.349 | 0.217 | 0.086 | 0.347 | 0.813 (n.s.) | 0.680 (n.s.) |
+| Llama-3.1-8B-Instruct | 0.366 | 0.004 | **0.424** | 0.206 | **<0.0001** | **0.0001** |
+
+Both the classical F-test (valid now that real per-cell replication
+provides a genuine error term, unlike the original design) and a
+Freedman-Lane residual-permutation test (fits the additive/no-interaction
+model, permutes residuals from that fit globally, refits -- a materially
+different and more subtle scheme than the main-effect permutations used
+above, verified on synthetic planted-interaction and pure-additive cases
+before trusting it here) agree closely for both models.
+
+**Qwen3-8B: core and category both remain independently significant (core
+p<0.0001, category p<0.0001), but the interaction is genuinely not
+significant by either test** -- core and category effects are essentially
+additive for this model. A real, separate finding falls out of the
+decomposition itself: within-cell (phrasing) variance is large (34.7% of
+total variance) -- comparable in size to the core and category effects
+themselves. Holding wrapper *category* fixed, which specific phrasing is
+used still moves Qwen3-8B's feature activation substantially -- this
+model's feature is not just sensitive to coarse framing category, but to
+the literal specific wording within a category too.
+
+**Llama-3.1-8B-Instruct: a real, statistically confirmed core x category
+interaction** (42.4% of variance, F=6.11, p<0.0001 by the F-test, p=0.0001
+by the independent permutation check -- both tests agree, not an artifact
+of one method's assumptions). Category alone remains not significant on
+its own (p=0.71, consistent with the non-replicated finding above that
+wrapper framing barely matters for this model in isolation), but the
+*effect* of framing depends on *which* core request it is paired with --
+a genuine non-additive interaction, not just unexplained noise as the
+original design's residual term left ambiguous. This resolves the earlier
+open question directly: Llama's large residual (56.4% in the original,
+un-replicated design) really was substantially real interaction (42.4%
+of total variance once phrasing-level noise is properly separated out),
+not primarily measurement idiosyncrasy.
+
+**What this does and doesn't establish**: confirms the interaction is
+real for Llama and absent for Qwen3-8B, with formal power to distinguish
+the two (independent F-test and permutation agreement). Does not explain
+*why* Llama's core-wrapper interaction exists mechanistically -- that
+would need examining which specific (core, category) cells drive the
+interaction term, a further, not-yet-attempted decomposition. Full grids
+and stats in `results/wrapper_swap_replication.json`.
 
 ### Known limitations (baseline detectors and adversarial evaluation)
 
@@ -1288,9 +1351,15 @@ outline). Both samples are small (n=6 and n=4) -- not enough to claim
 this as a statistically established pattern, just an honest observation
 in the data worth a closer look if this project's scope grows further.
 
-- **Only one model pair tested** (Qwen3-8B <-> Llama-3.1-8B) -- the only
-  pair with matching `d_model`. Whether this weak-effect pattern recurs
-  in other models is unknown.
+- ~~Only one model pair tested~~ -- **a second architecture-matched pair
+  (Qwen2.5-1.5B-Instruct <-> DeepSeek-R1-Distill-Qwen-1.5B) has since been
+  tested, see the dedicated section below.** The clean-no-transfer side of
+  that result (Qwen2.5-1.5B) replicates this pair's pattern exactly; the
+  other side (DeepSeek as target) is genuinely underpowered rather than
+  informative, so the "does this weak-effect pattern recur" question
+  specifically (Llama's own borderline own-ablation effect) still has no
+  second data point -- DeepSeek's own baseline is floor-constrained in a
+  different way than Llama's, not a matched comparison for that question.
 - ~~Necessity (ablation) only~~ -- **sufficiency (activation addition) with
   a foreign direction has since been tested, see the dedicated section
   below.**
@@ -1345,6 +1414,74 @@ generation -- the foreign direction is simply inert at every scale tested.
 **Not smoothed into "directions never transfer"** -- this is two data
 points (one model pair), both pointing the same way on both necessity and
 sufficiency, but still only one pair with matching `d_model` to test on.
+
+## A second transfer pair: Qwen2.5-1.5B-Instruct <-> DeepSeek-R1-Distill-Qwen-1.5B (2026-07-28)
+
+Extends "still only one pair with matching `d_model`" above -- a second
+architecture-matched pair (both 1536-dimensional) was found already
+sitting in this project's existing 6 models, no new downloads needed
+(`results/dense_directions.pt` confirms the match; `assert_caches_consistent`
+confirms both models' activation caches share identical corpus order/
+labels/splits). `scripts/transfer_direction_deepseek.py`, necessity
+(ablation) only -- sufficiency was explicitly not attempted this round
+since DeepSeek's own-direction addition is already a thoroughly-swept
+genuine null elsewhere in this document (alpha 0.25-32, 2 layers, both
+application modes), making a foreign-direction sufficiency test low
+expected value for real additional cost.
+
+**Asymmetric design, not a straight rerun of `transfer_direction.py`**:
+Qwen2.5-1.5B-Instruct (target) uses the standard 40-token budget, identical
+to every other non-reasoning model's transfer test. DeepSeek (target) needs
+the 2048-token whole-generation budget and `resolve_completions()`-style
+truncation handling already established for its own Phase 1 reproduction
+above. A real correctness risk was designed around up front, not discovered
+after the fact: `resolve_completions()` drops a *different* subset of
+prompts per condition, so naively resolving each condition independently
+and then pairing completions by list position for McNemar would silently
+misalign prompts once conditions' truncation patterns diverge. Fixed via a
+new `resolve_completions_by_index()` (`src/direction/refusal_classifier.py`,
+keyed by original position, not compacted) -- every McNemar comparison
+restricts to the intersection of indices that resolved in *both* conditions
+being compared, with the resulting paired-n reported alongside each p-value.
+Sample size differs deliberately by target: N=50 for Qwen2.5-1.5B (cheap,
+40 tokens), N=30 for DeepSeek (expensive, ~2min/generation at this budget --
+matches the total-cost envelope this project already accepted for the
+SAE-suppression-validation N=15x6-condition precedent).
+
+| | baseline | own-ablation | foreign-ablation |
+|---|---|---|---|
+| Qwen2.5-1.5B (foreign = DeepSeek's direction) | 96.0% (n=50) | **4.0%** (n=50) | 90.0% (n=50) |
+| DeepSeek (foreign = Qwen2.5-1.5B's direction) | 5.9% (n=17 resolved/30) | 5.0% (n=20 resolved/30) | 0.0% (n=13 resolved/30) |
+
+**Qwen2.5-1.5B: a second clean, unambiguous no-transfer result, matching
+the Qwen3-8B<->Llama pair's pattern exactly.** Own-direction ablation
+crashes refusal (96%->4%, McNemar baseline-vs-own p=0.0, 46/50 discordant);
+DeepSeek's foreign direction barely moves it (96%->90%, p=0.25, not
+significant, only 3/50 discordant) -- own-vs-foreign is clearly different
+(p=0.0). The intervention mechanism works dramatically on this model; a
+foreign direction from an architecturally-different model (Qwen2.5 base
+vs. DeepSeek's R1-distillation) simply does not transfer, same story as
+the first pair.
+
+**DeepSeek: genuinely underpowered, not a meaningful transfer result
+either way -- reported honestly as inconclusive rather than overclaimed as
+"no transfer."** Baseline refusal on this specific 30-prompt sample is
+already very close to floor (5.9%, even lower than Phase 1's own 14.3% at
+a different prompt sample -- consistent sample-to-sample variance at an
+already-low rate, not a contradiction). With baseline already near-zero,
+there is very little room for either own- or foreign-ablation to move it
+further down, and heavy truncation (this model resolves only 43-67% of
+completions across these three conditions at this prompt sample) shrinks
+the McNemar paired-n to single digits (6-10 prompts per comparison) after
+intersecting each pair's resolved indices -- all three comparisons come
+back p=1.0, which reflects a comparison with almost no power to detect
+anything, not evidence of no effect. Matches this document's standing
+finding that DeepSeek's causal necessity signal is floor-constrained and
+hard to pin down (see its dedicated section below) -- this transfer test
+simply inherits that same underlying difficulty rather than adding a new
+one.
+
+Full results in `results/transfer_direction_deepseek.json`.
 
 ## Investigating the Llama dense-direction-vs-SAE-feature gap (2026-07-24, extended to gemma-2-9b-it same day)
 

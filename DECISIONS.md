@@ -2737,3 +2737,136 @@ resumable both at the per-condition and per-model level) before rerunning
 -- same "any long GPU script should checkpoint incrementally" lesson this
 project has hit before (see the Tier-2 token-attribution debugging saga
 entry above), reapplied here rather than re-learned the hard way twice.
+
+## Closing the remaining future-work items: a second transfer pair + wrapper-swap replication (2026-07-28)
+
+After closing two research gaps earlier the same day, the user asked to close
+out the thesis's Future Work list itself. Full triage before starting: two
+items were genuinely tractable without new scope (this entry), a 4th
+moralize-vs-comply classifier attempt was explicitly deferred (real risk of
+a 4th distinct failure mode, not a guaranteed fix), and DeepSeek-vs-other-
+distilled-models was explicitly scoped out (needs models not in this
+project at all). **A user-driven correction worth remembering**: this
+project's own default posture is to report genuinely open questions
+honestly rather than force premature closure -- when the user first asked
+to "complete" every future-work item, the right move was to push back on
+which items could actually be completed (some are structurally blocked, one
+carries a real chance of ending in a fourth honest failure) rather than
+silently attempt everything or silently comply with an unreasonable framing.
+
+**Both experiments planned via `EnterPlanMode` + a Plan-agent design review
+pass**, same pattern as every other non-trivial investigation today. The
+review caught real, concrete issues in both designs before any code was
+written -- worth internalizing as a pattern at this point: every design
+review run in this session so far has found at least one genuine bug or
+gap, not just style feedback.
+
+### Experiment A: Qwen2.5-1.5B-Instruct <-> DeepSeek-R1-Distill-Qwen-1.5B transfer
+
+A second architecture-matched pair (`results/dense_directions.pt` confirms
+both are 1536-dimensional) was found already sitting in this project's
+existing 6 models -- no new downloads. `scripts/transfer_direction_deepseek.py`.
+
+**The review's most important catch**: `resolve_completions()` drops a
+*different* subset of prompts per condition (whichever failed to close
+`<think>` in that specific condition) -- naively resolving baseline/own/
+foreign independently and then zipping their resolved lists by position for
+McNemar would silently misalign prompts across conditions once their
+truncation patterns diverge, corrupting the test without any visible error.
+Fixed via a new `resolve_completions_by_index()`
+(`src/direction/refusal_classifier.py`, keyed by original position rather
+than compacted into a fresh list) -- every McNemar comparison restricts to
+the intersection of indices that resolved in *both* conditions being
+compared (three separate intersections, since each pair of conditions can
+drop a different subset), with the resulting paired-n reported alongside
+every p-value rather than assumed to equal the sampled N. Verified on a
+synthetic example with deliberately mismatched truncation patterns across
+two conditions before trusting it on real GPU output.
+
+**Other review-driven design choices, not the naive first-draft versions**:
+asymmetric budget/precision per target model (Qwen2.5-1.5B: 40 tokens, no
+quantization; DeepSeek: 2048 tokens, no quantization, whole-generation
+intervention matching its own published Phase 1 convention exactly --
+loading either model 4-bit would introduce an uncontrolled variable versus
+already-published baselines); N=30 (not 15, not 50) for DeepSeek's three
+conditions specifically, keeping the same total-cost envelope this project
+already accepted for the SAE-suppression-validation N=15x6-condition
+precedent while preserving enough resolved-n for McNemar to have any power
+given DeepSeek's 30-47% typical truncation rate; sufficiency/addition-
+transfer explicitly not attempted this round (DeepSeek's own-direction
+addition is already a thoroughly-swept genuine null, so a foreign direction
+succeeding where the model's own fails is a priori unlikely, and it needs
+its own expensive alpha-calibration sweep at the 2048-token budget before
+any validation generation even starts -- low expected value for real cost).
+
+**Result**: Qwen2.5-1.5B gives a second clean, unambiguous no-transfer
+result matching the Qwen3-8B<->Llama pair's pattern exactly (own-ablation
+96%->4%, p=0.0; foreign-ablation 96%->90%, p=0.25 n.s.). DeepSeek-as-target
+is genuinely underpowered, not informative either way -- baseline refusal on
+this 30-prompt sample is already near-floor (5.9%) and heavy truncation
+shrinks the McNemar paired-n to single digits (6-10) after index-
+intersection, so all three p=1.0 results reflect near-zero test power, not
+evidence of anything. Reported honestly as inconclusive, not oversold as a
+second "no transfer" data point -- see RESULTS.md's dedicated section.
+
+### Experiment B: wrapper-swap replication
+
+Adds real per-cell replication (2 new project-authored phrasing variants
+per non-bare wrapper category, 3 total per category) to
+`scripts/wrapper_swap_variance.py`'s design, so the large interaction/
+residual term found for Llama (56.4% of variance) becomes testable instead
+of an unexaminable leftover. `scripts/wrapper_swap_replication.py`. "bare"
+excluded from this follow-up by construction (no phrasing dimension exists
+to replicate for zero-wrapper text without inventing framing content).
+
+**Two review-driven corrections before any GPU time**:
+1. **Statistical**: real per-cell replication (n=3) now provides a valid
+   pure-error term the original 1-observation-per-cell design never could,
+   making the classical two-way ANOVA F-test legitimate here (unlike
+   before) -- reported as the primary number. But per this project's
+   standing preference for permutation at small n, ALSO ran a Freedman-Lane
+   residual-permutation test for the interaction term specifically as a
+   corroborating check -- a genuinely different, more subtle scheme than
+   the existing main-effect permutations (which shuffle within a row/column
+   block): fit the additive/no-interaction model to the cell means, permute
+   the resulting residuals *globally* (not within any block), reattach, and
+   recompute. A naive global shuffle of raw values instead of residuals
+   would also destroy the main effects and contaminate the interaction
+   test specifically -- confirmed this distinction matters empirically, not
+   just in theory: a synthetic sanity check (see below) showed the naive
+   scheme gives a materially different (miscalibrated) result on the same
+   additive-only data the correct scheme handles properly.
+2. **Framing**: flagged explicitly, not left implicit, that the 3
+   "replicates" per cell are different phrasings, not repeated trials of an
+   identical stimulus -- there is no measurement noise in a deterministic
+   forward pass (the original script's own docstring already makes this
+   point). Using phrasing-to-phrasing variance as an ANOVA error term is a
+   defensible but explicit modeling choice (phrasing variation treated as
+   exchangeable noise relative to the category-level effect), stated as
+   such in the write-up rather than assumed to be self-evident.
+
+**Verified before trusting real data**: both the F-test and the
+Freedman-Lane permutation scheme were run against two synthetic cases (a
+pure-additive grid with no planted interaction, and a grid with a real
+planted interaction effect) -- both correctly gave non-significant results
+on the additive case (F-test p=0.44, permutation p=0.28) and highly
+significant results on the planted-interaction case (F-test p<1e-15,
+permutation p=0.0005), and the naive (wrong) raw-value-permutation scheme
+was separately confirmed to give a materially different, miscalibrated
+result (p=1.0) on the same additive data the correct scheme handled fine --
+same "verify the statistical machinery on synthetic data with a known
+answer before trusting it on real activations" discipline already
+established earlier the same day for the original wrapper-swap permutation
+test and this session's other new statistical code.
+
+**Pre-flight content checks (no GPU needed, run before any forward passes)**:
+the 8 new phrasing variants were checked for wording similarity against
+both the original 4 templates and the real PAIR corpus (`difflib.
+SequenceMatcher`, matching this project's existing dedup-similarity
+convention from `src.data.dedup`) and manually checked for content leakage
+(no core-request-specific keywords). Two variants initially scored
+moderately similar to their own category's original template (0.585,
+0.511 -- expected, since same-category framings share vocabulary by
+design) but were reworded to reduce overlap further out of caution; all 8
+scored low similarity against the real PAIR corpus (max 0.115) and clean
+on the content-leakage check throughout.

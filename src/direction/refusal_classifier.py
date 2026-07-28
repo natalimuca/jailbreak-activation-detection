@@ -62,6 +62,24 @@ def resolve_completions(completions: list[str]) -> tuple[list[str], int]:
     return resolved, truncated
 
 
+def resolve_completions_by_index(completions: list[str]) -> dict[int, str]:
+    """Like resolve_completions(), but keyed by each completion's ORIGINAL
+    position rather than compacted into a fresh list. Needed whenever two or
+    more conditions on the same prompt set are being paired up for a McNemar
+    test (e.g. baseline vs. own_ablation): each condition truncates a
+    DIFFERENT subset of prompts, so resolving each condition independently
+    with resolve_completions() and then zipping the resulting lists by
+    position would silently pair up answers to different prompts. Callers
+    should intersect the returned dicts' keys across every condition being
+    compared before scoring, not assume every index survived everywhere."""
+    resolved = {}
+    for i, c in enumerate(completions):
+        answer = extract_answer(c)
+        if answer is not None:
+            resolved[i] = answer
+    return resolved
+
+
 def refusal_rate(completions: list[str]) -> float:
     if not completions:
         return 0.0
