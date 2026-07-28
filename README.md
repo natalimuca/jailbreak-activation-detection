@@ -127,7 +127,7 @@ as each model's own true minimum:
 | gemma-2-9b-it | 96.0% | 94.0% | 82.0% @ top-15/20 | modest, gradual decline |
 
 \*Llama's baseline was corrected from an original 86.0% after a real
-curly-apostrophe classifier bug was found and fixed (see DECISIONS.md);
+curly-apostrophe classifier bug was found and fixed (see reports/DECISIONS.md);
 both readings are reported honestly where they appear historically.
 
 TEST AUROC for the SAE-feature detector itself: Qwen3-8B 0.975, Llama-3.1-8B
@@ -260,9 +260,9 @@ results/         metrics, figures, activation caches (gitignored)
 tests/           147 fast tests (CI) + 11 real-GPU regression tests
 ```
 
-Full rationale for every methodology choice is in [DECISIONS.md](DECISIONS.md);
-results are in [RESULTS.md](RESULTS.md); how each technique works is in
-[METHODOLOGY.md](METHODOLOGY.md).
+Full rationale for every methodology choice is in [DECISIONS.md](reports/DECISIONS.md);
+results are in [RESULTS.md](reports/RESULTS.md); how each technique works is in
+[METHODOLOGY.md](reports/METHODOLOGY.md).
 
 ## Reproduce
 
@@ -322,7 +322,7 @@ corpus.
 
 **Interactive detector UI** (frontend, in progress, not yet merged) — plain
 HTML/JS/CSS page over the API above, plus a Findings dashboard built from this
-project's own RESULTS.md numbers (TEST AUROC by model, PAIR-robustness ranking,
+project's own reports/RESULTS.md numbers (TEST AUROC by model, PAIR-robustness ranking,
 dense-vs-SAE head-to-head), verified live in-browser against the real GPU.
 
 ## Roadmap
@@ -377,7 +377,7 @@ dense-vs-SAE head-to-head), verified live in-browser against the real GPU.
   "underage", all at rank 1), where Qwen3-8B's top tokens more often
   surface the fictional/roleplay wrapper instead ("hypothetical",
   "consultant"). A real, directly-read qualitative pattern (~9/21 vs.
-  ~6/21 prompts), not a clean or formally-tested split — see RESULTS.md
+  ~6/21 prompts), not a clean or formally-tested split — see reports/RESULTS.md
   for the full account, including two failed Integrated Gradients attempts
   that preceded this simpler, working method.
 
