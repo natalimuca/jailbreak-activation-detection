@@ -445,6 +445,23 @@ forward without explicit sign-off.
   signal-decay analysis → token-level attribution → the wrapper-swap factorial
   above) — from an aggregate correlation to a real, causally-grounded account
   for two of six models.
+- **Why Llama's core-by-category interaction concentrates in specific
+  requests, investigated across five rounds** (per-cell decomposition, a
+  task-type hypothesis, a blind multi-feature search, a literature-motivated
+  salience test, and a token-level attribution read) — the first four
+  independently rejected as formal hypotheses (task type, word count,
+  average word length, keyword-lexicon score, source dataset,
+  salience-via-perplexity all fail to predict it, while the interaction
+  itself keeps replicating cleanly, strongest yet at η²=0.286, n=48). The
+  fifth round found a real qualitative signature at the mechanism level
+  instead of another failed surface property: low-interaction requests keep
+  the same top-attributed token locked across every wrapper condition,
+  while high-interaction requests show the top token swinging between
+  content and framing language — most consistently under the fiction
+  wrapper specifically. Genuinely inconclusive on the underlying *why*,
+  same as this project's standing practice elsewhere (see the Llama
+  dense-vs-SAE PAIR flip above) — investigated thoroughly and reported
+  honestly rather than left untouched or forced into an answer.
 - Live-inference API backend, with full test coverage and a real-GPU smoke test.
 - ETHICS.md rewritten as a real submission-ready document (still only
   submittable by the project owner, not something this repo automates).
@@ -459,20 +476,3 @@ forward without explicit sign-off.
   models** — would need models genuinely outside this project's current scope
   (nothing to swap in from the existing six), a real scope expansion rather
   than a quick follow-up.
-- **Why Llama's core-by-category interaction exists mechanistically** —
-  extensively tested across five rounds (per-cell decomposition, a
-  task-type hypothesis, a blind multi-feature search, a literature-
-  motivated salience test, and a token-level attribution read), the first
-  four independently rejected as formal hypotheses. The interaction itself
-  is confirmed a third independent time, more strongly than ever
-  (η²=0.286 at n=48) — no surface or corpus-level property of the request
-  text (task type, word count, average word length, keyword-lexicon score,
-  source dataset, salience-via-perplexity) predicts it. The fifth round
-  finally found a real qualitative signature at the mechanism level: low-
-  interaction requests keep the same top-attributed token locked across
-  every wrapper condition, while high-interaction requests show the
-  top token swinging between content and framing language — most
-  consistently under the fiction wrapper specifically — a genuinely
-  different kind of finding (grounded in what the model's feature attends
-  to, not the prompt text), though not yet a formally tested account of
-  *why*.
