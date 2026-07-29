@@ -2,7 +2,7 @@
 
 **Detecting harmful-intent prompts from an LLM's internal activations instead of
 surface-level (keyword or perplexity) filtering, with a rigorous, honestly-hedged
-cross-model comparison across 5 open-weight chat models (1.5B to 9B parameters).**
+cross-model comparison across 6 open-weight chat models (1.5B to 9B parameters).**
 
 ## Technology Stack
 
@@ -10,15 +10,17 @@ cross-model comparison across 5 open-weight chat models (1.5B to 9B parameters).
 |---|---|
 | Language & core | Python 3, PyTorch, NumPy, pandas, scikit-learn, SciPy |
 | Model internals | [nnsight](https://nnsight.net/) (activation extraction/patching), HF Transformers, Accelerate, bitsandbytes (4-bit quantization) |
-| Sparse autoencoders | Qwen-Scope, LlamaScope, GemmaScope (pretrained, per-model) |
-| Statistics | Wilson score intervals, McNemar's exact test, DeLong's test, Cochran's Q |
+| Sparse autoencoders | Qwen-Scope, LlamaScope, GemmaScope, EleutherAI's suite (pretrained, per-model) |
+| Statistics | Wilson score intervals, McNemar's exact test, DeLong's test, Cochran's Q, exact/permutation tests |
 | API | FastAPI, uvicorn |
-| Testing | pytest (147 fast tests + 11 real-GPU regression tests) |
+| Testing | pytest (156 fast tests + 19 real-GPU regression tests) |
 | Visualization | matplotlib, seaborn |
 
 Logic lives in tested `src/` modules; `scripts/` are standalone, runnable pipeline
 stages, one per experiment, so every number in this README traces back to a script
-and a saved result file, not a notebook cell.
+and a saved result file, not a notebook cell. `notebooks/mechanism.ipynb` and
+`notebooks/transfer.ipynb` turn a subset of those results into real, executed
+figures with formulas and interpretation, for a faster read than the full reports.
 
 ## Core idea
 
@@ -32,65 +34,86 @@ rather than wording and should be more robust to that disguise.
 ## Research question
 
 Does a single dense refusal direction hold up as a detector and as a causal
-mechanism across model families and scales, and where a sparse-autoencoder (SAE)
-feature basis instead, and does either approach transfer across models?
+mechanism across model families and scales, does a sparse-autoencoder (SAE)
+feature basis do better where one is available, and does either approach
+transfer across models?
 
 Headline findings so far:
 
 - **Both activation-based detectors crush surface-level baselines on clean prompts**
-  — dense-direction and SAE-feature detectors hit **AUROC 0.94–0.99** across all 5
+  — dense-direction and SAE-feature detectors hit **AUROC 0.91–0.99** across all 6
   models tested, versus keyword filtering (~0.60) and perplexity filtering
   (~0.52, essentially chance).
 - **Llama-3.1-8B-Instruct has the best classifier accuracy of any model tested
-  (93.1%, AUROC 0.989)**, yet is the *only* model where the dense direction's own
-  causal necessity (ablation) fails to replicate (96.0%→94.7%, McNemar p=1.0,
-  n=75) — a genuine, unresolved tension between "best classifier" and "cleanest
-  causal story."
+  (93.1%, AUROC 0.989)**, yet is one of the weakest causal mechanisms — its full
+  dense direction barely moves refusal when ablated (92%→88%, not significant).
+  **This is now resolved, not just documented**: decomposing the direction into
+  the component aligned with its own top SAE feature and the orthogonal remainder
+  shows the small aligned piece alone crashes refusal far more (92%→38%,
+  p<0.0001) than the full direction does, while the orthogonal remainder — 98%
+  of the vector's magnitude — does nothing at all (92%→92%, identical to
+  baseline). Qwen3-8B shows no such asymmetry: both components independently
+  crash its refusal, matching the full direction.
 - **A single SAE feature reproduces almost all of Llama's refusal-ablation
-  effect** (baseline 86%→10% from one feature alone, zero degenerate
+  effect** (baseline 92–98%→10% from one feature alone, zero degenerate
   completions) — where the same test on Qwen3-8B needs the *full* top-15 feature
-  set (top-1 alone: no effect at all, 82%→84%). Two candidate mechanical
-  explanations for this gap were tested directly against cached data and one was
-  ruled out (see "The Llama causal-gap investigation" below) rather than forced
-  into a tidy story.
-- **PAIR-paraphrase robustness has a real, statistically confirmed 5-model
-  spread** (Cochran's Q p=0.0006): SmolLM2 (90.5%) > Llama-3.1-8B (66.7%) >
-  Gemma-2-9B (47.6%) > Qwen3-8B (42.9%) > Qwen2.5-1.5B (38.1%). A **matched-pair**
-  analysis (same underlying request, original vs. its real paraphrase) finds
-  the projection-shift ranking matches this exactly across all 5 models
-  (Spearman rho=-1.0, exact permutation p=0.0167) — and at the SAE-feature
-  level, Llama's specific dominant causal feature shows no statistically
-  detectable shift under paraphrase at all, while Qwen3-8B's/gemma's own top
-  features do. **Token-level ablation gets a step closer to *why***: Llama's
-  top feature is frequently keyed to the literal core harmful-action word
-  itself ("unauthorized", "cloning", "underage", each at rank 1), while
-  Qwen3-8B's top tokens more often surface the fictional/roleplay wrapper
-  PAIR uses to disguise the request instead. A real, directly-read
-  qualitative pattern, not a formally-tested or fully mechanistic claim.
+  set (top-1 alone: no effect at all, 82%→84%). This concentration-vs-distribution
+  asymmetry is the throughline behind both the causal-gap result above and the
+  paraphrase-robustness mechanism below.
+- **PAIR-paraphrase robustness has a real, statistically confirmed 6-model
+  spread** (Cochran's Q = 34.44, df = 5, p = 1.94e-6): SmolLM2 (90.5%) >
+  Llama-3.1-8B (66.7%) > gemma-2-9b-it (47.6%) > Qwen3-8B (42.9%) >
+  Qwen2.5-1.5B (38.1%) > **DeepSeek-R1-Distill-Qwen-1.5B (9.5%)**, a dramatic new
+  low. A **controlled wrapper-swap factorial** (real core-request × wrapper-
+  framing design, not just observational PAIR transcripts) now explains *why*
+  for the two models examined in full depth: Qwen3-8B's dominant feature tracks
+  wrapper framing (η²=0.656, p=0.0001), Llama's tracks the request's actual
+  content (η²=0.407→0.366 once replicated, p=0.015/<0.0001) — and a same-day
+  replicated design with real per-cell phrasing variants confirms Llama's large
+  residual term is a genuine core-by-category interaction (42.4% of variance,
+  p<0.0001 by both an F-test and an independent permutation check), not just
+  measurement noise.
+- **A sixth model, DeepSeek-R1-Distill-Qwen-1.5B, is diffuse across every
+  measurement approach used in this project** — a genuinely null activation-
+  addition result, the weakest dense-direction detector of all six (84.7%,
+  AUROC 0.911), by far the worst PAIR robustness, and an SAE-feature detector
+  that barely fires at all (4.4% VAL recall). Four independent angles converging
+  on the same description is itself the finding.
+- **Cross-model direction transfer, now tested on two architecture-matched
+  pairs, shows no evidence of transfer on either one.** Qwen3-8B↔Llama-3.1-8B
+  (both 4096-d) gives a clean no-transfer result for Qwen3-8B on both necessity
+  and sufficiency; a second pair, Qwen2.5-1.5B↔DeepSeek (both 1536-d, found
+  already sitting in this project's cached models), replicates the same clean
+  no-transfer pattern on its well-powered side (Qwen2.5-1.5B: 96%→4% own vs.
+  96%→90% foreign, p=0.0 vs. p=0.25).
 - **Necessity (ablation) generalizes across model scale far more robustly than
   sufficiency (activation addition)** — a pattern first seen at 1.5–1.7B scale,
-  confirmed again independently at 8–9B scale with a different model pair.
+  confirmed again at 8–9B scale, and most extreme for DeepSeek (a genuine zero-
+  effect sufficiency null against a real, if floor-constrained, necessity
+  signal).
 
 ## Key Results
 
-### Dense-direction detector — cross-model comparison (5 models)
+### Dense-direction detector — cross-model comparison (6 models)
 
 Layer selected and threshold calibrated on VAL, final metrics on held-out TEST
 (n=288: 158 harmful, 130 harmless), same 35-prompt real-JailbreakBench adversarial
-paraphrase set reused across all five models.
+paraphrase set reused across all six models.
 
 | model | layer | TEST accuracy | TEST AUROC | XSTest-safe correctly-not-flagged | PAIR detection |
 |---|---|---|---|---|---|
+| DeepSeek-R1-Distill-Qwen-1.5B | 7 | 84.7% | 0.911 | **100.0%** | **9.5%** |
 | Qwen2.5-1.5B-Instruct | 20 | 89.6% | 0.970 | 75.7% | 38.1% |
 | SmolLM2-1.7B-Instruct | 14 | 87.8% | 0.945 | **100.0%** | **90.5%** |
 | Qwen3-8B | 23 | 88.9% | 0.983 | 94.6% | 42.9% |
 | **Llama-3.1-8B-Instruct** | 27 | **93.1%** | **0.989** | 97.3% | 66.7% |
 | Gemma-2-9B-it | 34 | 93.1% | 0.984 | 89.2% | 47.6% |
 
-All five models land in a comparably strong 87.8–93.1% accuracy / 0.94–0.99 AUROC
-band on clean, in-distribution prompts — the dense-direction approach isn't
-fragile to model choice there. The PAIR-robustness spread above is where models
-genuinely diverge (Cochran's Q = 19.52, df = 4, **p = 0.0006**).
+Five of six models land in a comparably strong 87.8–93.1% accuracy / 0.94–0.99
+AUROC band on clean, in-distribution prompts; DeepSeek is the outlier, weakest of
+all six but still a working classifier. The PAIR-robustness spread is where
+models genuinely diverge, DeepSeek most dramatically (Cochran's Q = 34.44,
+df = 5, **p = 1.94e-6**).
 
 ### Are the differences real? (formal significance testing)
 
@@ -99,16 +122,16 @@ model-vs-model or detector-vs-detector claim here is backed by a paired test on
 the same items, not two independently-eyeballed confidence intervals:
 
 - **Dense-direction vs. SAE-feature, TEST AUROC** (DeLong's test, paired): not
-  significant for Qwen3-8B (p=0.068) or Llama-3.1-8B (p=0.024 is significant,
-  actually — dense wins), clearly significant favoring dense-direction for
-  gemma-2-9b-it (p=0.0063). A genuinely different outcome per model, not
-  smoothed into one headline.
+  significant for Qwen3-8B (p=0.068), significant favoring dense-direction for
+  both Llama-3.1-8B (p=0.024) and gemma-2-9b-it (p=0.0063). A genuinely
+  different outcome per model, not smoothed into one headline.
 - **Dense-direction vs. SAE-feature on the adversarial set** (McNemar's exact):
-  not significant for any of the 3 models with an SAE (Qwen3-8B p=0.5,
-  Llama-3.1-8B p=0.25), *except* gemma-2-9b-it (p=0.0156, all 7 discordant pairs
-  favor dense).
-- **PAIR-robustness across all 5 models** (Cochran's Q, generalizes McNemar's to
-  *k* related classifiers on the same items): Q=19.52, df=4, **p=0.0006**.
+  not significant for Qwen3-8B (p=0.5) or Llama-3.1-8B (p=0.25, though
+  SAE-feature numerically *beats* dense-direction here, 80.9% vs. 66.7% — the
+  one case in this project matching the source paper's original claim), except
+  gemma-2-9b-it (p=0.0156, all 7 discordant pairs favor dense).
+- **PAIR-robustness across all 6 models** (Cochran's Q, generalizes McNemar's to
+  *k* related classifiers on the same items): Q=34.44, df=5, **p=1.94e-6**.
 - **Llama's own dense-direction causal necessity, independently replicated at
   n=75**: baseline 96.0% vs. own-ablation 94.7%, McNemar p=1.0 — does not
   confirm the original n=50 reading (92%→88%, thought to be "real but small");
@@ -116,24 +139,27 @@ the same items, not two independently-eyeballed confidence intervals:
 
 ### SAE-feature detector — causal validation and cross-model extension
 
-Feature suppression validated via real generation (40 tokens, greedy decoding),
-not just attribution scores. K=15 (the original default) independently reproduced
-as each model's own true minimum:
+Feature suppression validated via real generation (greedy decoding), not just
+attribution scores. K=15 (the original default) independently reproduced as
+each model's own true minimum.
 
 | model | baseline refusal | top-1 feature alone | best (top-K) | concentration |
 |---|---|---|---|---|
-| Qwen3-8B | 82.0% | 84.0% (no effect) | 24.0% @ top-15 | **distributed** across the set |
-| Llama-3.1-8B-Instruct | 86.0–98.0%\* | **10.0%** | 0.0% @ top-15 | **concentrated** in 1 feature |
+| Qwen3-8B | 82.0–84.0% | 84.0% (no effect) | 24.0% @ top-15 | **distributed** across the set |
+| Llama-3.1-8B-Instruct | 92.0–98.0%\* | **10.0%** | 0.0% @ top-15 | **concentrated** in 1 feature |
 | gemma-2-9b-it | 96.0% | 94.0% | 82.0% @ top-15/20 | modest, gradual decline |
+| DeepSeek-R1-Distill-Qwen-1.5B | 14.3% | — | — | detector barely fires at all (4.4% VAL recall) |
 
-\*Llama's baseline was corrected from an original 86.0% after a real
-curly-apostrophe classifier bug was found and fixed (see reports/DECISIONS.md);
-both readings are reported honestly where they appear historically.
+\*Llama's baseline appears at several values across this project's history after
+a real curly-apostrophe classifier bug was found and fixed (see reports/DECISIONS.md);
+every reading is reported honestly where it appears rather than silently
+normalized.
 
 TEST AUROC for the SAE-feature detector itself: Qwen3-8B 0.975, Llama-3.1-8B
 0.978, gemma-2-9b-it 0.966 — all in the same high-0.9x band as the dense
-direction, confirming nothing broke in the generalization before looking at the
-finer, genuinely-different comparisons above.
+direction. DeepSeek's SAE-feature detector is a genuine architectural failure,
+not a calibration bug: its SAE's hard top-32-of-65536 sparsity means only a
+handful of the 15 hand-selected features ever fire on a given prompt at all.
 
 ### Baseline detectors and adversarial evaluation (Qwen3-8B)
 
@@ -155,69 +181,114 @@ degrade sharply on PAIR relative to clean TEST performance.
 ### Cross-model direction transfer
 
 Does a direction fit on one model do anything applied to a *different* model's
-activations? Scoped to the only `d_model`-matched pair (Qwen3-8B ↔
-Llama-3.1-8B-Instruct, both 4096). Tested both directions of causal
-intervention: necessity (ablation) and sufficiency (activation addition).
+activations? Tested on both architecture-matched pairs currently available,
+in both causal directions: necessity (ablation) and sufficiency (activation
+addition).
 
-**Necessity:**
+**Pair 1 — Qwen3-8B ↔ Llama-3.1-8B-Instruct (both 4096-d), necessity:**
 
 | | baseline | own-ablation | foreign-ablation |
 |---|---|---|---|
 | Qwen3-8B (foreign = Llama's direction) | 84% | **8%** | 84% (no effect) |
-| Llama-3.1-8B (foreign = Qwen's direction) | 96.0% | 94.7% (n=75, p=1.0) | 92% |
+| Llama-3.1-8B (foreign = Qwen's direction) | 92% | 88% (n.s., p=0.5; 96.0%→94.7% at n=75) | 92% |
 
-**Qwen3-8B: a clean, unambiguous no-transfer result** — own-direction ablation
-works dramatically, the foreign direction does nothing at all. **Llama-3.1-8B:
-inconclusive** — its own dense-direction causal necessity doesn't clearly
-separate from baseline at this sample size either way, so "own vs. foreign" isn't
-a meaningful contrast here yet.
-
-**Sufficiency**, using each model's already-generated baseline/own-addition
+**Pair 1, sufficiency**, using each model's already-generated baseline/own-addition
 completions plus a freshly-calibrated alpha for the foreign direction:
 
 | | baseline | own addition | foreign addition |
 |---|---|---|---|
 | Qwen3-8B (foreign = Llama's direction) | 6.0% | **70.0%** | 6.0% (p=1.0 vs. baseline) |
-| Llama-3.1-8B (foreign = Qwen's direction) | 10.0% | 34.0% | 6.0% (p=0.5 vs. baseline) |
+| Llama-3.1-8B (foreign = Qwen's direction) | 10.0% | 34.0% (p=0.0005) | 6.0% (p=0.5 vs. baseline) |
 
-**Foreign-direction addition induces zero refusal above baseline in both
-models, at every alpha tested** — not a weak effect, an absent one, with a
-clean paired McNemar verdict this time (own vs. foreign p<0.001 for both).
-This resolves what the necessity side left inconclusive for Llama: on the
-sufficiency side, own and foreign are clearly, significantly different, and
-foreign has no detectable effect at all. Both necessity and sufficiency now
-point the same way for this one model pair — not generalized further than
-that.
+**Qwen3-8B: a clean, unambiguous no-transfer result on both axes.** **Llama-3.1-8B:
+necessity is underpowered** (own-direction effect too weak to distinguish from
+noise), **but sufficiency resolves it** — own vs. foreign addition is clearly,
+significantly different (p<0.001), and foreign has no detectable effect at all.
 
-### The Llama causal-gap investigation
+**Pair 2 — Qwen2.5-1.5B-Instruct ↔ DeepSeek-R1-Distill-Qwen-1.5B (both 1536-d),
+necessity only** (found already sitting in this project's cached models, no new
+downloads; an asymmetric design — Qwen2.5-1.5B's standard 40-token budget vs.
+DeepSeek's 2048-token whole-generation budget with truncation-aware McNemar
+comparisons):
 
-Why is Llama-3.1-8B's dense-direction approach weak on both necessity (above)
-and sufficiency (10%→34%, degenerating from alpha≥2.0), while its SAE-feature
-approach ablates refusal dramatically from a single feature? Re-analyzed
-entirely from data already on disk (`scripts/analyze_llama_causal_gap.py`, no new
-GPU generation) — two candidate explanations tested, one ruled out, one left
-genuinely open:
+| | baseline | own-ablation | foreign-ablation |
+|---|---|---|---|
+| Qwen2.5-1.5B (foreign = DeepSeek's direction) | 96.0% | **4.0%** | 90.0% (p=0.25, n.s.) |
+| DeepSeek (foreign = Qwen2.5-1.5B's direction) | 5.9% (n=17/30) | 5.0% (n=20/30) | 0.0% (n=13/30) |
+
+Qwen2.5-1.5B replicates Pair 1's clean no-transfer pattern exactly. DeepSeek as
+the target is genuinely underpowered (near-floor baseline, heavy truncation
+shrinking paired samples to single digits) — reported honestly as inconclusive,
+not oversold as a second no-transfer data point.
+
+### The Llama causal-gap investigation — resolved
+
+Why is Llama-3.1-8B's dense-direction approach weak on both necessity and
+sufficiency, while its SAE-feature approach ablates refusal dramatically from a
+single feature? Two candidate mechanical explanations were tested and one ruled
+out (`scripts/analyze_llama_causal_gap.py`) before a follow-up experiment closed
+the gap for real:
 
 - **Ruled out**: raw direction magnitude. Llama's direction has the smallest raw
-  norm of any model tested (19.1), but normalized by its own ambient activation
-  scale at that layer, it's actually the *largest* fraction (70%) of the models
-  checked — the opposite of what a magnitude-dilution story predicts. Extended
-  to gemma-2-9b-it: its ratio (0.525) is unremarkable, right in the middle of
-  the pack — confirms Llama specifically is the outlier, not "8-9B models" in
-  general.
-- **Inconclusive, not differentiating**: cosine similarity between the dense
-  direction and the top causal SAE feature is ~0.20 for *both* Llama and
-  Qwen3-8B — real alignment above a random-feature baseline (~0.013), but
-  identical across the model where the dense direction works and the one where
-  it doesn't, so it can't be what separates them. gemma's is notably higher
-  (0.367) — a genuine third data point, but gemma has no own-direction
-  dense-ablation causal test in this project to correlate it against, and its
-  own SAE causal-effect shape (modest, gradual decline, no standout feature) is
-  a third pattern entirely, not a blend of Llama's and Qwen3-8B's.
-- **What the data does support**: a genuine concentration-vs-distribution
-  asymmetry (Key Results above) that co-occurs with which model's dense
-  direction ablates/adds cleanly — reported as a real, multi-pronged
-  correlational finding, not a proven mechanism.
+  norm of any model tested, but normalized by its own ambient activation scale
+  at that layer, it's actually the *largest* fraction (70%) of the models
+  checked — the opposite of what a magnitude-dilution story predicts.
+- **Inconclusive on its own**: cosine similarity between the dense direction and
+  the top causal SAE feature is ~0.20 for *both* Llama and Qwen3-8B — real
+  alignment above a random baseline, but identical across the model where the
+  dense direction works and the one where it doesn't.
+- **Resolved by component decomposition** (`scripts/decompose_llama_causal_gap.py`):
+  splitting Llama's unit-normalized dense direction into the component aligned
+  with its own top causal SAE feature and the orthogonal remainder, then
+  ablating each separately (identical 50-prompt held-out set as the transfer
+  experiment above):
+
+  | Llama-3.1-8B-Instruct | refusal rate | vs. baseline |
+  |---|---|---|
+  | baseline | 92.0% | — |
+  | full-direction ablation | 88.0% | p=0.5 (n.s.) |
+  | parallel-component ablation alone | **38.0%** | p<0.0001 |
+  | orthogonal-component ablation alone | 92.0% | p=1.0 (identical) |
+
+  The small feature-aligned piece — only ~20% of the unit direction's weight by
+  cosine — carries essentially all of the causal effect; the large orthogonal
+  remainder (98% of the vector's magnitude) does nothing at all. Run as a
+  contrast, Qwen3-8B shows no such asymmetry: both components independently
+  crash its refusal to near-zero, matching the full direction. This directly
+  explains Llama's best-classifier/weakest-causal-mechanism anomaly — the dense
+  direction is dominated by norm from a causally-inert axis, correlating well
+  enough with the refusal label to classify accurately without being a good
+  causal handle on the mechanism that actually produces refusal.
+
+### Wrapper-swap variance decomposition — what does a dominant feature track?
+
+A controlled factorial (10 real core requests × wrapper framing conditions,
+each model's own top causal SAE feature read via one forward pass, no
+generation) disentangles content from framing directly, closing a qualitative
+token-attribution finding with real statistical power:
+
+| model | η² (core) | η² (wrapper/category) | η² (interaction/residual) |
+|---|---|---|---|
+| Qwen3-8B | 0.227 (p=0.0001) | 0.656 (p=0.0001) | 0.117 |
+| Llama-3.1-8B-Instruct | 0.407 (p=0.0148) | 0.029 (n.s.) | 0.564 |
+
+Qwen3-8B's dominant feature is driven by wrapper/framing identity; Llama's by
+the underlying request's content — exactly the asymmetry a qualitative
+token-level reading suggested, now backed by a within-block permutation test.
+Llama's large residual was flagged as unexplained and closed the same day with
+a **replicated design** (real per-cell phrasing variants, not just repeated
+readings):
+
+| model | η² core | η² category | η² interaction | interaction F-test p | interaction permutation p |
+|---|---|---|---|---|---|
+| Qwen3-8B | 0.349 | 0.217 | 0.086 | 0.813 (n.s.) | 0.680 (n.s.) |
+| Llama-3.1-8B-Instruct | 0.366 | 0.004 (n.s.) | **0.424** | **<0.0001** | **0.0001** |
+
+Llama's large residual really was substantial genuine interaction (core-request
+and wrapper framing interact non-additively for this model), not primarily
+measurement idiosyncrasy — both the classical F-test (now valid with a real
+per-cell error term) and an independent Freedman-Lane permutation check agree.
+Qwen3-8B's core and category effects remain additive, no real interaction.
 
 ## Data
 
@@ -225,21 +296,28 @@ genuinely open:
 - [HarmBench](https://github.com/centerforaisafety/HarmBench) — standardized red-teaming eval set
 - [JailbreakBench / JBB-Behaviors](https://github.com/JailbreakBench/jailbreakbench) — curated behaviors + real jailbreak artifacts
 - [XSTest](https://github.com/paul-rottger/xstest) — safe-but-superficially-harmful prompts, for measuring over-refusal
+- [Alpaca](https://github.com/tatsu-lab/stanford_alpaca) — general-purpose harmless instructions
 
-1990 raw prompts → 1922 after deduplication, stratified train/val/test split via
-a reproducible hash-based manifest (`data/splits/corpus_split_v1.json`).
-Activations cached per model (`results/activations/*.pt`, gitignored — multi-GB).
+Full source/usage table in [DATASETS.md](DATASETS.md). 1990 raw prompts → 1922
+after deduplication, stratified train/val/test split via a reproducible
+hash-based manifest (`data/splits/corpus_split_v1.json`). Activations cached per
+model (`results/activations/*.pt`, gitignored — multi-GB).
 
 ## Models
 
 Open-weight, via Hugging Face: `Qwen2.5-1.5B-Instruct`, `SmolLM2-1.7B-Instruct`
-for fast iteration; `Qwen3-8B`, `Llama-3.1-8B-Instruct`, and `gemma-2-9b-it` (all
-4-bit quantized to fit a 6GB local GPU) for the full cross-model comparison. The
-dense-direction detector runs on all 5 models; the SAE-feature detector runs on
-the 3 8–9B models, each paired with its own pretrained sparse-autoencoder suite
-(Qwen-Scope, LlamaScope, GemmaScope) — Qwen2.5-1.5B and SmolLM2 have no published
-SAE suite, so the SAE-feature detector isn't available for them (reported as an
-honest gap, not hidden).
+for fast iteration; `Qwen3-8B`, `Llama-3.1-8B-Instruct`, `gemma-2-9b-it` (all
+4-bit quantized to fit a 6GB local GPU) for the full cross-model comparison;
+`DeepSeek-R1-Distill-Qwen-1.5B` added last, cheap to run (1.5B, no quantization
+needed) but requiring a genuine methodology adaptation — its chat template
+always reasons inside a `<think>` block with no disable switch, so every
+downstream measurement resolves through the full reasoning trace first rather
+than reading the wrong position (see reports/METHODOLOGY.md). The
+dense-direction detector runs on all 6 models; the SAE-feature detector runs on
+the 4 models with a pretrained sparse-autoencoder suite (Qwen-Scope, LlamaScope,
+GemmaScope, EleutherAI's suite for DeepSeek) — Qwen2.5-1.5B and SmolLM2 have no
+published SAE suite, so the SAE-feature detector isn't available for them
+(reported as an honest gap, not hidden).
 
 ## Repo Structure
 
@@ -255,21 +333,24 @@ src/
   eval/          shared detector metrics, adversarial paraphrase set
   api/           FastAPI backend serving live per-prompt detector inference
 scripts/         standalone runnable pipeline stages (see scripts/README.md)
-notebooks/       exploratory analysis
+notebooks/       mechanism.ipynb (within-model causal mechanism), transfer.ipynb
+                 (cross-model transfer) — real executed figures over saved results
+reports/         DECISIONS.md, RESULTS.md, METHODOLOGY.md, ETHICS.md, figures/
 results/         metrics, figures, activation caches (gitignored)
-tests/           147 fast tests (CI) + 11 real-GPU regression tests
+tests/           156 fast tests (CI) + 19 real-GPU regression tests
 ```
 
 Full rationale for every methodology choice is in [DECISIONS.md](reports/DECISIONS.md);
 results are in [RESULTS.md](reports/RESULTS.md); how each technique works is in
-[METHODOLOGY.md](reports/METHODOLOGY.md).
+[METHODOLOGY.md](reports/METHODOLOGY.md); ethics/safety handling is in
+[ETHICS.md](reports/ETHICS.md).
 
 ## Reproduce
 
 ```bash
 pip install -e .
 pip install torch --index-url https://download.pytorch.org/whl/cu130
-pytest -m "not model"          # 147 fast tests, no GPU needed
+pytest -m "not model"          # 156 fast tests, no GPU needed
 python scripts/reproduce_direction.py       # single-direction reproduction
 python scripts/rank_sae_features.py         # SAE causal ranking (Qwen3-8B)
 python scripts/validate_sae_features.py     # SAE causal validation
@@ -291,24 +372,30 @@ completions are never committed (see `.gitignore`) — only aggregate statistics
   classifiers/conditions on the same items, DeLong's test for paired AUROC,
   Cochran's Q for *k* related classifiers on the same items — each adopted after
   catching an earlier informal comparison that used the wrong tool.
+- **Exact/permutation-based p-values at small sample sizes** — used for
+  rank-correlation tests at n=5–6 models and for the wrapper-swap factorial's
+  interaction tests, where a conventional asymptotic test's own assumptions
+  don't hold at these sample sizes.
 - **Split discipline**: layer selection and threshold calibration on VAL only,
   TEST untouched until final reporting; a mild leakage pattern in an early run
   was found, checked (made no practical difference), and fixed going forward.
 - **Independent replication before trusting a small effect**: Llama's original
   92%→88% ablation reading was re-tested at n=75 on a fresh sample rather than
-  taken as settled — it did not replicate.
+  taken as settled — it did not replicate. The wrapper-swap factorial's
+  unreplicated residual term was similarly re-tested with a genuine per-cell
+  replicated design before being trusted as real interaction.
 - **Real generation, not just attribution scores**, for every causal-validation
-  claim (SAE suppression, dense-direction ablation/addition) — attribution
-  patching only ranks candidates; the actual result is measured by generating
-  real completions and scoring them.
+  claim (SAE suppression, dense-direction ablation/addition, component
+  decomposition) — attribution patching only ranks candidates; the actual
+  result is measured by generating real completions and scoring them.
 
 ## Testing & Validation
 
-147 fast unit/integration tests (`pytest -m "not model"`, CI-required, no GPU
+156 fast unit/integration tests (`pytest -m "not model"`, CI-required, no GPU
 needed) covering direction computation, ablation/addition math, refusal
 classification, detector metrics (Wilson CI, McNemar, DeLong, Cochran's Q), SAE
 loading per provider, and the FastAPI backend (stubbed model/tokenizer, matching
-this project's own established stub-testing convention). 11 additional
+this project's own established stub-testing convention). 19 additional
 `@pytest.mark.model`-tagged tests run against real small models as a
 lower-frequency hardware regression check, not part of the CI-required set.
 
@@ -320,82 +407,62 @@ switch targets) and serves all four detectors (keyword, perplexity,
 dense-direction, SAE-feature) for arbitrary prompts, not just the pre-collected
 corpus.
 
-**Interactive detector UI** (frontend, in progress, not yet merged) — plain
-HTML/JS/CSS page over the API above, plus a Findings dashboard built from this
-project's own reports/RESULTS.md numbers (TEST AUROC by model, PAIR-robustness ranking,
-dense-vs-SAE head-to-head), verified live in-browser against the real GPU.
+**Interactive detector UI** (`webapp/`, branch `ui`, live-verified, not yet
+merged) — plain HTML/JS/CSS page over the API above, plus a Findings dashboard
+built from this project's own reports/RESULTS.md numbers, verified live
+in-browser against the real GPU. Merge is a standing decision, not pushed
+forward without explicit sign-off.
 
 ## Roadmap
 
 **Done:**
 - Single-direction reproduction (Qwen2.5-1.5B, SmolLM2) — necessity and
   sufficiency both confirmed, non-overlapping CIs vs. baseline.
-- Dataset pipeline — 4 datasets unified, deduplicated, stratified split,
+- Dataset pipeline — 5 datasets unified, deduplicated, stratified split,
   activations cached and cross-model-consistency-checked.
-- SAE-feature detector (Qwen3-8B) — causal ranking via attribution patching,
-  causal validation via real-generation suppression, a clean monotonic
-  dose-response curve after fixing a stochastic-sampling bug.
+- Dense-direction and SAE-feature detectors extended across all applicable
+  models (dense: 6 of 6; SAE-feature: 4 of 6, the ones with a pretrained SAE
+  suite) — causal ranking, real-generation causal validation, and the
+  prompt-classifier reframing, each backed by formal significance testing.
 - Baseline detectors + adversarial evaluation — keyword/perplexity baselines,
   head-to-head against both activation-based detectors, real JailbreakBench
   adversarial paraphrase set, XSTest false-positive ("safety tax") measurement.
-- Dense-direction detector extended to all 5 models — comparably strong clean-
-  prompt accuracy everywhere, a real and statistically confirmed PAIR-robustness
-  spread across models.
-- SAE-feature detector extended to Llama-3.1-8B and gemma-2-9b-it — causal
-  ranking, real-generation validation, and the prompt-classifier reframing, all
-  three models now covered.
-- Cross-model direction transfer (necessity) — a clean no-transfer result for
-  Qwen3-8B, an inconclusive one for Llama-3.1-8B, independently replicated at
-  larger N.
-- Cross-model direction transfer (sufficiency) — zero detectable effect from
-  either model's foreign direction at any alpha, a clean paired-McNemar verdict
-  resolving what the necessity side left inconclusive for Llama.
+- DeepSeek-R1-Distill-Qwen-1.5B onboarded as a 6th model, including the
+  reasoning-trace methodology adaptation its `<think>`-block chat template
+  required — diffuse across every measurement approach used in this project.
+- Cross-model direction transfer, necessity and sufficiency, on **two**
+  architecture-matched pairs (Qwen3-8B↔Llama-3.1-8B, Qwen2.5-1.5B↔DeepSeek) —
+  clean no-transfer on every well-powered comparison.
+- **The Llama causal-gap investigation, resolved**: component decomposition
+  isolates the exact axis carrying Llama's (otherwise weak) causal effect,
+  explaining its best-classifier/weakest-causal-mechanism anomaly directly
+  rather than leaving it as an open correlational finding.
+- **Wrapper-swap variance decomposition, closed and replicated**: a controlled
+  factorial establishes what each model's dominant SAE feature tracks (content
+  vs. framing) with real statistical power, then a same-day replicated design
+  confirms Llama's large residual term is genuine interaction, not noise.
+- PAIR-robustness spread: matched-pair mechanistic chain (margin correlation →
+  signal-decay analysis → token-level attribution → the wrapper-swap factorial
+  above) — from an aggregate correlation to a real, causally-grounded account
+  for two of six models.
 - Live-inference API backend, with full test coverage and a real-GPU smoke test.
-- The Llama causal-gap investigation, extended to gemma-2-9b-it (see Key
-  Results above) — unremarkable magnitude ratio, notably higher SAE alignment,
-  a third distinct causal-effect shape.
-- PAIR-robustness spread: continuous margin analysis (Spearman rho=0.90,
-  p=0.037, n=5) — sharpens the description with a formal test, doesn't
-  identify a mechanism.
-- Llama's dense-vs-SAE PAIR flip: a more powered paired continuous test
-  (Wilcoxon p=0.147) than the original binary McNemar (p=0.25) — still not
-  significant, genuinely inconclusive rather than resolved either way.
-- Moralize-vs-comply classifier retry with a larger (8B) local judge —
-  discriminates across categories unlike the two prior failures, but scores
-  0% on the actual load-bearing case (harmful-prompt comply/partial) plus a
-  confirmed self-judging bias; a third, more informative failure mode, not
-  a fix.
-- Matched-pair mechanistic dig into PAIR-robustness: exact rank match across
-  all 5 models (Spearman rho=-1.0, exact permutation p=0.0167) between
-  paraphrase-induced signal shift and known robustness; direct evidence
-  Llama's dominant causal SAE feature specifically resists paraphrase where
-  Qwen3-8B's/gemma's own top features don't. Real, mechanism-adjacent
-  support, not a full explanation of *why*.
-- Token-level attribution (Tier 2): single-token leave-one-out ablation on
-  all 21 real PAIR prompts finds Llama's top feature frequently keyed to
-  the literal core harmful-action word itself ("unauthorized", "cloning",
-  "underage", all at rank 1), where Qwen3-8B's top tokens more often
-  surface the fictional/roleplay wrapper instead ("hypothetical",
-  "consultant"). A real, directly-read qualitative pattern (~9/21 vs.
-  ~6/21 prompts), not a clean or formally-tested split — see reports/RESULTS.md
-  for the full account, including two failed Integrated Gradients attempts
-  that preceded this simpler, working method.
+- ETHICS.md rewritten as a real submission-ready document (still only
+  submittable by the project owner, not something this repo automates).
 
-**Remaining:**
-- Interactive detector UI frontend — built and live-verified, pending final
-  sign-off before merge.
-- A reusable automated moralize-vs-comply classifier — three candidate local
-  judge models now tried, all failed validation, each a different failure
-  mode; extending true-harmful-compliance labeling elsewhere still needs
-  manual effort per completion set.
-- A handful of statistically-confirmed cross-model differences with no
-  *complete* mechanistic explanation (PAIR-robustness spread — now has
-  real matched-pair, feature-level mechanism-adjacent evidence, but not a
-  full account of *why* Llama's dominant feature specifically resists
-  paraphrase; XSTest false-positive non-monotonicity; Llama's dense-vs-SAE
-  PAIR flip — more carefully tested, still inconclusive) — reported
-  honestly as open questions rather than forced into an explanation,
-  consistent with this project's standing practice throughout. Token-level
-  attribution of what the paraphrase actually changes would be the next,
-  genuinely heavier step (new GPU work), explicitly not attempted this
-  session.
+**Remaining, deliberately not pursued right now:**
+- Interactive detector UI frontend — built and live-verified on `ui`, merge
+  decision left to the project owner.
+- **A reusable automated moralize-vs-comply classifier** — three candidate
+  local judge models tried, all failed validation, each a different failure
+  mode. A fourth attempt is a plausible next step but carries real risk of a
+  fourth distinct failure mode rather than a guaranteed fix, so it isn't
+  attempted just to close the gap.
+- **Comparing DeepSeek's diffuse representation against other distilled
+  models** — would need models genuinely outside this project's current scope
+  (nothing to swap in from the existing six), a real scope expansion rather
+  than a quick follow-up.
+- **Why Llama's core-by-category interaction exists mechanistically** — the
+  wrapper-swap replication confirms the interaction is real and quantifies it,
+  but not *why* content and framing interact non-additively for this model
+  specifically; would need examining which (core, category) cells drive it, a
+  further decomposition not yet attempted.
