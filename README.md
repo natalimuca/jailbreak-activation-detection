@@ -450,8 +450,6 @@ forward without explicit sign-off.
   submittable by the project owner, not something this repo automates).
 
 **Remaining, deliberately not pursued right now:**
-- Interactive detector UI frontend — built and live-verified on `ui`, merge
-  decision left to the project owner.
 - **A reusable automated moralize-vs-comply classifier** — three candidate
   local judge models tried, all failed validation, each a different failure
   mode. A fourth attempt is a plausible next step but carries real risk of a
