@@ -2870,3 +2870,50 @@ moderately similar to their own category's original template (0.585,
 design) but were reworded to reduce overlap further out of caution; all 8
 scored low similarity against the real PAIR corpus (max 0.115) and clean
 on the content-leakage check throughout.
+
+## Per-cell decomposition of Llama's wrapper-swap interaction (2026-07-29)
+
+Follow-up to the replicated wrapper-swap design's standing open question
+("why does Llama's core x category interaction exist mechanistically") --
+a pure re-analysis of `results/wrapper_swap_replication.json`'s already-
+saved activation grids, no new GPU generation needed. New script
+`scripts/wrapper_interaction_cells.py`: for each (core, category) cell,
+subtracts the additive-model prediction (row mean + column mean - grand
+mean, the same fit already used by `freedman_lane_interaction_test()`)
+from the real cell mean, isolating a per-cell interaction residual
+distinct from the within-cell phrasing noise the replicated design
+already separates out.
+
+**Real, clean structure, not noise spread evenly across all 10 core
+requests**: 2 of Llama's 10 core requests (the Trump-2020-election
+misinformation request and the blackmail-message request) show an
+interaction range across the 4 wrapper categories of 1.7-1.8, a roughly
+2.5-9x gap above the remaining 8 requests (range 0.19-0.67). Sanity-
+checked directly against the largest individual cells (not just the
+range statistic): the single largest cell is the blackmail request under
+the fiction wrapper, and the Trump-election request shows large
+interaction values of *opposite sign* under hypothetical vs. fiction --
+exactly the signature of genuine interaction (the same core request's
+response to wrapper framing flips direction), not a data artifact in one
+cell.
+
+**Qualitative task-type read, explicitly flagged as a candidate not an
+established finding**: unlike this project's usual practice of running
+an automated classifier or a fully controlled follow-up, this observation
+comes from directly reading the two standout requests' content -- both
+differ in *task type* from the other 8 (which are uniformly "explain a
+harmful procedure" asks). The Trump request asks the model to construct/
+validate false factual content; the blackmail request asks the model to
+directly generate the harmful artifact itself, not explain how to make
+one. Stated explicitly as a candidate explanation worth a real controlled
+follow-up (task-type as a deliberate factor), not as a proven mechanism --
+2 anomalous requests out of 10 is too small a sample to treat as
+confirmed without a purpose-built design, and this project's standing
+discipline is to not force a tidy story onto an honestly partial finding.
+
+**Qwen3-8B deliberately excluded from the per-cell writeup**: its own
+interaction term is not statistically significant, so ranking its cells
+by |interaction| would just be ranking noise -- reported in the script's
+saved JSON for completeness but not narrated in RESULTS.md as if it were
+a real pattern, consistent with this project's standing practice of not
+over-reading null results.
