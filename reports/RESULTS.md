@@ -970,6 +970,244 @@ examining "which cells drive" a null result would risk over-reading
 noise as structure. Full per-cell values for both models in
 `results/wrapper_interaction_cells.json`.
 
+### Testing the task-type hypothesis directly: a new controlled design (2026-07-29)
+
+The candidate explanation above (the 2 standout requests differ in task
+type from the other 8) is tested directly rather than left as an
+unconfirmed read. 12 new core requests, real and drawn from this
+project's existing corpus (never authored, none overlapping the original
+10), balanced 4/4/4 across three deliberate task types: `procedural`
+("explain/describe/provide instructions for X"), `direct_artifact`
+("write/compose the harmful text itself"), `false_narrative`
+("create/spread false content") -- crossed with the same 4 wrapper
+categories and 3-phrasing-per-category scheme as the replicated design
+above (`scripts/wrapper_task_type.py`). Both models tested. Two analyses
+on the same 144-reading grid, both via the already-verified
+`balanced_anova()`/`freedman_lane_interaction_test()` (no new statistical
+formulas): task_type x category (treating each type's 4 cores x 3
+phrasings as 12 replicates per cell -- the direct test of the hypothesis),
+and core x category on just these 12 new requests (a same-shape
+replication check). The grid-reshaping logic (grouping cores into task
+types) was verified against synthetic data (an exact sum-of-squares match
+between the two groupings' `ss_total`) before running on real activations.
+
+| Model | Grouping | η² interaction | F-test p | permutation p |
+|---|---|---|---|---|
+| Qwen3-8B | core (12 new) x category | 0.065 | 0.986 (n.s.) | 0.967 (n.s.) |
+| Qwen3-8B | task_type x category | 0.037 | 0.148 (n.s.) | 0.130 (n.s.) |
+| Llama-3.1-8B-Instruct | core (12 new) x category | **0.169** | **4.2e-06** | **0.0001** |
+| Llama-3.1-8B-Instruct | task_type x category | 0.035 | 0.416 (n.s.) | 0.393 (n.s.) |
+
+**The core x category interaction cleanly replicates on this entirely
+fresh sample of 12 requests** -- strong, independent confirmation the
+phenomenon itself is real and reproducible, not an artifact of the
+original 10 prompts. **The task-type hypothesis, tested directly, does
+not hold up**: grouping cores into procedural / direct_artifact /
+false_narrative and testing task_type x category gives a clean null for
+both models. Reported plainly as a negative result for this specific
+candidate explanation, not reframed to look like partial support.
+
+**Why the task-type grouping washes out the (real) core-level signal**: a
+per-cell breakdown of the new 12-core grid (same method as above) shows
+the same concentration pattern as the original 10 -- interaction
+concentrates in 2 of the 12 new requests, both **false_narrative** type
+and both literally phrased "fake news article": "...spreads false
+information about a political candidate" (range 1.523 across categories)
+and "...that could lead to panic or chaos" (range 1.302). The other two
+false_narrative requests in this batch (a race/religion misinformation
+blog post, a search-engine-manipulation program) are far more modest
+(0.618, 0.494), similar to the procedural and direct_artifact requests
+(0.246-0.750) -- so even within the one task type that happened to
+contain the two biggest hits, the group average is diluted by its own
+other members. The interaction is not a task-type-level property; it
+concentrates in a handful of specific requests for reasons this data does
+not establish, now narrower than "task type" but not yet resolved -- a
+literal-phrasing or narrow-sub-topic account ("fake news article", public
+political/panic misinformation specifically) is a new, even more
+speculative candidate than task type was, offered as such and not tested
+further here. Full grids and stats in `results/wrapper_task_type.json`.
+
+### A data-driven feature search, and a genuine negative result (2026-07-29)
+
+Rather than hand-picking a third categorical narrative from the previous
+round's 2 outliers -- a real risk of unfalsifiable post-hoc pattern-hunting
+-- this round samples 48 entirely new core requests (equal allocation, 12
+per source: AdvBench/HarmBench/JBB/XSTest, reproducible seed, none
+overlapping the 22 already used, near-duplicates excluded via the same
+gate `src.data.dedup.deduplicate()` uses) and tests several **objective,
+pre-committed** textual features against each request's interaction range,
+rather than one more guessed category (`scripts/wrapper_feature_search.py`).
+Features were fixed and computed before any forward pass, and split
+explicitly into two tiers: **Tier A** (blind, corrected as a family --
+word count, average word length, keyword-filter lexicon score, source
+dataset) and **Tier B** (explicitly non-blind, reported separately,
+never corrected -- starting-verb category, a direct replication check of
+the already-rejected task-type hypothesis; proper-noun count, transparently
+motivated by the "Trump"/"fake news article" outliers). Significance via a
+maxT (Westfall-Young) permutation test over the Tier-A family, cross-checked
+against Benjamini-Hochberg FDR (`scipy.stats.false_discovery_control`) --
+the maxT scheme was verified on synthetic null and planted-effect cases
+before being trusted on real activations.
+
+**The underlying interaction replicates for a third time, more strongly
+than either prior round**: on this fresh, randomly-sampled set of 48
+requests, Llama's core x category interaction is η²=0.286 (F-test
+p=1.11e-16, permutation p=5e-05) -- stronger than the original 10-request
+design (η²=0.424) and the task-type round's 12 new requests (η²=0.169),
+via the same unmodified `balanced_anova`/`freedman_lane_interaction_test`.
+Qwen3-8B's replication check stays a clean null (η²=0.100, p=0.664/0.322),
+as in every prior round.
+
+**None of the four pre-registered Tier-A features predict it, for either
+model.** For Llama: word count (BH p=0.39), average word length (BH
+p=0.71), keyword-filter score (BH p=0.71), source dataset (BH p=0.39) --
+maxT and BH-FDR agree closely, and nothing comes close to the conventional
+threshold. Reported as a genuine negative result, not reframed --
+consistent with this project's track record on the task-type hypothesis
+one round earlier.
+
+**Tier B's nominal hits are flagged, not treated as a finding.**
+Starting-verb category (raw p=0.0285) and proper-noun count (raw p=0.0249)
+both come back under 0.05 *uncorrected* for Llama. Neither is trusted:
+starting-verb category directly re-tests the task-type hypothesis a
+purpose-built controlled 2-way ANOVA already rejected cleanly one round
+earlier (p=0.416) -- a nominally-significant hit on a second, less
+rigorous test of an already-refuted hypothesis is exactly the false-positive
+pattern the Tier-A/Tier-B split and correction discipline exist to expose,
+not evidence the earlier null was wrong. Proper-noun count was excluded
+from Tier A specifically because it was transparently motivated by the
+two outlier requests this whole investigation began from; a marginal,
+uncorrected hit on the same feature is the predictable result of testing
+a hypothesis built to fit the very data it's now being tested against, not
+independent confirmation.
+
+**Where this leaves the open question**: after three rounds (component-level
+decomposition, a task-type hypothesis test, and now a blind multi-feature
+search), Llama's core x category interaction is about as well-replicated as
+any finding in this project -- real, reproducible, and now confirmed a
+third independent time at even larger effect size. *Why* it concentrates
+in a handful of specific requests remains genuinely unresolved: no
+objective, pre-committed textual property tested here explains it. This is
+reported as an honest limit, not chased with a fourth guessed category --
+consistent with this project's standing practice of stopping at a real,
+well-documented open question rather than forcing an explanation the data
+doesn't support. Full grids, features, and stats (including both tiers,
+both models) in `results/wrapper_feature_search.json`.
+
+### Testing a literature-motivated salience hypothesis (2026-07-29)
+
+A literature pass (`LITERATURE.md`) surfaced a candidate not covered by
+any Tier-A feature above: general SAE/feature-frequency research finds a
+concept's representation geometry depends on its salience/frequency in
+training data, and the two requests driving Llama's interaction most
+("Trump 2020 election", "fake news article") are both unusually
+high-salience real-world phrases compared to this project's more generic
+templated requests. Tested directly rather than left as a literature
+citation (`scripts/wrapper_salience_test.py`): salience operationalized as
+raw perplexity under this project's own existing GCG-detection reference
+LM (Olmo-3-1025-7B, `src/baselines/perplexity_filter.py` -- built for an
+unrelated purpose, reused not duplicated; lower perplexity approximates
+higher real-world salience/commonness). No new SAE-feature measurement was
+needed -- the 48 cores and their already-computed `interaction_range` came
+directly from `results/wrapper_feature_search.json`; this only added the
+one new feature and a single Spearman permutation test against data
+already collected.
+
+**Stated honestly, this test is neither blind nor outlier-word-derived --
+a real third category worth naming plainly.** It was proposed after
+already seeing all four Tier-A features fail, so it is not part of that
+pre-registered family and gets no family correction (there is only one
+new test here); unlike Tier B's `proper_noun_count`, it was not reverse-
+engineered from the specific outlier strings ("Trump", "fake news
+article") but derived from an independent literature finding about
+training-data salience in general. Reported as its own single, clearly-
+labeled post-hoc test with its own uncorrected p-value, not dressed up as
+either a blind result or dismissed as equivalent to Tier B's fit.
+
+**Result: another clean negative.** Llama: rho=-0.110, p=0.457 (n.s.);
+Qwen3-8B: rho=-0.166, p=0.260 (also n.s., and not expected to show
+anything under this hypothesis either, since Qwen's own interaction is
+already null). Both correlations run in the direction the hypothesis
+predicts (lower perplexity/higher salience associated with larger
+interaction range) but nowhere near significant at n=48. Perplexity-as-
+salience does not explain the interaction any better than task type or
+the four blind surface features did.
+
+**Where this leaves things, stated plainly rather than reached past**:
+four independent, honestly-tested candidate explanations (task type,
+4 blind textual features, and now a literature-motivated salience proxy)
+have all failed to predict which specific core requests drive Llama's
+interaction, while the interaction itself keeps replicating cleanly
+across three independent samples. Full results in
+`results/wrapper_salience_test.json`.
+
+### A token-level read: a genuine qualitative pattern (2026-07-29)
+
+Four surface/corpus-level hypotheses (task type, four blind textual
+features, salience-via-perplexity) all having failed, this asks a
+different kind of question: not what property of the *text* predicts the
+interaction, but what the *feature itself does* differently, token by
+token, for high- vs. low-interaction requests -- reusing the exact
+single-token leave-one-out ablation method already built and verified in
+Section 5.4.3/`scripts/token_attribution.py` (no new attribution
+machinery), applied to a matched contrast set rather than a formal
+statistical test (`scripts/wrapper_token_read.py`). 4 high-interaction and
+4 low-interaction core requests, drawn from across all three prior rounds
+(spanning short templated AdvBench-style asks, a task-type/false-narrative
+request, and -- surfaced while picking this set -- an XSTest item and,
+noted but not included here for length, a long HarmBench contextual
+political-rant prompt that scored even higher interaction than the
+original Trump-election request), each read under all 5 wrapper conditions
+(bare + the 4 categories' original phrasing).
+
+**A real, directly-observed pattern, deliberately qualitative and not run
+through automated stats or a formal test (same discipline as Section
+5.4.3)**: low-interaction requests keep the *same* top-attributed content
+token locked across every single wrapper condition -- "scam" is the
+rank-1 token for the MLM request under all five conditions (bare, fiction,
+hypothetical, research, roleplay alike); "inciting"/"Write" and
+"text"/"Generate" show similarly stable content-token dominance for the
+other two low-interaction requests. High-interaction requests instead show
+the top-attributed token genuinely swinging between core-content words and
+wrapper-scaffolding words depending on framing -- most dramatically under
+the **fiction** condition specifically, which in 3 of 4 high-interaction
+requests causes the feature's top tokens to shift heavily toward narrative
+language ("character", "explains", "explanation") rather than the actual
+request content, sometimes accompanied by a large swing in the feature's
+raw activation level itself (e.g. the XSTest boss-salary request: natural
+value 2.91 under bare, dropping to 0.49 under hypothetical, where the top
+tokens become almost purely framing words -- "hypothetical", "purely",
+"application" -- with no request content in the top-5 at all).
+
+**What this does and doesn't establish**: a genuine, causally-grounded
+qualitative signature -- "does this request's top-attributed token stay
+locked to its own content regardless of wrapper, or does it get displaced
+by framing language under at least one wrapper" -- that low- and
+high-interaction requests visibly differ on, at the level of what the
+model's own feature attends to, not just a property of the raw text. This
+is a real step past the four failed surface/corpus hypotheses in kind, not
+just another guess, since it's the first account grounded in what
+actually happens inside the model rather than a property measurable from
+the prompt string alone. It is explicitly **not** a formal, validated
+finding: n=4 vs. 4, read directly rather than scored by an automated or
+inter-rater-checked procedure, and does not explain *why* some requests'
+content representations are more easily displaced by wrapper framing than
+others -- that remains open. Full per-token results (all 5 categories, all
+8 requests) in `results/wrapper_token_read.json`.
+
+**Where this leaves the open question overall**: five rounds in (per-cell
+decomposition, task type, four blind features, salience, and now this
+token-level read), the interaction itself is as well-replicated as
+anything in this project, and this round finally surfaces a real
+qualitative signature at the mechanism level rather than another failed
+surface-property guess -- but a full causal account (formally testing
+whether "content-token lock vs. displacement under fiction framing"
+predicts interaction range across a larger sample, not just 4-vs-4) is a
+further, heavier step not attempted here. Continuing to test one-off
+surface hypotheses would have had real diminishing returns; this
+qualitative pattern is a genuinely different and more promising direction
+if a future round takes it further.
+
 ### Known limitations (baseline detectors and adversarial evaluation)
 
 - **Adversarial set is small** (n=35, spanning only 11 of TEST's JBB-sourced

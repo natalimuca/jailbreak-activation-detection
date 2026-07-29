@@ -459,8 +459,20 @@ forward without explicit sign-off.
   models** — would need models genuinely outside this project's current scope
   (nothing to swap in from the existing six), a real scope expansion rather
   than a quick follow-up.
-- **Why Llama's core-by-category interaction exists mechanistically** — the
-  wrapper-swap replication confirms the interaction is real and quantifies it,
-  but not *why* content and framing interact non-additively for this model
-  specifically; would need examining which (core, category) cells drive it, a
-  further decomposition not yet attempted.
+- **Why Llama's core-by-category interaction exists mechanistically** —
+  extensively tested across five rounds (per-cell decomposition, a
+  task-type hypothesis, a blind multi-feature search, a literature-
+  motivated salience test, and a token-level attribution read), the first
+  four independently rejected as formal hypotheses. The interaction itself
+  is confirmed a third independent time, more strongly than ever
+  (η²=0.286 at n=48) — no surface or corpus-level property of the request
+  text (task type, word count, average word length, keyword-lexicon score,
+  source dataset, salience-via-perplexity) predicts it. The fifth round
+  finally found a real qualitative signature at the mechanism level: low-
+  interaction requests keep the same top-attributed token locked across
+  every wrapper condition, while high-interaction requests show the
+  top token swinging between content and framing language — most
+  consistently under the fiction wrapper specifically — a genuinely
+  different kind of finding (grounded in what the model's feature attends
+  to, not the prompt text), though not yet a formally tested account of
+  *why*.

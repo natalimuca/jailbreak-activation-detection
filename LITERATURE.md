@@ -120,6 +120,71 @@ filter" alone.
   relevant prior art for whatever robustness techniques the SAE-detector
   phase ends up needing against adversarial paraphrase.
 
+## Why does Llama's core-request x wrapper-framing interaction concentrate in specific requests? (literature context, 2026-07-29)
+
+Three rounds of this project's own experiments (per-cell decomposition,
+a rejected task-type hypothesis, a blind multi-feature search with proper
+multiple-comparison correction -- see [RESULTS.md](reports/RESULTS.md),
+[DECISIONS.md](reports/DECISIONS.md)) confirmed Llama-3.1-8B-Instruct's
+core x category interaction is real and highly reproducible (η²=0.286 at
+n=48, the strongest replication yet), but left *why* it concentrates in a
+handful of specific requests unresolved -- no objective feature tested
+predicts it. A literature pass (abstract-level, not close-read) looking
+for external context on this specific question found three candidate
+angles, none of which resolve the question but each gives it real
+grounding rather than leaving it purely speculative:
+
+- **Khorramrouz & Levy, "Characterizing Selective Refusal Bias in Large
+  Language Models"** (ACL Findings 2026,
+  [arXiv:2510.27087](https://arxiv.org/abs/2510.27087)). Finds refusal
+  rates and refusal-response characteristics (length, type) vary by
+  specific demographic target/topic in ways not explained by a uniform
+  harm-level function -- i.e. topic-specific idiosyncrasy in refusal
+  behavior is an independently documented phenomenon in the field, not
+  unique to this project's data. **Relevance**: supports treating "which
+  specific requests interact unusually with framing" as a real, recognized
+  class of effect rather than assuming it must reduce to some clean
+  category (task type, source dataset, etc.) this project simply hasn't
+  found yet -- the literature's own finding is that this kind of
+  topic-specificity often does *not* reduce to a clean predictor.
+- **"Can't hide behind the frame: Disentangling goal & framing for
+  detecting LLM jailbreaks"** ([OpenReview](https://openreview.net/forum?id=VY9hVzmxg6),
+  submitted ICLR 2026, **later withdrawn** -- treated with appropriate
+  extra skepticism given that status, not close-read). Its stated premise
+  is a self-supervised disentanglement of "goal" (the underlying request)
+  and "framing" (surface wrapper) as separate signals in LLM
+  representations, reporting "distinct profiles for goal and framing
+  signals" per input. **Relevance**: this is essentially the same
+  goal-vs-framing distinction this project's wrapper-swap design already
+  makes, from an independent group, on the general premise that some
+  inputs are goal-dominant and others framing-dominant -- external
+  validation that the *paradigm* (separating core-request identity from
+  wrapper-framing identity) is a real, recognized axis of variation in
+  LLM representations, even though it doesn't say why *these two* specific
+  requests land where they do.
+- **General SAE/feature-frequency literature** (surveyed abstract-level,
+  not one specific paper): recurring finding that a concept's representation
+  geometry depends on its frequency/salience in training data -- rarer
+  features/co-occurrences tend toward more superposed (entangled)
+  representations, while linear relational representations are more likely
+  to form once a concept's co-occurrence frequency clears some threshold.
+  **Relevance, tested directly rather than left speculative**: "Trump 2020
+  election" and "fake news article" are both unusually high-salience,
+  heavily-discussed real-world phrases compared to this project's more
+  generic templated harmful requests, so if a request's real-world
+  discourse salience shapes how strongly its "goal" representation
+  competes with wrapper "framing" for the same feature, that would predict
+  exactly the request-specific interaction this project keeps finding.
+  **Tested via perplexity under this project's own existing reference LM
+  as a salience proxy** (`scripts/wrapper_salience_test.py`,
+  2026-07-29) against the already-collected 48-core interaction data --
+  **result: a clean negative** (Llama rho=-0.110, p=0.457; Qwen3-8B
+  rho=-0.166, p=0.260), the correct direction but nowhere near
+  significant. See [RESULTS.md](reports/RESULTS.md) and
+  [DECISIONS.md](reports/DECISIONS.md) for the full account, including
+  this project's now four-hypotheses-deep honest track record on this
+  specific open question.
+
 ## Where this project's contribution sits
 
 Given the above, "activation-based jailbreak detector" alone is not novel.

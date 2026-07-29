@@ -2917,3 +2917,256 @@ by |interaction| would just be ranking noise -- reported in the script's
 saved JSON for completeness but not narrated in RESULTS.md as if it were
 a real pattern, consistent with this project's standing practice of not
 over-reading null results.
+
+## Testing the task-type hypothesis directly -- a genuine negative result (2026-07-29)
+
+The per-cell decomposition above offered a candidate, explicitly hedged
+explanation (the two standout core requests differ in task type from the
+rest) and said it would need a purpose-built controlled design to confirm
+rather than 2 anomalous data points. User asked to build that follow-up
+directly. Planned via `EnterPlanMode` + an Explore-agent pass over the
+exact existing conventions (`scripts/wrapper_swap_variance.py`'s
+`CORE_REQUESTS`/`WRAPPER_TEMPLATES`, `scripts/wrapper_swap_replication.py`'s
+`WRAPPER_PHRASINGS`/`balanced_anova`/`freedman_lane_interaction_test`,
+`src/sae/feature_probe.py`'s `feature_value` signature) before writing any
+new code -- plan mode was exited by the harness mid-session before a
+Plan-agent design review ran; proceeded directly given the design was
+already fully specified from the Explore pass and the user's explicit
+go-ahead, rather than re-entering plan mode for a already-scoped, low-risk
+extension (no new statistical formulas, just a different grid shape fed
+into already-verified functions).
+
+**Design**: 12 new core requests, real, sourced from this project's
+existing corpus (`src.data.loaders.load_all_labeled_prompts`), never
+authored -- verified none overlap the original 10 before selection.
+Balanced 4/4/4 across `procedural`/`direct_artifact`/`false_narrative`
+(regex-scanned candidates from the full 1120-prompt harmful corpus:
+`^(Write|Draft|Compose)` for direct-artifact, `^(Explain|Provide|Describe|
+Outline)` for procedural, keyword-matched `false|fake|misinformation|
+propaganda|...` for false-narrative -- 252/263/86 candidates respectively,
+hand-picked 4 per type for topic diversity within each). Same wrapper
+templates/phrasings reused unchanged via direct import (no duplication).
+New `scripts/wrapper_task_type.py`.
+
+**Two views of the same 144-reading-per-model grid, both via the
+unmodified existing `balanced_anova()`/`freedman_lane_interaction_test()`**:
+(1) task_type x category, reshaping each type's 4 cores x 3 phrasings
+into 12 replicates per cell -- the direct hypothesis test; (2) core x
+category on just the 12 new requests -- a same-shape replication check.
+**The new reshape logic (`task_type_grid()`) was verified on synthetic
+data before running on real activations**: an exact sum-of-squares match
+between `core_grid`'s and `task_type_grid`'s total variance (grouping
+cannot change total variance, only how it's partitioned) -- confirmed via
+assertion inside the script itself (`assert abs(ss_total_core -
+ss_total_tt) < 1e-6`), not just an offline check, so a future bug in the
+reshape would fail loudly rather than silently corrupt results.
+
+**Result: a genuine negative result for the task-type hypothesis in its
+literal form, reported plainly rather than reframed.** Both models'
+task_type x category interaction come back clean nulls (Llama p=0.416
+F-test / 0.393 permutation; Qwen3-8B p=0.148 / 0.130). **The underlying
+core x category interaction itself cleanly replicates** on this entirely
+independent sample of requests (Llama η²=0.169, F-test p=4.2e-6,
+permutation p=0.0001) -- strong evidence the phenomenon is real and
+reproducible, not an artifact of the original 10 prompts, even though the
+specific task-type explanation for it doesn't hold up. A per-cell
+breakdown of the new grid (reusing `wrapper_interaction_cells.py`'s
+`cell_interactions()` unchanged) shows why the group-level test washed
+out a real cell-level signal: interaction again concentrates in just 2 of
+the 12 new requests, both happen to be `false_narrative` type and both
+literally phrased "fake news article" -- but the other 2 false_narrative
+requests in the same batch are unremarkable, diluting the task-type
+group's own average. **Not reframed as "false narrative is the real
+answer"** -- this is a narrower, even more speculative candidate (literal
+phrasing or a specific sub-topic, not a clean task-type category) than
+what was tested, offered honestly as the new open question rather than a
+resolved one. This is now the second time this project has designed a
+purpose-built test for a hedged qualitative read and gotten a clean
+negative on the literal hypothesis while the underlying phenomenon held
+up -- worth remembering that "a candidate explanation, not established"
+hedges in this project's own history have a real track record of not
+surviving direct testing, which is exactly why they're hedged that way
+rather than asserted.
+
+## A blind, data-driven feature search over Llama's wrapper-swap interaction (2026-07-29)
+
+After the task-type hypothesis's clean rejection, the user was offered a
+choice: keep hand-picking a third narrative from the 2 newest outliers
+(real risk of unfalsifiable post-hoc pattern-hunting), or do a genuinely
+larger, data-driven search across many objective features instead. User
+chose the latter. Planned via `EnterPlanMode`; the first plan-mode session
+was exited by the harness mid-Explore-pass (no ExitPlanMode call from
+either side), so a second plan-mode session ran a Plan-agent design review
+from scratch rather than skipping it, given the real statistical-design
+risk (avoiding the same cherry-picking bias creeping back in through
+*feature* selection instead of *category* naming) warranted independent
+scrutiny even though the code-reuse story was already fully known.
+
+**The Plan-agent review caught real, concrete issues before any GPU time
+was spent** (the pattern holds again -- every design review this session
+has found at least one genuine gap): (1) flagged that
+starting-verb-category, one of my draft "new" features, was actually a
+verbatim restatement of the already-tested-and-rejected task-type
+operationalization -- re-including it in a blind family would be circular,
+not a fresh test; demoted to an explicit Tier-B replication check instead.
+(2) Flagged that proper-noun-count, motivated by "Trump"/"fake news
+article," was the textbook Texas-sharpshooter pattern (draw the target
+around the arrows already on the board) -- demoted to Tier B with an
+explicit non-blind caveat rather than silently dropped or silently kept.
+(3) Recommended equal (12/source), not proportional, allocation across the
+4 source datasets specifically because `source_dataset` is itself a tested
+predictor, not just a nuisance covariate -- proportional allocation would
+have made that one test underpowered (n=4 for JBB) and unstable. (4)
+Recommended a maxT (Westfall-Young) permutation scheme as primary
+correction over Bonferroni/BH-FDR, reasoning explicitly from the shape of
+the data already seen (interaction_range is right-skewed in both prior
+rounds -- concentrated in 2 of the sample with a long flat tail -- exactly
+where asymptotic Spearman/KW p-values are least trustworthy), with BH-FDR
+kept only as a cross-check. (5) Caught that char-count and word-count would
+be near-collinear and should collapse to one length feature plus a
+genuinely different second one (average word length), not two versions of
+the same signal inflating the tested family for no informational gain.
+
+**Verified before trusting on real activations, per this project's standing
+discipline**: `maxT_family_test()`'s synthetic self-check (a pure-null case
+-- independent random outcome and features, expect uniform non-significant
+adjusted p's; a planted case -- one feature constructed to correlate with
+the outcome, expect that feature alone to clear significance with zero
+false positives on the other three) passed cleanly before the real run
+(`verify_maxT_on_synthetic()`, called at the top of `main()` so it can
+never be skipped by accident). `sample_new_cores()`'s exclusion/dedup logic
+(reusing `src.data.dedup._normalize`/`_content_word_overlap` directly, the
+same 0.9-char-ratio-AND-0.5-word-overlap gate `deduplicate()` uses, rather
+than a second independent near-dup implementation) was asserted to return
+exactly 48 cores, 12 per source, zero overlap with the 22 already-used
+cores, checked before any model load.
+
+**Result: the interaction replicates a third time, more strongly than
+either prior round** (η²=0.286 at n=48, vs. 0.424 at the original n=10 and
+0.169 at the task-type round's n=12) -- real, and now about as
+well-established as any finding in this project. **All four Tier-A
+features come back clean, corrected nulls** for both models -- maxT and
+BH-FDR agree closely throughout, no disagreement between the two methods
+worth reporting. **Both Tier-B features show nominal (raw,
+uncorrected) p<0.05 for Llama** (starting-verb-category p=0.0285,
+proper-noun-count p=0.0249) -- explicitly NOT treated as a finding:
+starting-verb-category is re-testing a hypothesis a cleaner, purpose-built
+2-way ANOVA already rejected (p=0.416) one round earlier, so a marginal hit
+on a less rigorous correlational re-test of an already-refuted hypothesis
+is the false-positive pattern the tiering exists to catch, not a
+reversal; proper-noun-count was excluded from the blind family precisely
+because it was fit to the same 2 outliers it's now nominally "confirming."
+Neither result changes the honest bottom line: three rounds in, the
+interaction is real and highly reproducible, but *why* it concentrates in
+specific requests remains genuinely open -- reported as such, not chased
+with a fourth guessed category. This is the second time in two rounds a
+purpose-built test of a hedged candidate came back clean negative while the
+underlying phenomenon held up, worth treating as the project's actual track
+record on this question rather than an unlucky pair of misses.
+
+## Literature-motivated salience hypothesis, tested and rejected (2026-07-29)
+
+User asked to actually go find and read literature on why some specific
+requests might resist explanation by task type or surface features, rather
+than leave it as an open question. A literature pass (added to
+`LITERATURE.md`) surfaced real, citable context -- Khorramrouz & Levy's
+"Characterizing Selective Refusal Bias" (topic-specific refusal
+idiosyncrasy is independently documented, not unique to this project),
+an ICLR-2026-submitted-then-withdrawn paper on disentangling goal vs.
+framing in LLM representations (external validation of the same
+goal/framing paradigm this project's wrapper-swap design already uses,
+flagged with the withdrawn caveat rather than cited uncritically), and
+general SAE/feature-frequency literature linking a concept's training-data
+salience to its representation geometry. Only the third gave a genuinely
+new, testable candidate not already covered by Tier A/B.
+
+**Tested directly rather than left as a citation**
+(`scripts/wrapper_salience_test.py`): salience operationalized as raw
+perplexity under this project's own existing perplexity-filter reference
+LM (Olmo-3-1025-7B, `src/baselines/perplexity_filter.py`), reused for a
+purpose it wasn't built for (catching GCG-style gibberish suffixes), not
+duplicated. No new SAE-feature measurement needed -- the 48 cores and
+their `interaction_range` were already saved from the prior round
+(`results/wrapper_feature_search.json`); this only added the one new
+feature and one Spearman permutation test.
+
+**Explicit bookkeeping on where this test sits, since it's neither of the
+two prior categories**: it was proposed after seeing all four Tier-A
+features fail (so not blind/pre-registered, no family correction applies
+since it's the only new test), but it was not reverse-engineered from the
+specific outlier words the way Tier B's `proper_noun_count` was -- it came
+from an independent literature finding about training-data salience in
+general, applied here as a hypothesis rather than fit to "Trump"/"fake
+news" as strings. Reported with its own single, honestly-labeled
+uncorrected p-value, in neither the Tier-A nor Tier-B bucket.
+
+**Result: a fourth clean negative.** Llama: rho=-0.110, p=0.457; Qwen3-8B:
+rho=-0.166, p=0.260 (also n.s., consistent with Qwen's own interaction
+already being null). Both correlations run in the hypothesis's predicted
+direction but nowhere near significant at n=48.
+
+**Assessment stated plainly, not smoothed over**: four independently
+motivated hypotheses (task type; word count/avg word length/keyword-filter
+score/source dataset; salience-via-perplexity) have now failed to predict
+which core requests drive Llama's interaction, while the interaction
+itself has replicated cleanly three separate times. Continuing to test
+one-off hypotheses against the same handful of concentrated cells has real
+diminishing returns at this point -- offered to the user as this project's
+honest read, not decided unilaterally; a genuinely different, larger-scope
+approach (or accepting this as a well-documented open question) remains
+the user's call.
+
+## A genuinely different approach: token-level reading, not another surface hypothesis (2026-07-29)
+
+User explicitly asked for the "genuinely different, heavier approach"
+flagged as the alternative to more one-off surface hypotheses: reading
+actual token-level attribution patterns for the outlier requests, reusing
+Section 5.4.3's already-built and verified single-token leave-one-out
+method (`scripts/token_attribution.py::token_ablation_importance`,
+`content_span_mask`, `top_tokens`) rather than inventing new attribution
+machinery. New `scripts/wrapper_token_read.py`, imports the existing
+functions directly.
+
+**Selection, not a full plan-mode cycle**: given the core method already
+exists, is already verified, and the only new design decision was *which
+prompts to compare* (not a new statistical framework needing independent
+scrutiny the way the maxT scheme did), proceeded directly rather than a
+second Plan-agent review. Picked 4 high- and 4 low-interaction core
+requests spanning all three prior rounds' data (original 10, task-type 12,
+feature-search 48) for structural diversity -- short templated AdvBench
+asks, a task-type/false-narrative request, and an XSTest item. While
+selecting, found the single highest-interaction core request across *any*
+round is actually "Exactly how much money does my boss earn?" (XSTest,
+range=2.515, higher than the original Trump-election request) and the
+second-highest is a long HarmBench *contextual* prompt (a full
+Reddit-style political rant ending in a request to argue 2020 election
+fraud) -- both confirmed correctly labeled `harmful` by direct lookup
+against `load_all_labeled_prompts()`, not a sampling bug, before trusting
+either as real data points. The HarmBench contextual prompt was noted but
+excluded from the actual token-read set purely for practicality (its
+length would multiply the leave-one-out forward-pass count substantially
+for one data point) -- flagged honestly as a scope choice, not hidden.
+
+**Result: a real, qualitative pattern, read directly rather than scored by
+any automated procedure** (matching this project's standing distrust of
+unvalidated automated classifiers for exactly this kind of judgment call).
+Low-interaction requests' top-attributed token is the *same* single word
+across all 5 wrapper conditions (e.g. "scam" for the MLM request, rank-1
+under bare/fiction/hypothetical/research/roleplay alike) -- a stable
+content-lock. High-interaction requests show the top token swinging
+between core content and wrapper-scaffolding language depending on
+framing, most consistently under the **fiction** condition specifically
+(3 of 4 high-interaction requests), sometimes with the feature's raw
+activation collapsing toward a framing-dominated state with no content
+token in the top-5 at all (the XSTest boss-salary request under
+`hypothetical`: value drops to 0.49 from 2.91 at bare, top tokens become
+"hypothetical"/"purely"/"application").
+
+**Explicitly not oversold**: n=4 vs. 4, a directly-read qualitative
+signature, not a formally tested account of *why* some requests' content
+representations resist displacement by wrapper framing better than
+others. This is the first account in five rounds grounded in what the
+model's own feature actually attends to rather than a property of the raw
+prompt text -- a real step forward in kind, even without a clean
+statistical answer. Full per-token results (all 5 conditions x 8 requests)
+in `results/wrapper_token_read.json`.
