@@ -6,6 +6,23 @@ cross-model comparison across 6 open-weight chat models (1.5B to 9B parameters).
 
 ## Technology Stack
 
+![Python](https://img.shields.io/badge/Python-3.10-3776AB)
+![PyTorch](https://img.shields.io/badge/PyTorch-4--bit_quant-EE4C2C)
+![nnsight](https://img.shields.io/badge/nnsight-activation_patching-8E44AD)
+![Transformers](https://img.shields.io/badge/HF_Transformers-model_loading-FFB000)
+![Accelerate](https://img.shields.io/badge/Accelerate-device_mapping-FFB000)
+![bitsandbytes](https://img.shields.io/badge/bitsandbytes-4--bit_quant-FFB000)
+![NumPy](https://img.shields.io/badge/NumPy-latest-013243)
+![pandas](https://img.shields.io/badge/pandas-latest-150458)
+![SciPy](https://img.shields.io/badge/SciPy-latest-0054A6)
+![scikit-learn](https://img.shields.io/badge/scikit--learn-latest-F7931E)
+![Statistics](https://img.shields.io/badge/Statistics-Wilson_%2F_McNemar_%2F_DeLong_%2F_Cochran-2E86C1)
+![FastAPI](https://img.shields.io/badge/FastAPI-live_inference-009688)
+![uvicorn](https://img.shields.io/badge/uvicorn-ASGI_server-009688)
+![pytest](https://img.shields.io/badge/pytest-175_passing-0A9EDC)
+![matplotlib](https://img.shields.io/badge/matplotlib-figures-11557C)
+![seaborn](https://img.shields.io/badge/seaborn-figures-4C72B0)
+
 | Area | Tools |
 |---|---|
 | Language & core | Python 3, PyTorch, NumPy, pandas, scikit-learn, SciPy |
