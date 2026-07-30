@@ -515,14 +515,12 @@ requests switch targets) and serves all four detectors (keyword, perplexity,
 dense-direction, SAE-feature) for arbitrary prompts, not just the pre-collected
 corpus.
 
-**Interactive detector UI** (`webapp/`, branch `ui`, live-verified, not yet
-merged): a plain HTML/JS/CSS page over the API above, plus a Findings dashboard
-built from this project's own reports/RESULTS.md numbers, verified live
-in-browser against the real GPU. Already current with all 6 models. Scoped to
-detector performance for the live demo, not a browser for every research
-finding in this README, so the newer transfer/wrapper-swap/mechanistic results
-aren't in it by design. Merge is a standing decision, not pushed forward
-without explicit sign-off.
+**Interactive detector UI** (`webapp/`, merged into `master`): a plain
+HTML/JS/CSS page over the API above, plus a Findings dashboard built from this
+project's own reports/RESULTS.md numbers, verified live in-browser against
+the real GPU. Current with all 6 models. Scoped to detector performance for
+the live demo, not a browser for every research finding in this README, so
+the newer transfer/wrapper-swap/mechanistic results aren't in it by design.
 
 ## Roadmap
 
