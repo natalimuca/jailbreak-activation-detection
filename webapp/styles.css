@@ -25,7 +25,7 @@
   --color-border-strong: rgba(255, 255, 255, 0.16);
   --color-text: #f2f2f3;
   --color-text-muted: #9a9aa2;
-  --color-text-dim: #626269;
+  --color-text-dim: #7a7a84;
 
   --color-primary: #6ea8fe;
   --color-primary-ink: #0a0a0b;
@@ -36,7 +36,7 @@
   --color-clear: #37d399;
   --color-clear-bg: rgba(55, 211, 153, 0.13);
   --color-unavailable: #9a9aa2;
-  --color-idle: #626269;
+  --color-idle: #82828b;
 
   --chart-blue: #6ea8fe;
   --chart-amber: #e0a94f;
@@ -65,8 +65,8 @@
     --color-flagged-bg: rgba(209, 41, 63, 0.1);
     --color-clear: #0d8f5c;
     --color-clear-bg: rgba(13, 143, 92, 0.1);
-    --color-unavailable: #6b6b74;
-    --color-idle: #9a9aa2;
+    --color-unavailable: #5f5f69;
+    --color-idle: #64646f;
 
     --chart-blue: #2f5fd6;
     --chart-amber: #a5710a;
@@ -95,8 +95,8 @@
   --color-flagged-bg: rgba(209, 41, 63, 0.1);
   --color-clear: #0d8f5c;
   --color-clear-bg: rgba(13, 143, 92, 0.1);
-  --color-unavailable: #6b6b74;
-  --color-idle: #9a9aa2;
+  --color-unavailable: #5f5f69;
+  --color-idle: #64646f;
 
   --chart-blue: #2f5fd6;
   --chart-amber: #a5710a;
