@@ -46,15 +46,16 @@
 @media (prefers-color-scheme: light) {
   :root:not([data-theme]) {
     color-scheme: light;
-    --color-bg: #fafafa;
+    --color-bg: #eff0f3;
     --color-surface: #ffffff;
-    --color-surface-2: #f2f2f4;
-    --color-surface-hover: rgba(0, 0, 0, 0.025);
-    --color-border: rgba(0, 0, 0, 0.09);
-    --color-border-strong: rgba(0, 0, 0, 0.16);
+    --color-surface-2: #e4e5ea;
+    --color-surface-hover: rgba(0, 0, 0, 0.045);
+    --color-border: rgba(0, 0, 0, 0.13);
+    --color-border-strong: rgba(0, 0, 0, 0.24);
     --color-text: #131316;
-    --color-text-muted: #6b6b74;
-    --color-text-dim: #9a9aa2;
+    --color-text-muted: #55555f;
+    --color-text-dim: #676773;
+    --panel-shadow: 0 1px 2px rgba(16, 16, 24, 0.05), 0 2px 6px rgba(16, 16, 24, 0.04);
 
     --color-primary: #2f5fd6;
     --color-primary-ink: #ffffff;
@@ -75,15 +76,16 @@
 
 :root[data-theme="light"] {
   color-scheme: light;
-  --color-bg: #fafafa;
+  --color-bg: #eff0f3;
   --color-surface: #ffffff;
-  --color-surface-2: #f2f2f4;
-  --color-surface-hover: rgba(0, 0, 0, 0.025);
-  --color-border: rgba(0, 0, 0, 0.09);
-  --color-border-strong: rgba(0, 0, 0, 0.16);
+  --color-surface-2: #e4e5ea;
+  --color-surface-hover: rgba(0, 0, 0, 0.045);
+  --color-border: rgba(0, 0, 0, 0.13);
+  --color-border-strong: rgba(0, 0, 0, 0.24);
   --color-text: #131316;
-  --color-text-muted: #6b6b74;
-  --color-text-dim: #9a9aa2;
+  --color-text-muted: #55555f;
+  --color-text-dim: #676773;
+  --panel-shadow: 0 1px 2px rgba(16, 16, 24, 0.05), 0 2px 6px rgba(16, 16, 24, 0.04);
 
   --color-primary: #2f5fd6;
   --color-primary-ink: #ffffff;
@@ -296,6 +298,10 @@ main {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
+  /* Only the light theme defines --panel-shadow: on a white-on-near-white
+     palette a border alone doesn't separate a card from the page, whereas
+     dark surfaces separate by luminance and need no shadow. */
+  box-shadow: var(--panel-shadow, none);
 }
 
 .panel-title {
