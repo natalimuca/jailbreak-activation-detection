@@ -675,11 +675,26 @@ const DENSE_VS_SAE_AUROC = [
   { label: "Qwen3-8B", dense: 0.983, sae: 0.975, note: "DeLong p=0.068 (n.s.)" },
 ];
 
-const BASELINE_COMPARISON = [
-  { label: "Dense-direction", value: 0.983, group: "activation" },
-  { label: "SAE-feature (top-15)", value: 0.975, group: "activation" },
-  { label: "Keyword filter", value: 0.603, group: "baseline" },
-  { label: "Perplexity filter", value: 0.52, group: "baseline" },
+// Controlled 4x12 factorial (wrapper x core request) over each model's own
+// top SAE feature, with permutation-test p-values -- from RESULTS.md's
+// wrapper-swap variance decomposition, not recomputed here.
+const WRAPPER_SWAP_VARIANCE = [
+  {
+    label: "Qwen3-8B",
+    note: "layer 25 / feature 65291",
+    core: 0.227,
+    wrapper: 0.656,
+    corePValue: "core p=0.0001",
+    wrapperPValue: "wrapper p=0.0001",
+  },
+  {
+    label: "Llama-3.1-8B-Instruct",
+    note: "layer 27 / feature 13363",
+    core: 0.407,
+    wrapper: 0.029,
+    corePValue: "core p=0.0148",
+    wrapperPValue: "wrapper p=0.79 (n.s.)",
+  },
 ];
 
 function currentModelLabel() {
@@ -796,20 +811,37 @@ function renderFindings() {
     DENSE_VS_SAE_AUROC.map((d) => [d.label, d.dense.toFixed(3), d.sae.toFixed(3), d.note])
   );
 
-  renderLegend("legend-baseline", [
-    ["Activation-based", "var(--chart-blue)"],
-    ["Baseline", "var(--chart-gray)"],
+  renderLegend("legend-wrapper", [
+    ["Core request", "var(--chart-blue)"],
+    ["Wrapper", "var(--chart-amber)"],
   ]);
-  const baselineEl = document.getElementById("chart-baseline");
-  baselineEl.innerHTML = `<div class="bar-chart">${renderBars(BASELINE_COMPARISON, {
-    formatValue: (v) => v.toFixed(3),
-    domain: 1.0,
-    colorFor: (d) => (d.group === "activation" ? "var(--chart-blue)" : "var(--chart-gray)"),
-  })}</div>`;
+  const wrapperEl = document.getElementById("chart-wrapper");
+  wrapperEl.innerHTML = `<div class="bar-chart">${WRAPPER_SWAP_VARIANCE.map(
+    (d) => `
+      <div class="bar-group${d.label === current ? " bar-group-current" : WRAPPER_SWAP_VARIANCE.some((x) => x.label === current) ? " bar-group-dim" : ""}">
+        <p class="bar-group-title">${d.label}<span class="bar-group-note">${d.note}</span></p>
+        ${renderBars([{ label: "Core request", value: d.core }], {
+          formatValue: (v) => `${(v * 100).toFixed(1)}%`,
+          domain: 1.0,
+          colorFor: () => "var(--chart-blue)",
+        })}
+        ${renderBars([{ label: "Wrapper", value: d.wrapper }], {
+          formatValue: (v) => `${(v * 100).toFixed(1)}%`,
+          domain: 1.0,
+          colorFor: () => "var(--chart-amber)",
+        })}
+      </div>
+    `
+  ).join("")}</div>`;
   appendTableView(
-    baselineEl,
-    ["Detector", "TEST AUROC"],
-    BASELINE_COMPARISON.map((d) => [d.label, d.value.toFixed(3)])
+    wrapperEl,
+    ["Model", "Core eta-sq", "Wrapper eta-sq", "Permutation tests"],
+    WRAPPER_SWAP_VARIANCE.map((d) => [
+      d.label,
+      d.core.toFixed(3),
+      d.wrapper.toFixed(3),
+      `${d.corePValue}, ${d.wrapperPValue}`,
+    ])
   );
 }
 

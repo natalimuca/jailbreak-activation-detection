@@ -227,11 +227,15 @@
 
         <figure class="panel chart-figure">
           <figcaption>
-            <p class="panel-title">Activations vs. reading the text</p>
-            <p class="chart-caption">TEST-overall AUROC, n=288, Qwen3-8B. Keyword/perplexity baselines never touch activations.</p>
+            <p class="panel-title">What the feature actually tracks</p>
+            <p class="chart-caption">
+              Share of each model&rsquo;s top SAE feature variance explained, in a controlled
+              4&times;12 swap of wrapper against core request. Qwen3 tracks the framing;
+              Llama tracks the request itself. Permutation-tested.
+            </p>
           </figcaption>
-          <div class="chart-legend" id="legend-baseline"></div>
-          <div class="chart-body" id="chart-baseline"></div>
+          <div class="chart-legend" id="legend-wrapper"></div>
+          <div class="chart-body" id="chart-wrapper"></div>
         </figure>
 
       </div>
