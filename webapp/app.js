@@ -436,8 +436,7 @@ function renderBaselineContext(kind) {
 }
 
 function renderKeyword(result) {
-  let html = renderPill(result.flagged ? "flagged" : "clear", result.flagged ? "Flagged" : "Clear");
-  html += renderMagnitudeAxis(result.flagged, result.score, result.threshold);
+  let html = renderMagnitudeAxis(result.flagged, result.score, result.threshold);
   if (result.matched_terms.length > 0) {
     html += `<p class="detail-label">Matched terms</p><ul class="term-list">${result.matched_terms
       .map((term) => `<li>${term}</li>`)
@@ -451,7 +450,6 @@ function renderKeyword(result) {
 
 function renderPerplexity(result) {
   return (
-    renderPill(result.flagged ? "flagged" : "clear", result.flagged ? "Flagged" : "Clear") +
     renderMagnitudeAxis(result.flagged, result.score, result.threshold) +
     renderBaselineContext("perplexity")
   );
@@ -513,7 +511,6 @@ function renderCalibrationContext(hfName, score, threshold) {
 
 function renderDenseDirection(result) {
   return (
-    renderPill(result.flagged ? "flagged" : "clear", result.flagged ? "Flagged" : "Clear") +
     renderDivergingAxis(result.flagged, result.score, result.threshold) +
     renderDepthDiagram(modelSelect.value, result.layer) +
     renderCalibrationContext(modelSelect.value, result.score, result.threshold)
@@ -524,8 +521,7 @@ function renderSAEFeature(result) {
   if (!result.available) {
     return renderPill("unavailable", "Unavailable") + `<p class="empty-note">${result.reason}</p>`;
   }
-  let html = renderPill(result.flagged ? "flagged" : "clear", result.flagged ? "Flagged" : "Clear");
-  html += renderMagnitudeAxis(result.flagged, result.score, result.threshold);
+  let html = renderMagnitudeAxis(result.flagged, result.score, result.threshold);
   html += renderDepthDiagram(modelSelect.value, result.top_features.map((f) => f.layer));
 
   const maxContribution = Math.max(...result.top_features.map((f) => Math.abs(f.contribution)), 1e-6);
