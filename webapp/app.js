@@ -164,6 +164,36 @@ async function loadModels() {
   }
 }
 
+async function loadExamples() {
+  try {
+    const response = await fetch("/api/examples");
+    if (!response.ok) return;
+    const data = await response.json();
+    if (!data.available || !data.examples.length) return;
+
+    const chips = document.getElementById("example-chips");
+    for (const example of data.examples) {
+      const chip = document.createElement("button");
+      chip.type = "button";
+      chip.className = "example-chip";
+      chip.dataset.method = example.method;
+      chip.innerHTML = `<span class="chip-method">${example.method}</span><span class="chip-behavior"></span>`;
+      chip.querySelector(".chip-behavior").textContent = example.behavior;
+      chip.title = example.goal;
+      chip.addEventListener("click", () => {
+        promptInput.value = example.text;
+        promptInput.focus();
+        setStatus(`Loaded ${example.method} attack: ${example.goal}`);
+      });
+      chips.appendChild(chip);
+    }
+    document.getElementById("examples-field").hidden = false;
+  } catch (err) {
+    // Presets are a convenience over the free-text box, not a required
+    // feature -- a missing manifest must never block the live probe.
+  }
+}
+
 function formatScore(value) {
   return Number.isFinite(value) ? value.toFixed(2) : String(value);
 }
@@ -444,6 +474,7 @@ modelSelect.addEventListener("change", () => {
 });
 renderIdleCards();
 loadModels();
+loadExamples();
 
 // ---------------------------------------------------------------------
 // Findings dashboard -- static data read directly from this repo's own

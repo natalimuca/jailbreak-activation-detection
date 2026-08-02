@@ -6,9 +6,12 @@ approach to the same GPU-code-testing problem."""
 
 from __future__ import annotations
 
+import json
+
 import pytest
 from fastapi.testclient import TestClient
 
+import src.api.main as main
 from src.api.main import app, get_manager
 
 
@@ -59,3 +62,30 @@ def test_get_models_returns_registry_output(client, monkeypatch):
 
     assert response.status_code == 200
     assert response.json() == fake_models
+
+
+def test_get_examples_reports_unavailable_when_manifest_missing(client, monkeypatch, tmp_path):
+    monkeypatch.setattr(main, "EXAMPLES_PATH", tmp_path / "absent.json")
+    body = client.get("/api/examples").json()
+    assert body["available"] is False
+    assert body["examples"] == []
+
+
+def test_get_examples_caps_records_per_method(client, monkeypatch, tmp_path):
+    manifest = tmp_path / "manifest.json"
+    manifest.write_text(
+        json.dumps(
+            [
+                {"text": f"t{i}", "goal": f"g{i}", "behavior": f"b{i}", "method": method}
+                for method in ("PAIR", "GCG")
+                for i in range(10)
+            ]
+        )
+    )
+    monkeypatch.setattr(main, "EXAMPLES_PATH", manifest)
+    monkeypatch.setattr(main, "EXAMPLES_PER_METHOD", 2)
+
+    body = client.get("/api/examples").json()
+    assert body["available"] is True
+    assert [e["method"] for e in body["examples"]] == ["GCG", "GCG", "PAIR", "PAIR"]
+    assert [e["id"] for e in body["examples"]] == [0, 1, 2, 3]

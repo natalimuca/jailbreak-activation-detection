@@ -8,6 +8,7 @@ overrides `get_manager` with a fake).
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException
@@ -15,9 +16,14 @@ from fastapi.staticfiles import StaticFiles
 
 from src.api.inference_manager import DetectorInferenceManager
 from src.api.model_registry import list_models
-from src.api.schemas import AnalyzeRequest, AnalyzeResponse, ModelInfo
+from src.api.schemas import AnalyzeRequest, AnalyzeResponse, ExamplesResponse, ModelInfo
 
 WEBAPP_DIR = Path(__file__).resolve().parents[2] / "webapp"
+# results/ is gitignored, so a fresh clone has no adversarial manifest -- the
+# endpoint reports that as available=false rather than 404ing, matching how
+# the SAE panel reports models without a pretrained SAE suite.
+EXAMPLES_PATH = Path(__file__).resolve().parents[2] / "results" / "adversarial_paraphrase_manifest.json"
+EXAMPLES_PER_METHOD = 4
 
 app = FastAPI(title="Jailbreak Activation Detector")
 
@@ -31,6 +37,33 @@ def get_manager() -> DetectorInferenceManager:
 @app.get("/api/models", response_model=list[ModelInfo])
 def get_models() -> list[dict]:
     return list_models()
+
+
+@app.get("/api/examples", response_model=ExamplesResponse)
+def get_examples() -> dict:
+    if not EXAMPLES_PATH.exists():
+        return {
+            "available": False,
+            "reason": "adversarial manifest not found -- run scripts/build_adversarial_set.py",
+            "examples": [],
+        }
+    with open(EXAMPLES_PATH) as fh:
+        records = json.load(fh)
+    examples: list[dict] = []
+    for method in sorted({r["method"] for r in records}):
+        for i, record in enumerate(r for r in records if r["method"] == method):
+            if i >= EXAMPLES_PER_METHOD:
+                break
+            examples.append(
+                {
+                    "id": len(examples),
+                    "method": method,
+                    "behavior": record["behavior"],
+                    "goal": record["goal"],
+                    "text": record["text"],
+                }
+            )
+    return {"available": True, "examples": examples}
 
 
 @app.post("/api/analyze", response_model=AnalyzeResponse)

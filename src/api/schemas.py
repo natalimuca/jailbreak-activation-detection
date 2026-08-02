@@ -60,6 +60,20 @@ class SAEFeatureResult(BaseModel):
     top_features: list[SAEFeatureContribution] | None = None
 
 
+class ExamplePrompt(BaseModel):
+    id: int
+    method: str
+    behavior: str
+    goal: str
+    text: str
+
+
+class ExamplesResponse(BaseModel):
+    available: bool
+    reason: str | None = None
+    examples: list[ExamplePrompt] = []
+
+
 class AnalyzeResponse(BaseModel):
     keyword: KeywordResult | None = None
     perplexity: PerplexityResult | None = None
