@@ -1185,7 +1185,9 @@ button#analyze-button:disabled {
 
 .findings-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+  /* min() so the 420px track floor can't exceed a narrow viewport and force
+     the whole page to scroll sideways. */
+  grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr));
   gap: 1rem;
 }
 
@@ -1588,4 +1590,33 @@ button#analyze-button:disabled {
 .top-score {
   font-family: var(--font-mono);
   color: var(--color-text-dim);
+}
+
+/* Full-width band below the chart grid, matching the attribution panel:
+   caption on the left, bars taking the freed horizontal room. */
+.findings > .corpus {
+  margin-top: 1.25rem;
+  display: grid;
+  grid-template-columns: minmax(16rem, 22rem) 1fr;
+  gap: 1.5rem;
+  align-items: start;
+}
+
+.findings > .corpus figcaption {
+  margin: 0;
+}
+
+.findings > .corpus .corpus-bars {
+  gap: 0.6rem;
+}
+
+.findings > .corpus .corpus-row {
+  grid-template-columns: 7rem 1fr 3rem;
+}
+
+@media (max-width: 860px) {
+  .findings > .corpus {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
 }

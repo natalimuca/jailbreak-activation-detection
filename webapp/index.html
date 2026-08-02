@@ -234,19 +234,20 @@
           <div class="chart-body" id="chart-baseline"></div>
         </figure>
 
-        <figure class="panel chart-figure corpus">
-          <figcaption>
-            <p class="panel-title">What the detectors were validated on</p>
-            <p class="chart-caption">
-              <strong>1,922</strong> deduplicated prompts &middot; 1,052 harmful / 870 harmless.
-              Counts sit below each benchmark&rsquo;s published size because overlapping
-              behaviours are removed once, globally (AdvBench 520&rarr;489, JBB harmful 100&rarr;73).
-              Split by prompt hash: TRAIN 1,345 / VAL 289 / TEST 288.
-            </p>
-          </figcaption>
-          <div class="corpus-bars" id="corpus-bars"></div>
-        </figure>
       </div>
+
+      <figure class="panel chart-figure corpus">
+        <figcaption>
+          <p class="panel-title">What the detectors were validated on</p>
+          <p class="chart-caption">
+            <strong>1,922</strong> deduplicated prompts &middot; 1,052 harmful / 870 harmless.
+            Counts sit below each benchmark&rsquo;s published size because overlapping
+            behaviours are removed once, globally (AdvBench 520&rarr;489, JBB harmful 100&rarr;73).
+            Split by prompt hash: TRAIN 1,345 / VAL 289 / TEST 288.
+          </p>
+        </figcaption>
+        <div class="corpus-bars" id="corpus-bars"></div>
+      </figure>
 
       <section class="panel attribution" id="attribution-panel" aria-label="Token-level attribution" hidden>
         <div class="attribution-head">

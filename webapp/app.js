@@ -292,11 +292,15 @@ async function loadAttribution() {
     const promptSel = document.getElementById("attribution-prompt");
     const fillPrompts = () => {
       const records = attributionData[modelSel.value];
+      // PAIR generates several distinct attack phrasings per goal, so the
+      // goal alone repeats across entries -- append the opening words of the
+      // actual prompt so repeated goals stay tellable apart.
       promptSel.innerHTML = records
         .map((r, i) => {
+          const opening = r.text.replace(/\s+/g, " ").trim().slice(0, 44);
           const option = document.createElement("option");
           option.value = String(i);
-          option.textContent = `${i + 1}. ${r.goal}`;
+          option.textContent = `${i + 1}. ${r.goal} — "${opening}…"`;
           return option.outerHTML;
         })
         .join("");
