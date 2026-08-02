@@ -164,6 +164,31 @@ async function loadModels() {
   }
 }
 
+const CORPUS_SOURCES = [
+  { name: "AdvBench", harmful: 489, harmless: 0 },
+  { name: "Alpaca", harmful: 0, harmless: 520 },
+  { name: "HarmBench", harmful: 291, harmless: 0 },
+  { name: "XSTest", harmful: 199, harmless: 250 },
+  { name: "JailbreakBench", harmful: 73, harmless: 100 },
+];
+
+function renderCorpus() {
+  const widest = Math.max(...CORPUS_SOURCES.map((s) => s.harmful + s.harmless));
+  document.getElementById("corpus-bars").innerHTML = CORPUS_SOURCES.map((source) => {
+    const total = source.harmful + source.harmless;
+    const scale = (total / widest) * 100;
+    const harmfulShare = total ? (source.harmful / total) * 100 : 0;
+    return `
+      <div class="corpus-row">
+        <span class="corpus-name">${source.name}</span>
+        <span class="corpus-track" style="--bar:${scale}%">
+          <span class="corpus-fill" style="--harmful:${harmfulShare}%"></span>
+        </span>
+        <span class="corpus-count">${total}</span>
+      </div>`;
+  }).join("");
+}
+
 async function loadExamples() {
   try {
     const response = await fetch("/api/examples");
@@ -475,6 +500,7 @@ modelSelect.addEventListener("change", () => {
 renderIdleCards();
 loadModels();
 loadExamples();
+renderCorpus();
 
 // ---------------------------------------------------------------------
 // Findings dashboard -- static data read directly from this repo's own

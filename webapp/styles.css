@@ -1412,3 +1412,75 @@ button#analyze-button:disabled {
 .example-chip[data-method="GCG"] .chip-method {
   color: var(--color-accent);
 }
+
+.corpus {
+  padding: 1.25rem;
+}
+
+.corpus-total {
+  margin: 0 0 0.85rem;
+  font-size: 0.72rem;
+  color: var(--color-text-muted);
+}
+
+.corpus-total strong {
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+  color: var(--color-text);
+}
+
+.corpus-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.corpus-row {
+  display: grid;
+  grid-template-columns: 5.4rem 1fr 2.1rem;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.corpus-name {
+  font-size: 0.62rem;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.corpus-track {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--color-surface-2);
+  overflow: hidden;
+}
+
+.corpus-fill {
+  display: block;
+  width: var(--bar);
+  height: 100%;
+  border-radius: 3px;
+  /* One bar per source, split at the harmful/harmless boundary -- a hard
+     colour stop, not a gradient, so the two segments read as counts. */
+  background: linear-gradient(
+    to right,
+    var(--color-flagged) 0 var(--harmful),
+    var(--chart-blue) var(--harmful) 100%
+  );
+}
+
+.corpus-count {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  color: var(--color-text-muted);
+  text-align: right;
+}
+
+.corpus-note {
+  margin: 0.85rem 0 0;
+  font-size: 0.62rem;
+  line-height: 1.5;
+  color: var(--color-text-dim);
+}

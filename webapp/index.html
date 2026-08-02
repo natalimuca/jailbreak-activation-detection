@@ -111,8 +111,19 @@
           <div class="model-stats-body"></div>
         </section>
 
+        <section class="panel corpus" aria-label="Validation corpus composition">
+          <p class="panel-title"><span class="tag">03</span>Validation corpus</p>
+          <p class="corpus-total"><strong>1,922</strong> prompts &middot; 1,052 harmful / 870 harmless</p>
+          <div class="corpus-bars" id="corpus-bars"></div>
+          <p class="corpus-note">
+            Counts are post-deduplication, so they sit below each benchmark&rsquo;s
+            published size (AdvBench 520&rarr;489, JBB harmful 100&rarr;73).
+            Split once, by prompt hash: TRAIN 1,345 / VAL 289 / TEST 288.
+          </p>
+        </section>
+
         <details class="panel method-note">
-          <summary class="panel-title"><span class="tag">03</span>Method &amp; citations</summary>
+          <summary class="panel-title"><span class="tag">04</span>Method &amp; citations</summary>
           <p class="method-text">
             Dense-direction: difference-of-means refusal direction, per
             Arditi et al., <em>Refusal in Language Models Is Mediated by a
