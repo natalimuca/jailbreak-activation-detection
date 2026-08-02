@@ -623,10 +623,6 @@ async function analyze() {
 
 analyzeButton.addEventListener("click", analyze);
 
-if (/Mac|iPhone|iPad/.test(navigator.platform)) {
-  document.getElementById("run-shortcut").innerHTML = "&#8984;&nbsp;&crarr;";
-}
-
 // Ctrl/Cmd+Enter runs from anywhere on the page, so the textarea's own Enter
 // key stays free for newlines. Guarded on `disabled` so it can't fire before
 // the model list loads or while a run is already in flight.
