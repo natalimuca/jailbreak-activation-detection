@@ -1620,3 +1620,19 @@ button#analyze-button:disabled {
     gap: 1rem;
   }
 }
+
+.btn-kbd {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  line-height: 1;
+  padding: 0.22rem 0.36rem;
+  border-radius: 5px;
+  /* Tinted from the button's own ink so the hint reads as secondary against
+     the primary fill in both themes. */
+  color: color-mix(in srgb, var(--color-primary-ink) 70%, transparent);
+  background: color-mix(in srgb, var(--color-primary-ink) 14%, transparent);
+}
+
+button#analyze-button:disabled .btn-kbd {
+  opacity: 0.5;
+}

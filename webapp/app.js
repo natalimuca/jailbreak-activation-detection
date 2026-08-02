@@ -622,6 +622,20 @@ async function analyze() {
 }
 
 analyzeButton.addEventListener("click", analyze);
+
+if (/Mac|iPhone|iPad/.test(navigator.platform)) {
+  document.getElementById("run-shortcut").innerHTML = "&#8984;&nbsp;&crarr;";
+}
+
+// Ctrl/Cmd+Enter runs from anywhere on the page, so the textarea's own Enter
+// key stays free for newlines. Guarded on `disabled` so it can't fire before
+// the model list loads or while a run is already in flight.
+document.addEventListener("keydown", (event) => {
+  if (event.key !== "Enter" || !(event.ctrlKey || event.metaKey)) return;
+  if (analyzeButton.disabled) return;
+  event.preventDefault();
+  analyze();
+});
 modelSelect.addEventListener("change", () => {
   renderModelStats(modelSelect.value);
   renderFindings(); // re-highlight the newly-selected model across the findings charts
