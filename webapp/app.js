@@ -8,8 +8,11 @@ function effectiveTheme() {
 
 function syncThemeIcon() {
   const isLight = effectiveTheme() === "light";
-  iconSun.hidden = isLight;
-  iconMoon.hidden = !isLight;
+  // toggleAttribute, not `.hidden`: these are SVG elements, and the `hidden`
+  // property only reflects to the attribute on HTMLElement, so assigning it
+  // here sets an inert JS property and never hides anything.
+  iconSun.toggleAttribute("hidden", !isLight);
+  iconMoon.toggleAttribute("hidden", isLight);
   themeToggle.setAttribute("aria-label", isLight ? "Switch to dark mode" : "Switch to light mode");
 }
 
