@@ -16,7 +16,13 @@ from fastapi.staticfiles import StaticFiles
 
 from src.api.inference_manager import DetectorInferenceManager
 from src.api.model_registry import list_models
-from src.api.schemas import AnalyzeRequest, AnalyzeResponse, ExamplesResponse, ModelInfo
+from src.api.schemas import (
+    AnalyzeRequest,
+    AnalyzeResponse,
+    AttributionResponse,
+    ExamplesResponse,
+    ModelInfo,
+)
 
 WEBAPP_DIR = Path(__file__).resolve().parents[2] / "webapp"
 # results/ is gitignored, so a fresh clone has no adversarial manifest -- the
@@ -24,6 +30,7 @@ WEBAPP_DIR = Path(__file__).resolve().parents[2] / "webapp"
 # the SAE panel reports models without a pretrained SAE suite.
 EXAMPLES_PATH = Path(__file__).resolve().parents[2] / "results" / "adversarial_paraphrase_manifest.json"
 EXAMPLES_PER_METHOD = 4
+ATTRIBUTION_PATH = Path(__file__).resolve().parents[2] / "results" / "token_attribution.json"
 
 app = FastAPI(title="Jailbreak Activation Detector")
 
@@ -64,6 +71,34 @@ def get_examples() -> dict:
                 }
             )
     return {"available": True, "examples": examples}
+
+
+@app.get("/api/attribution", response_model=AttributionResponse)
+def get_attribution() -> dict:
+    if not ATTRIBUTION_PATH.exists():
+        return {
+            "available": False,
+            "reason": "no attribution run found -- run scripts/token_attribution.py",
+            "models": {},
+        }
+    with open(ATTRIBUTION_PATH, encoding="utf-8") as fh:
+        raw = json.load(fh)
+    return {
+        "available": True,
+        "models": {
+            model: [
+                {
+                    "goal": record["goal"],
+                    "text": record["text"],
+                    "tokens": record["tokens"],
+                    "importance": record["importance"],
+                    "top_tokens": record["top_tokens"],
+                }
+                for record in records
+            ]
+            for model, records in raw.items()
+        },
+    }
 
 
 @app.post("/api/analyze", response_model=AnalyzeResponse)

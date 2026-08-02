@@ -74,6 +74,20 @@ class ExamplesResponse(BaseModel):
     examples: list[ExamplePrompt] = []
 
 
+class AttributionPrompt(BaseModel):
+    goal: str
+    text: str
+    tokens: list[str]
+    importance: list[float]
+    top_tokens: list[tuple[str, float]]
+
+
+class AttributionResponse(BaseModel):
+    available: bool
+    reason: str | None = None
+    models: dict[str, list[AttributionPrompt]] = {}
+
+
 class AnalyzeResponse(BaseModel):
     keyword: KeywordResult | None = None
     perplexity: PerplexityResult | None = None

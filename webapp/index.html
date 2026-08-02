@@ -111,19 +111,8 @@
           <div class="model-stats-body"></div>
         </section>
 
-        <section class="panel corpus" aria-label="Validation corpus composition">
-          <p class="panel-title"><span class="tag">03</span>Validation corpus</p>
-          <p class="corpus-total"><strong>1,922</strong> prompts &middot; 1,052 harmful / 870 harmless</p>
-          <div class="corpus-bars" id="corpus-bars"></div>
-          <p class="corpus-note">
-            Counts are post-deduplication, so they sit below each benchmark&rsquo;s
-            published size (AdvBench 520&rarr;489, JBB harmful 100&rarr;73).
-            Split once, by prompt hash: TRAIN 1,345 / VAL 289 / TEST 288.
-          </p>
-        </section>
-
         <details class="panel method-note">
-          <summary class="panel-title"><span class="tag">04</span>Method &amp; citations</summary>
+          <summary class="panel-title"><span class="tag">03</span>Method &amp; citations</summary>
           <p class="method-text">
             Dense-direction: difference-of-means refusal direction, per
             Arditi et al., <em>Refusal in Language Models Is Mediated by a
@@ -244,7 +233,43 @@
           <div class="chart-legend" id="legend-baseline"></div>
           <div class="chart-body" id="chart-baseline"></div>
         </figure>
+
+        <figure class="panel chart-figure corpus">
+          <figcaption>
+            <p class="panel-title">What the detectors were validated on</p>
+            <p class="chart-caption">
+              <strong>1,922</strong> deduplicated prompts &middot; 1,052 harmful / 870 harmless.
+              Counts sit below each benchmark&rsquo;s published size because overlapping
+              behaviours are removed once, globally (AdvBench 520&rarr;489, JBB harmful 100&rarr;73).
+              Split by prompt hash: TRAIN 1,345 / VAL 289 / TEST 288.
+            </p>
+          </figcaption>
+          <div class="corpus-bars" id="corpus-bars"></div>
+        </figure>
       </div>
+
+      <section class="panel attribution" id="attribution-panel" aria-label="Token-level attribution" hidden>
+        <div class="attribution-head">
+          <div>
+            <p class="panel-title">Which tokens drive the feature</p>
+            <p class="chart-caption" id="attribution-caption"></p>
+          </div>
+          <div class="attribution-controls">
+            <select id="attribution-model" aria-label="Attribution model"></select>
+            <select id="attribution-prompt" aria-label="Attribution prompt"></select>
+          </div>
+        </div>
+        <p class="attribution-goal" id="attribution-goal"></p>
+        <div class="token-stream" id="token-stream"></div>
+        <div class="attribution-foot">
+          <span class="token-scale" aria-hidden="true">
+            <span class="scale-label">suppresses</span>
+            <span class="scale-bar"></span>
+            <span class="scale-label">drives</span>
+          </span>
+          <p class="attribution-top" id="attribution-top"></p>
+        </div>
+      </section>
     </div>
   </main>
 

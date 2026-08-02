@@ -89,3 +89,37 @@ def test_get_examples_caps_records_per_method(client, monkeypatch, tmp_path):
     assert body["available"] is True
     assert [e["method"] for e in body["examples"]] == ["GCG", "GCG", "PAIR", "PAIR"]
     assert [e["id"] for e in body["examples"]] == [0, 1, 2, 3]
+
+
+def test_get_attribution_reports_unavailable_when_results_missing(client, monkeypatch, tmp_path):
+    monkeypatch.setattr(main, "ATTRIBUTION_PATH", tmp_path / "absent.json")
+    body = client.get("/api/attribution").json()
+    assert body["available"] is False
+    assert body["models"] == {}
+
+
+def test_get_attribution_returns_parallel_token_and_importance_lists(client, monkeypatch, tmp_path):
+    path = tmp_path / "token_attribution.json"
+    path.write_text(
+        json.dumps(
+            {
+                "ModelA": [
+                    {
+                        "goal": "g",
+                        "text": "t",
+                        "tokens": ["\u0120alpha", "beta"],
+                        "importance": [0.5, -0.25],
+                        "top_tokens": [["\u0120alpha", 0.5]],
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(main, "ATTRIBUTION_PATH", path)
+
+    body = client.get("/api/attribution").json()
+    record = body["models"]["ModelA"][0]
+    assert body["available"] is True
+    assert len(record["tokens"]) == len(record["importance"])
+    assert record["importance"] == [0.5, -0.25]

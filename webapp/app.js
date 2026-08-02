@@ -189,6 +189,131 @@ function renderCorpus() {
   }).join("");
 }
 
+const ATTRIBUTION_NOTE = {
+  "Llama-3.1-8B-Instruct":
+    "Layer 27 / feature 13363 — the paraphrase-invariant feature. Leave-one-out ablation: each token replaced by EOS, one at a time.",
+  "Qwen3-8B":
+    "Layer 25 / feature 65291 — the non-invariant comparison. Same leave-one-out procedure, 21 PAIR prompts per model.",
+};
+
+let attributionData = null;
+
+// SentencePiece/BPE word-boundary markers, and the chat-template scaffolding
+// that sits around the instruction -- scaffolding is dropped rather than
+// shown, since the underlying analysis restricted attribution to the
+// instruction's own character span.
+function decodeToken(token) {
+  return token.replace(/Ġ/g, " ").replace(/Ċ/g, "\n").replace(/▁/g, " ");
+}
+
+// Chat-template and reasoning scaffolding (`</think>`, header tokens, the
+// newlines around them) carry attribution magnitudes an order larger than any
+// content word -- normalising against those would render the real prompt at
+// near-zero opacity. The offline ranking already scoped itself to the
+// instruction's character span, so the view resolves that same span here
+// rather than colouring the whole template.
+function instructionSpan(record) {
+  const decoded = record.tokens.map(decodeToken);
+  const bounds = [];
+  let cursor = 0;
+  for (const piece of decoded) {
+    bounds.push([cursor, cursor + piece.length]);
+    cursor += piece.length;
+  }
+  const haystack = decoded.join("");
+  const anchor = record.text.slice(0, 40);
+  const charStart = haystack.indexOf(anchor);
+  if (charStart === -1) return [0, record.tokens.length];
+  const charEnd = charStart + record.text.length;
+  const first = bounds.findIndex(([, end]) => end > charStart);
+  let last = bounds.findIndex(([start]) => start >= charEnd);
+  if (last === -1) last = record.tokens.length;
+  return [first === -1 ? 0 : first, last];
+}
+
+function renderTokenStream() {
+  const model = document.getElementById("attribution-model").value;
+  const index = Number(document.getElementById("attribution-prompt").value);
+  const record = attributionData[model][index];
+  const [spanStart, spanEnd] = instructionSpan(record);
+  const peak =
+    Math.max(...record.importance.slice(spanStart, spanEnd).map(Math.abs)) || 1;
+
+  document.getElementById("attribution-caption").textContent = ATTRIBUTION_NOTE[model] ?? "";
+  document.getElementById("attribution-goal").textContent = record.goal;
+
+  document.getElementById("token-stream").innerHTML = record.tokens
+    .slice(spanStart, spanEnd)
+    .map((token, offset) => {
+      const i = spanStart + offset;
+      const weight = record.importance[i] / peak;
+      const span = document.createElement("span");
+      span.className = "token";
+      span.dataset.sign = weight >= 0 ? "drives" : "suppresses";
+      span.style.setProperty("--w", Math.abs(weight).toFixed(3));
+      span.title = `${record.importance[i].toFixed(3)}`;
+      span.textContent = decodeToken(token);
+      return span.outerHTML;
+    })
+    .join("");
+
+  document.getElementById("attribution-top").innerHTML =
+    "Top-attributed: " +
+    record.top_tokens
+      .map(([token, score]) => {
+        const el = document.createElement("code");
+        el.textContent = decodeToken(token).trim() || token;
+        return `${el.outerHTML} <span class="top-score">${score.toFixed(2)}</span>`;
+      })
+      .join(" · ");
+}
+
+async function loadAttribution() {
+  let data;
+  try {
+    const response = await fetch("/api/attribution");
+    if (!response.ok) return;
+    data = await response.json();
+  } catch (err) {
+    // Only a missing/unreachable results file is tolerated here -- rendering
+    // errors below must surface rather than silently blanking the panel.
+    return;
+  }
+  if (!data.available || !Object.keys(data.models).length) return;
+  attributionData = data.models;
+
+  {
+
+    const modelSel = document.getElementById("attribution-model");
+    modelSel.innerHTML = Object.keys(attributionData)
+      .map((m) => `<option value="${m}">${m}</option>`)
+      .join("");
+
+    const promptSel = document.getElementById("attribution-prompt");
+    const fillPrompts = () => {
+      const records = attributionData[modelSel.value];
+      promptSel.innerHTML = records
+        .map((r, i) => {
+          const option = document.createElement("option");
+          option.value = String(i);
+          option.textContent = `${i + 1}. ${r.goal}`;
+          return option.outerHTML;
+        })
+        .join("");
+    };
+
+    fillPrompts();
+    modelSel.addEventListener("change", () => {
+      fillPrompts();
+      renderTokenStream();
+    });
+    promptSel.addEventListener("change", renderTokenStream);
+
+    renderTokenStream();
+    document.getElementById("attribution-panel").hidden = false;
+  }
+}
+
 async function loadExamples() {
   try {
     const response = await fetch("/api/examples");
@@ -500,6 +625,7 @@ modelSelect.addEventListener("change", () => {
 renderIdleCards();
 loadModels();
 loadExamples();
+loadAttribution();
 renderCorpus();
 
 // ---------------------------------------------------------------------
