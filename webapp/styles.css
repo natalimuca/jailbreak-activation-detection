@@ -27,19 +27,19 @@
   --color-text-muted: #9a9aa2;
   --color-text-dim: #7a7a84;
 
-  --color-primary: #73a8e8;
+  --color-primary: #3987e5;
   --color-primary-ink: #0a0a0b;
-  --color-accent: #73a8e8;
+  --color-accent: #3987e5;
 
-  --color-flagged: #e05c6e;
-  --color-flagged-bg: rgba(224, 92, 110, 0.14);
-  --color-clear: #3dc291;
-  --color-clear-bg: rgba(61, 194, 145, 0.14);
+  --color-flagged: #d03b3b;
+  --color-flagged-bg: rgba(208, 59, 59, 0.15);
+  --color-clear: #0ca30c;
+  --color-clear-bg: rgba(12, 163, 12, 0.15);
   --color-unavailable: #9a9aa2;
   --color-idle: #82828b;
 
-  --chart-blue: #73a8e8;
-  --chart-amber: #d1a252;
+  --chart-blue: #3987e5;
+  --chart-amber: #c98500;
   --chart-gray: #4a4a52;
 }
 
@@ -57,19 +57,19 @@
     --color-text-dim: #676773;
     --panel-shadow: 0 1px 2px rgba(16, 16, 24, 0.05), 0 2px 6px rgba(16, 16, 24, 0.04);
 
-    --color-primary: #2f5fd6;
+    --color-primary: #2a78d6;
     --color-primary-ink: #ffffff;
-    --color-accent: #2f5fd6;
+    --color-accent: #2a78d6;
 
-    --color-flagged: #d1293f;
-    --color-flagged-bg: rgba(209, 41, 63, 0.1);
-    --color-clear: #0d8f5c;
-    --color-clear-bg: rgba(13, 143, 92, 0.1);
+    --color-flagged: #d03b3b;
+    --color-flagged-bg: rgba(208, 59, 59, 0.11);
+    --color-clear: #0ca30c;
+    --color-clear-bg: rgba(12, 163, 12, 0.11);
     --color-unavailable: #5f5f69;
     --color-idle: #64646f;
 
-    --chart-blue: #2f5fd6;
-    --chart-amber: #a5710a;
+    --chart-blue: #2a78d6;
+    --chart-amber: #eda100;
     --chart-gray: #b4b4bc;
   }
 }
@@ -87,19 +87,19 @@
   --color-text-dim: #676773;
   --panel-shadow: 0 1px 2px rgba(16, 16, 24, 0.05), 0 2px 6px rgba(16, 16, 24, 0.04);
 
-  --color-primary: #2f5fd6;
+  --color-primary: #2a78d6;
   --color-primary-ink: #ffffff;
-  --color-accent: #2f5fd6;
+  --color-accent: #2a78d6;
 
-  --color-flagged: #d1293f;
-  --color-flagged-bg: rgba(209, 41, 63, 0.1);
-  --color-clear: #0d8f5c;
-  --color-clear-bg: rgba(13, 143, 92, 0.1);
+  --color-flagged: #d03b3b;
+  --color-flagged-bg: rgba(208, 59, 59, 0.11);
+  --color-clear: #0ca30c;
+  --color-clear-bg: rgba(12, 163, 12, 0.11);
   --color-unavailable: #5f5f69;
   --color-idle: #64646f;
 
-  --chart-blue: #2f5fd6;
-  --chart-amber: #a5710a;
+  --chart-blue: #2a78d6;
+  --chart-amber: #eda100;
   --chart-gray: #b4b4bc;
 }
 
@@ -1625,4 +1625,28 @@ button#analyze-button:disabled {
     grid-template-columns: 1fr;
     gap: 1rem;
   }
+}
+
+/* Shape cue beside the score. The pill that used to carry it is gone, and
+   status red vs green are only ΔE 4.1 apart under deuteranopia -- without a
+   glyph the flagged/clear distinction would rest on hue alone. */
+.score-glyph {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  /* .score-stats aligns on the text baseline, which an icon has none of */
+  align-self: center;
+}
+
+.score-glyph svg {
+  width: 0.95rem;
+  height: 0.95rem;
+}
+
+.score-glyph.flagged {
+  color: var(--color-flagged);
+}
+
+.score-glyph.clear {
+  color: var(--color-clear);
 }
