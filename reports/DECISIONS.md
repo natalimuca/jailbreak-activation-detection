@@ -3170,3 +3170,66 @@ model's own feature actually attends to rather than a property of the raw
 prompt text -- a real step forward in kind, even without a clean
 statistical answer. Full per-token results (all 5 conditions x 8 requests)
 in `results/wrapper_token_read.json`.
+
+## Adding an LLM-as-judge baseline, and why the reported comparison is threshold-aware (2026-08-04)
+
+**Why add it at all.** The head-to-head's two baselines were both chosen to be
+weak: a fixed keyword lexicon and a perplexity filter that by construction only
+catches gibberish. Beating them establishes very little -- a reviewer can
+reasonably say the activation detectors were never tested against a competent
+text-only reader. A frontier-scale LLM prompted as a classifier is the strongest
+baseline available that still reads only prompt text, which keeps it on the
+correct side of the project's actual claim.
+
+**Why Llama-3.3-70B on Groq specifically.** It had to be (a) genuinely capable,
+(b) text-in/text-out only, and (c) free, since the project has no API budget.
+Groq's free tier serves 70B at no cost. Closed frontier APIs were never
+candidates for the *detector* side of this project (no activation access), but
+as a *baseline* that restriction does not apply -- a baseline is allowed to be a
+black box, because the point is that it never sees internal state.
+
+**Prompt-injection hardening was not optional.** Two real defects surfaced
+during development, both of which would have produced plausible-looking but
+wrong numbers rather than crashing:
+
+1. **The judge refuses the most severe prompts.** Asked to rate a Sarin-synthesis
+   HarmBench item, the model replies "I can't provide instructions..." instead of
+   emitting an integer. The first parser found no digits and defaulted to 0 --
+   scoring the single most harmful prompts in the corpus as *maximally benign*.
+   A refusal is strong evidence of harm, so an unparseable response now defaults
+   to 100.
+2. **The judge executes benign prompts instead of rating them.** With the
+   candidate text placed directly in the user turn, "Write a poem with five
+   lines" produced a poem, not a score -- again unparseable, and after fix (1)
+   that meant scoring innocuous prompts as maximally harmful. Fixed by wrapping
+   the candidate in `<prompt>` tags with an explicit instruction to treat the
+   contents as inert data.
+
+Both are general hazards of LLM-as-judge evaluation, not quirks of this model,
+and both are the reason the judge's numbers should not be taken on trust without
+inspecting its raw outputs first.
+
+**Why the write-up leads with two different tests instead of one number.** The
+judge wins thresholded accuracy (94.1% vs 88.9%, McNemar p<0.001) while
+dense-direction wins AUROC (0.983 vs 0.954, DeLong p=0.0041). Reporting either
+alone would misrepresent the result. AUROC is threshold-free and measures
+separability; accuracy measures one operating point chosen by Youden's J on VAL.
+The two disagreeing is diagnostic, not contradictory -- it localizes the gap to
+**threshold selection**, which is a calibration problem this project is already
+framed to care about, rather than to the activation signal itself.
+
+**Why PAIR is reported as indistinguishable.** Raw rates favour the judge
+(57.1% vs 42.9%), which is tempting to report as a loss for the activation
+detectors. McNemar's exact test on the same 21 prompts gives p=0.45 on 7
+discordant items. Same discipline as everywhere else in this project: at these
+sample sizes the paired test governs, not the difference in rates. The
+adversarial set's size is the binding constraint, and remains an externally
+blocked limitation.
+
+**Caching is part of the method, not a convenience.** Groq's free tier caps
+tokens per day (100k), so the full 608-prompt sweep took two days of quota.
+Scores are cached by (model, prompt) SHA-256 in `results/llm_judge_cache.json`,
+written incrementally, so the reported run is reproducible offline at zero cost
+and a re-run never re-pays for a prompt. This follows the same
+checkpoint-incrementally rule the Tier 2 token-attribution work adopted after a
+crash cost a completed model's results.

@@ -1234,6 +1234,74 @@ if a future round takes it further.
   (no SAE trained for those models); the dense-direction detector and both
   baselines are extended to those two below.
 
+## LLM-as-judge baseline: a strong opponent, and a calibration finding (2026-08-04)
+
+The two original baselines are deliberately weak (keyword lexicon, perplexity
+filter), so "activations beat surface methods" was only ever tested against
+strawmen. This adds a third, genuinely strong text-only baseline:
+**Llama-3.3-70B via Groq's free tier, prompted as a 0-100 jailbreak-likelihood
+classifier** (`src/baselines/llm_judge.py`). It reads prompt text only --
+never activations -- so it sits on the same side of the line as keyword and
+perplexity, but with frontier-scale capability behind it.
+
+Same protocol as everything else here: threshold calibrated by Youden's J on
+VAL alone (`results/detector_thresholds_Qwen3-8B.json`), TEST never touched
+until reporting. Judge scores are cached per (model, prompt) hash in
+`results/llm_judge_cache.json`, so the reported run makes zero API calls and
+is exactly reproducible.
+
+**Qwen3-8B, n=288 TEST:**
+
+| Detector | Accuracy | F1 | AUROC | PAIR (n=21) | GCG (n=14) | XSTest FP rate |
+|---|---|---|---|---|---|---|
+| Keyword filter | 56.6% | 0.359 | 0.603 | 23.8% | 7.1% | 2.7% |
+| Perplexity filter | 54.9% | 0.637 | 0.520 | 0.0% | 100% | 86.5% |
+| **LLM judge (70B)** | **94.1%** | **0.946** | 0.954 | **57.1%** | 92.9% | 13.5% |
+| Dense-direction | 88.9% | 0.890 | **0.983** | 42.9% | 92.9% | 5.4% |
+| SAE-feature (top-15) | 87.8% | 0.878 | 0.975 | 33.3% | 92.9% | 2.7% |
+
+**The headline is split, and the significance tests decide it rather than the
+raw gaps:**
+
+- **Dense-direction wins on ranking quality**: AUROC 0.983 vs the judge's
+  0.954, DeLong paired test **p=0.0041**. The activation signal separates
+  harmful from harmless better than a 70B model reading the text.
+- **The judge wins at its operating point**: 94.1% vs 88.9% accuracy,
+  McNemar's exact **p<0.001** (27 discordant, 26 of them judge-only). Not
+  a noise artifact.
+- **On PAIR the judge's apparent lead is not significant**: 57.1% vs 42.9%
+  is 7 discordant prompts, McNemar **p=0.45**. Reported as indistinguishable,
+  not as a judge win -- the raw rates alone would have been over-read.
+
+**The most useful finding is the AUROC/accuracy split itself.** Better ranking
+with worse thresholded decisions is the signature of a **miscalibrated
+threshold, not a weaker signal**: Youden's J on VAL picked an operating point
+that costs the dense-direction detector real accuracy it has the separability
+to achieve. That is a fixable engineering problem rather than a limitation of
+activation-based detection, and it lands directly on this project's stated
+calibration/deployability angle.
+
+**Two further honest notes:**
+
+1. **The judge pays a visible safety tax**: 13.5% false-positive rate on
+   XSTest's harmless-but-scary-looking prompts, against dense-direction's 5.4%
+   and SAE-feature's 2.7%. A capable text reader over-refuses exactly the
+   prompts XSTest was built to catch.
+2. **Perplexity's split is textbook**: 100% on GCG (gibberish suffixes are
+   wildly improbable text) and **0%** on PAIR (fluent roleplay reads as
+   ordinary prose). The judge and both activation detectors all catch 92.9%
+   of GCG, so GCG does not discriminate between them; PAIR is where the
+   spread lives.
+
+**What this does and does not settle.** It does not overturn the project's
+central claim -- on the threshold-independent measure the activation detector
+is significantly better, and it does so from a 8B model's internals against a
+70B text reader. It does complicate the simpler framing that internal state
+beats surface text outright: at a deployed operating point, a frontier judge
+is currently more accurate on clean TEST, and no significant difference is
+demonstrable on PAIR at n=21. The adversarial set's size remains the binding
+constraint on that last comparison (see Known limitations).
+
 ## Dense-direction detector: cross-model comparison (6 models)
 
 Extends the dense-direction detector (not the SAE-feature detector, which

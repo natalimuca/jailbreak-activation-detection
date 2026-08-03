@@ -232,16 +232,28 @@ handful of the 15 hand-selected features ever fire on a given prompt at all.
 |---|---|---|---|---|---|
 | keyword filter | 56.6% | 0.603 | 17.1% | 7.1% | 23.8% |
 | perplexity filter (Olmo-3-1025-7B) | 54.9% | 0.520 | 40.0% | **100.0%** | **0.0%** |
-| **dense-direction** | **88.9%** | **0.983** | 62.9% | 92.9% | 42.9% |
-| **SAE-feature (top-15)** | **87.8%** | **0.975** | 57.1% | 92.9% | 33.3% |
+| LLM judge (Llama-3.3-70B, text only) | **94.1%** | 0.954 | 71.4% | 92.9% | 57.1% |
+| **dense-direction** | 88.9% | **0.983** | 62.9% | 92.9% | 42.9% |
+| **SAE-feature (top-15)** | 87.8% | 0.975 | 57.1% | 92.9% | 33.3% |
 
 **GCG (gibberish-suffix) detection is a perfect 100% across five independent
 perplexity backbones tried**: strong, convergent evidence this is a real,
 model-agnostic property of the attack, not an artifact of any one scorer.
 **PAIR (fluent paraphrase) detection is 0.0% for every backbone except the
 original, weakest one**: perplexity filtering structurally cannot catch fluent
-paraphrase attacks. All four detectors, including the activation-based ones,
-degrade sharply on PAIR relative to clean TEST performance.
+paraphrase attacks. Every detector, including the activation-based ones,
+degrades sharply on PAIR relative to clean TEST performance.
+
+**A frontier LLM prompted as a classifier is a genuinely strong text-only
+baseline, and the comparison splits.** Dense-direction wins on
+threshold-independent ranking (AUROC 0.983 vs 0.954, DeLong p=0.0041); the
+judge wins at its calibrated operating point (94.1% vs 88.9% accuracy,
+McNemar p<0.001); on PAIR the judge's higher rate is **not** statistically
+distinguishable (McNemar p=0.45, n=21). Better ranking alongside worse
+thresholded accuracy points at threshold selection, not signal quality --
+the dense detector's Youden-J operating point leaves accuracy on the table.
+The judge also over-refuses: 13.5% false positives on XSTest's
+harmless-but-scary prompts, against dense-direction's 5.4%.
 
 ### Cross-model direction transfer
 
@@ -412,7 +424,7 @@ src/
   direction/     refusal-direction computation, ablation, activation addition,
                  SAE feature-suppression generation, refusal metric
   sae/           pretrained SAE loading, feature selection, causal ranking
-  baselines/     keyword-filter and perplexity-filter prompt classifiers
+  baselines/     keyword-filter, perplexity-filter, and LLM-judge prompt classifiers
   detectors/     dense-direction and SAE-feature prompt classifiers
   eval/          shared detector metrics, adversarial paraphrase set
   api/           FastAPI backend serving live per-prompt detector inference
