@@ -27,6 +27,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from src.activations.cache import load_cache
 from src.baselines.keyword_filter import score as keyword_score
+from src.baselines.llm_judge import load_cache as load_judge_cache
+from src.baselines.llm_judge import save_cache as save_judge_cache
+from src.baselines.llm_judge import score as judge_score
 from src.baselines.perplexity_filter import compute_perplexity, load_perplexity_model
 from src.detectors.dense_direction_detector import calibrate as calibrate_dense
 from src.detectors.dense_direction_detector import resolve_layer_for_model
@@ -81,14 +84,30 @@ def main() -> None:
         ppl_scores = [compute_perplexity(t, ppl_model, ppl_tok) for t in val_texts]
         thresholds["perplexity"] = youden_threshold(ppl_scores, val_labels)
         print(f"threshold: {thresholds['perplexity']:.2f}")
+
+        print("\n--- LLM judge (Llama-3.3-70B via Groq) ---")
+        judge_cache = load_judge_cache()
+        judge_scores = []
+        for i, t in enumerate(val_texts):
+            judge_scores.append(judge_score(t, judge_cache))
+            if (i + 1) % 25 == 0:
+                save_judge_cache(judge_cache)
+                print(f"  scored {i + 1}/{len(val_texts)}")
+        save_judge_cache(judge_cache)
+        thresholds["llm_judge"] = youden_threshold(judge_scores, val_labels)
+        print(f"threshold: {thresholds['llm_judge']:.2f}")
     else:
-        print("\n--- keyword filter + perplexity filter ---")
+        print("\n--- keyword filter + perplexity filter + LLM judge ---")
         print("Reusing Qwen3-8B's calibrated thresholds (prompt-text-only, same VAL prompts, no model-specific signal)")
         with open(RESULTS_DIR / "detector_thresholds_Qwen3-8B.json") as fh:
             qwen3_thresholds = json.load(fh)["thresholds"]
         thresholds["keyword"] = qwen3_thresholds["keyword"]
         thresholds["perplexity"] = qwen3_thresholds["perplexity"]
-        print(f"keyword threshold: {thresholds['keyword']}, perplexity threshold: {thresholds['perplexity']:.2f}")
+        thresholds["llm_judge"] = qwen3_thresholds["llm_judge"]
+        print(
+            f"keyword threshold: {thresholds['keyword']}, perplexity threshold: {thresholds['perplexity']:.2f}, "
+            f"llm_judge threshold: {thresholds['llm_judge']:.2f}"
+        )
 
     print("\n--- dense-direction detector ---")
     dense_layer = resolve_layer_for_model(model_name)

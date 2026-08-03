@@ -30,6 +30,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from src.activations.cache import load_cache
 from src.baselines.keyword_filter import score as keyword_score
+from src.baselines.llm_judge import load_cache as load_judge_cache
+from src.baselines.llm_judge import save_cache as save_judge_cache
+from src.baselines.llm_judge import score as judge_score
 from src.baselines.perplexity_filter import compute_perplexity, load_perplexity_model
 from src.detectors.dense_direction_detector import project as dense_project
 from src.detectors.sae_feature_detector import load_top_features
@@ -89,12 +92,31 @@ def main() -> None:
     print("Loading Olmo-3-1025-7B (4-bit) for perplexity scoring")
     ppl_model, ppl_tok = load_perplexity_model()
 
+    judge_cache = load_judge_cache()
+
+    def judge_scores(subset_texts: list[str]) -> list[float]:
+        scores = []
+        try:
+            for i, t in enumerate(subset_texts):
+                scores.append(judge_score(t, judge_cache))
+                if (i + 1) % 10 == 0:
+                    save_judge_cache(judge_cache)
+                    print(f"  llm_judge: scored {i + 1}/{len(subset_texts)}")
+        finally:
+            # Groq's free tier caps tokens per DAY (100k), so a long run can
+            # legitimately exhaust the quota partway through -- persist every
+            # score bought so far so a later re-run resumes instead of paying
+            # for them again.
+            save_judge_cache(judge_cache)
+        return scores
+
     def score_all(idx_mask: torch.Tensor) -> dict[str, list[float]]:
         idx = idx_mask.nonzero(as_tuple=True)[0].tolist()
         subset_texts = [texts[i] for i in idx]
         return {
             "keyword": [float(keyword_score(t)) for t in subset_texts],
             "perplexity": [compute_perplexity(t, ppl_model, ppl_tok) for t in subset_texts],
+            "llm_judge": judge_scores(subset_texts),
             "dense_direction": dense_project(acts[dense_layer, idx_mask, :], direction).tolist(),
             "sae_feature": sae_score(
                 {layer: acts[layer, idx_mask, :] for layer in sae_layers}, saes, features
@@ -142,6 +164,7 @@ def main() -> None:
     adv_scores = {
         "keyword": [float(keyword_score(t)) for t in adv_texts],
         "perplexity": [compute_perplexity(t, ppl_model, ppl_tok) for t in adv_texts],
+        "llm_judge": judge_scores(adv_texts),
         "dense_direction": dense_project(adv_acts[dense_layer], direction).tolist(),
         "sae_feature": sae_score({layer: adv_acts[layer] for layer in sae_layers}, saes, features).tolist(),
     }

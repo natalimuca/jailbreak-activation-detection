@@ -22,3 +22,6 @@ thesis_figures/
 # OS
 .DS_Store
 Thumbs.db
+
+# local run logs
+*.log
