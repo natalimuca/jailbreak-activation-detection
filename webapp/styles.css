@@ -31,15 +31,15 @@
   --color-primary-ink: #0a0a0b;
   --color-accent: #3987e5;
 
-  --color-flagged: #d03b3b;
-  --color-flagged-bg: rgba(208, 59, 59, 0.15);
-  --color-clear: #0ca30c;
-  --color-clear-bg: rgba(12, 163, 12, 0.15);
+  --color-flagged: #c3262e;
+  --color-flagged-bg: rgba(195, 38, 46, 0.15);
+  --color-clear: #6bb46b;
+  --color-clear-bg: rgba(107, 180, 107, 0.15);
   --color-unavailable: #9a9aa2;
   --color-idle: #82828b;
 
   --chart-blue: #3987e5;
-  --chart-amber: #c98500;
+  --chart-amber: #ffb047;
   --chart-gray: #4a4a52;
 }
 
@@ -61,15 +61,15 @@
     --color-primary-ink: #ffffff;
     --color-accent: #2a78d6;
 
-    --color-flagged: #d03b3b;
-    --color-flagged-bg: rgba(208, 59, 59, 0.11);
-    --color-clear: #0ca30c;
-    --color-clear-bg: rgba(12, 163, 12, 0.11);
+    --color-flagged: #a4171e;
+    --color-flagged-bg: rgba(164, 23, 30, 0.11);
+    --color-clear: #3d913d;
+    --color-clear-bg: rgba(61, 145, 61, 0.11);
     --color-unavailable: #5f5f69;
     --color-idle: #64646f;
 
     --chart-blue: #2a78d6;
-    --chart-amber: #eda100;
+    --chart-amber: #ffa225;
     --chart-gray: #b4b4bc;
   }
 }
@@ -91,15 +91,15 @@
   --color-primary-ink: #ffffff;
   --color-accent: #2a78d6;
 
-  --color-flagged: #d03b3b;
-  --color-flagged-bg: rgba(208, 59, 59, 0.11);
-  --color-clear: #0ca30c;
-  --color-clear-bg: rgba(12, 163, 12, 0.11);
+  --color-flagged: #a4171e;
+  --color-flagged-bg: rgba(164, 23, 30, 0.11);
+  --color-clear: #3d913d;
+  --color-clear-bg: rgba(61, 145, 61, 0.11);
   --color-unavailable: #5f5f69;
   --color-idle: #64646f;
 
   --chart-blue: #2a78d6;
-  --chart-amber: #eda100;
+  --chart-amber: #ffa225;
   --chart-gray: #b4b4bc;
 }
 
