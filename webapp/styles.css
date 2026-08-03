@@ -61,8 +61,8 @@
     --color-primary-ink: #ffffff;
     --color-accent: #2a78d6;
 
-    --color-flagged: #a4171e;
-    --color-flagged-bg: rgba(164, 23, 30, 0.11);
+    --color-flagged: #ff2b25;
+    --color-flagged-bg: rgba(255, 43, 37, 0.11);
     --color-clear: #3d913d;
     --color-clear-bg: rgba(61, 145, 61, 0.11);
     --color-unavailable: #5f5f69;
@@ -91,8 +91,8 @@
   --color-primary-ink: #ffffff;
   --color-accent: #2a78d6;
 
-  --color-flagged: #a4171e;
-  --color-flagged-bg: rgba(164, 23, 30, 0.11);
+  --color-flagged: #ff2b25;
+  --color-flagged-bg: rgba(255, 43, 37, 0.11);
   --color-clear: #3d913d;
   --color-clear-bg: rgba(61, 145, 61, 0.11);
   --color-unavailable: #5f5f69;
