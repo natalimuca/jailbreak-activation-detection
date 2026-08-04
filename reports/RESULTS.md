@@ -1323,6 +1323,56 @@ is at least as accurate on two of three models. And it does not establish any
 advantage on adversarial paraphrase in either direction -- the adversarial set
 size remains the binding constraint (see Known limitations).
 
+## Threshold reselection: testing the calibration diagnosis (2026-08-04)
+
+The judge comparison above localized dense-direction's accuracy shortfall to
+**threshold selection** rather than signal quality (better AUROC, worse
+thresholded accuracy). `scripts/recalibrate.py` tests that directly: keep the
+detector and its direction exactly as they are, change only the rule used to
+pick the cutoff, and fit every rule on VAL alone.
+
+Three rules, all fit on VAL, all evaluated on TEST:
+`youden_j` (current, maximizes TPR-FPR), `max_accuracy`, and `max_f1`.
+
+| Model | Rule | VAL acc | TEST acc | TEST F1 | vs Youden (McNemar) | vs judge (McNemar) |
+|---|---|---|---|---|---|---|
+| Qwen3-8B | youden_j (38.854) | 93.8% | 88.9% | 0.890 | -- | **p<0.001** |
+| Qwen3-8B | **max_accuracy (25.439)** | 93.8% | **92.0%** | **0.925** | **p=0.0002** | p=0.0042 |
+| Llama-3.1-8B | youden_j (0.760) | 97.6% | 93.1% | 0.934 | -- | p=0.0015 |
+| Llama-3.1-8B | max_accuracy (0.162) | 97.6% | 93.1% | 0.934 | p=1.0 | p=0.0015 |
+| gemma-2-9b-it | youden_j (118.943) | 94.5% | 93.1% | 0.937 | -- | p=1.0 |
+| gemma-2-9b-it | max_accuracy (118.276) | 94.5% | 93.1% | 0.937 | p=1.0 | p=1.0 |
+
+`max_f1` selected the same threshold as `max_accuracy` on all three models, so
+it is omitted from the table.
+
+**The diagnosis holds, and it is specific rather than general.** On Qwen3-8B --
+the one model where the judge's accuracy advantage was large (+5.2pp) --
+reselecting the threshold lifts TEST accuracy from 88.9% to **92.0%**, a
+significant paired improvement (McNemar p=0.0002, 13 discordant prompts, all 13 favouring the new cutoff). The
+gap to the judge falls from 5.2pp to 2.1pp, i.e. **threshold selection alone
+accounted for roughly 60% of it**, with no change to the direction, the layer,
+or any activation. On Llama and gemma, where Youden's J was already near
+optimal, reselection changes nothing (p=1.0 on both). The intervention helps
+exactly where the diagnosis said the problem was and nowhere else, which is
+the behaviour a correct diagnosis predicts.
+
+**An honest limitation on how much VAL could have told us.** For Qwen3-8B both
+rules score *identically* on VAL (93.8%), so VAL accuracy alone could not have
+identified the better cutoff in advance -- the two rules are only separable on
+TEST. The principled argument for `max_accuracy` is therefore a priori, not
+empirical: it optimizes the metric actually reported, whereas Youden's J
+optimizes TPR-FPR, a different objective that coincides with accuracy only
+when the operating point sits near balanced class costs. That reasoning stands
+independently of the TEST outcome, which is why it is reported as a rule choice
+rather than a threshold tuned on TEST.
+
+**Not adopted as the project default.** The published detector numbers
+throughout this repo, the README tables, and the UI's validation panel all use
+the Youden-J thresholds; switching Qwen3-8B's would require re-running the
+head-to-head and updating every downstream number. The finding is recorded
+here as a calibration result, not silently folded into the headline metrics.
+
 ## Dense-direction detector: cross-model comparison (6 models)
 
 Extends the dense-direction detector (not the SAE-feature detector, which

@@ -3233,3 +3233,43 @@ written incrementally, so the reported run is reproducible offline at zero cost
 and a re-run never re-pays for a prompt. This follows the same
 checkpoint-incrementally rule the Tier 2 token-attribution work adopted after a
 crash cost a completed model's results.
+
+## Threshold reselection, and why it is reported but not adopted (2026-08-04)
+
+**Why run it.** The LLM-judge comparison produced a diagnosis rather than just
+a number: dense-direction ranks better (AUROC, significant on all three models)
+but decides worse (accuracy, significant on two). That pattern implicates the
+cutoff, not the signal. A diagnosis that is never tested is just a story, so
+`scripts/recalibrate.py` intervenes on exactly the suspected component --
+the threshold rule -- and holds everything else fixed.
+
+**Design choices.** Every rule is fit on VAL only, never TEST, preserving the
+same split discipline as the rest of Phase 4. The comparison against the
+existing Youden-J threshold is a paired McNemar on the same TEST prompts, not
+two independent accuracy figures, because the two rules classify the same items
+and only the discordant pairs carry information. Candidate thresholds are
+midpoints between adjacent unique scores, so the search cannot land on a value
+that is optimal only by floating-point accident.
+
+**Verified on planted data before trusting it.** `_best_threshold` was checked
+against a perfectly separable synthetic set with a known-correct answer (it
+returns the midpoint and 100% accuracy) and a degenerate all-positive set,
+following this project's practice of validating statistical machinery on data
+with a known answer before running it on real results.
+
+**Why the result is reported but not adopted.** Reselection is a real,
+significant improvement on Qwen3-8B (88.9% -> 92.0%, p=0.0002) and a no-op on
+Llama and gemma. Adopting it would mean re-running the head-to-head for one
+model and updating every downstream number: the README tables, the UI's
+validation panel, the cross-model comparison, and the thesis. Doing that
+silently would leave the repo internally inconsistent mid-flight, and doing it
+selectively for the one model it helps invites the obvious objection that the
+threshold rule was chosen after seeing which model it flattered. The finding is
+therefore recorded as its own result, with the adoption decision left explicit.
+
+**The limitation that matters most.** On Qwen3-8B the two rules tie on VAL
+accuracy (93.8%), so VAL could not have picked the winner in advance. The
+justification for `max_accuracy` has to rest on it optimizing the metric being
+reported, not on it having looked better during calibration -- and that
+distinction is worth stating plainly, because the alternative framing ("we
+found a better threshold") would be indistinguishable from tuning on TEST.

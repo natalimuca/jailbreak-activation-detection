@@ -42,6 +42,7 @@ encoding that order; this table replaces it.
 | 34 | `decompose_llama_causal_gap.py` | Decompose the dense direction vs. its top SAE feature, ablate each component separately |
 | 35 | `transfer_direction_deepseek.py` | Cross-model direction transfer, second pair (Qwen2.5-1.5B <-> DeepSeek-R1-Distill-Qwen-1.5B) |
 | 36 | `wrapper_swap_replication.py` | Replicated wrapper-swap factorial: decomposes the core x wrapper interaction term |
+| 37 | `recalibrate.py` | Threshold-rule reselection on VAL, tested against Youden-J on TEST |
 
 Full rationale for every methodology choice is in
 [DECISIONS.md](../reports/DECISIONS.md); results are in
