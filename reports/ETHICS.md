@@ -1,16 +1,13 @@
-# Research Ethics Self-Assessment
+# Ethics and safety handling
 
-**Student:** Natalia Muça
-**Programme:** MSc Artificial Intelligence (cybersecurity profile)
-**Thesis title:** Jailbreak detection via internal model activations
-**Repository:** github.com/natalimuca/jailbreak-activation-detection
-**Date:** [submission date]
+How this project handles harmful-instruction data, where that data comes from,
+what leaves this machine, and what is deliberately not released.
 
-## 1. Summary of the research
+## 1. What this project is
 
-I am researching whether a jailbreak / harmful-intent prompt detector built on
-an LLM's internal activations is more robust than surface-level (keyword or
-perplexity-based) filtering. Surface filters can be evaded by disguising a
+I am researching whether a jailbreak / harmful-intent prompt detector built
+on an LLM's internal activations is more robust than surface-level (keyword
+or perplexity-based) filtering. Surface filters can be evaded by disguising a
 harmful request as fiction, roleplay, or a hypothetical -- an
 activation-based detector, reading the model's internal state rather than the
 prompt's surface wording, is intended to be harder to evade this way.
@@ -78,7 +75,7 @@ safety training is bypassed is already a known, publicly documented property
 of each model, and is precisely the property the underlying published
 research (Arditi et al. 2024) demonstrates and that I am building on.
 
-## 5b. Third-party API use (added 2026-08-04)
+## 6. Third-party API use
 
 One component of this project sends data off my machine, and I want it stated
 explicitly rather than left implicit in the "local" framing above.
@@ -132,7 +129,7 @@ detector itself. The activation-based detectors, which are the actual
 contribution, run entirely locally and send nothing anywhere. The judge
 baseline can be omitted from a reproduction without affecting them.
 
-## 6. Risk assessment
+## 7. Risk assessment
 
 I assess this project as **low risk**:
 
@@ -142,7 +139,7 @@ I assess this project as **low risk**:
   for, any use outside verifying the detector's own effectiveness.
 - The end goal is protective (a better jailbreak detector), not harmful.
 
-Two points I want to flag explicitly to my advisor/department for review:
+Three points are worth stating explicitly rather than leaving implicit:
 
 1. **Local storage of model-generated harmful text during experiments.** I
    mitigate this via `.gitignore` (never committed) and by not sharing raw
@@ -152,26 +149,20 @@ Two points I want to flag explicitly to my advisor/department for review:
    LITERATURE.md publishes comparable methodology -- but I want this
    explicitly acknowledged as part of my ethics review, not assumed.
 3. **Sending published harmful prompts to a third-party API.** The LLM-judge
-   baseline (section 5b) transmits public benchmark prompts to Groq for
+   baseline (section 6) transmits public benchmark prompts to Groq for
    scoring. I judge this low risk: the prompts are already public, the model
    is asked to rate rather than comply, and Groq's Services Agreement bars
    training on submitted Inputs. It remains the one part of this project where
    data leaves my machine, so I am flagging it for review rather than
    absorbing it into the "local processing" description.
 
-## 7. Dissemination plan
+## 8. Disclosure and release
 
-I intend to publish this thesis and its supporting repository as a portfolio
-piece documenting a defensive security methodology, following the same
-disclosure norms as the published papers I cite and build on (results and
-methodology published; no novel attack methodology; no raw harmful
-completions released).
+This repository documents a defensive detection methodology and follows the
+same disclosure norms as the published work it builds on: results and
+methodology are published; no novel attack methodology is introduced; no raw
+harmful completions are released.
 
-## 8. Declaration
-
-I confirm that the above accurately describes my research as conducted, that
-all harmful-instruction data used is drawn from established public
-benchmarks rather than authored by me, and that I have not disclosed or
-intend to disclose any novel jailbreak technique as part of this work.
-
-**Signature:** ______________________ **Date:** ______________
+All harmful-instruction data used here is drawn from established public
+benchmarks rather than authored for this project, and no novel jailbreak
+technique is disclosed by it.
