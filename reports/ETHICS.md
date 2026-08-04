@@ -48,7 +48,7 @@ Every harmful prompt in this project already exists in a public, citable
 safety-research benchmark that is itself used by numerous other published
 papers in this literature.
 
-## 4. Methodology that generates harmful content locally
+## 4. Methodology that generates harmful content
 
 Testing whether a candidate activation direction *causally* controls refusal
 (rather than merely correlating with it) requires running the benchmark
@@ -78,6 +78,48 @@ safety training is bypassed is already a known, publicly documented property
 of each model, and is precisely the property the underlying published
 research (Arditi et al. 2024) demonstrates and that I am building on.
 
+## 5b. Third-party API use (added 2026-08-04)
+
+One component of this project sends data off my machine, and I want it stated
+explicitly rather than left implicit in the "local" framing above.
+
+To test whether activation-based detection outperforms *surface-level* text
+analysis, I needed a strong text-only comparison rather than only the weak
+baselines (a keyword lexicon and a perplexity filter). That comparison is a
+frontier-scale model prompted as a classifier: **Llama-3.3-70B, accessed
+through Groq's free API tier**, because a 70B model cannot run on my hardware.
+
+**What is transmitted:** the prompt text being classified, and nothing else.
+Every such prompt is an item already published in a public benchmark
+(AdvBench, HarmBench, JailbreakBench/JBB-Behaviors, XSTest) or a published
+adversarial artifact (PAIR and GCG attack strings from JailbreakBench). No
+novel harmful text is authored or sent.
+
+**What is never transmitted:** model activations, model-generated harmful
+completions, any personal data, and any content originating from me rather
+than from a published benchmark.
+
+**What is stored locally:** only a cache mapping a SHA-256 hash of each
+(model, prompt) pair to a numeric score (`results/llm_judge_cache.json`,
+gitignored). The cache holds no prompt text.
+
+**Residual risk and my assessment.** The material question is whether sending
+these prompts to a commercial provider creates harm. I assess it as low: the
+prompts are already public, published precisely so that safety researchers can
+evaluate against them, and the request asks the provider's model to *rate*
+them rather than to comply with them. I note two caveats honestly rather than
+claiming none exist. First, Groq's free tier terms govern retention and
+possible use of submitted data, and I have not negotiated any research-specific
+data agreement; anyone reproducing this work should check those terms as they
+stand at the time. Second, the provider's own safety systems see a stream of
+jailbreak prompts from my account, which could reasonably be flagged as abuse
+by automated monitoring even though the purpose is defensive evaluation.
+
+**Avoidability.** This component is a comparison baseline, not part of the
+detector itself. The activation-based detectors, which are the actual
+contribution, run entirely locally and send nothing anywhere. The judge
+baseline can be omitted from a reproduction without affecting them.
+
 ## 6. Risk assessment
 
 I assess this project as **low risk**:
@@ -97,6 +139,12 @@ Two points I want to flag explicitly to my advisor/department for review:
    standard practice in this research area -- every paper I surveyed in
    LITERATURE.md publishes comparable methodology -- but I want this
    explicitly acknowledged as part of my ethics review, not assumed.
+3. **Sending published harmful prompts to a third-party API.** The LLM-judge
+   baseline (section 5b) transmits public benchmark prompts to Groq for
+   scoring. I judge this low risk because the prompts are already public and
+   the model is asked to rate rather than comply, but it is the one part of
+   this project where data leaves my machine, so I am flagging it for review
+   rather than absorbing it into the "local processing" description.
 
 ## 7. Dissemination plan
 
