@@ -536,9 +536,10 @@ backbones' numbers are superseded, not reported twice.
 | detector | accuracy | 95% CI | F1 | AUROC |
 |---|---|---|---|---|
 | keyword filter | 56.6% | [50.8%, 62.2%] | 0.359 | 0.603 |
-| perplexity filter | 54.9% | [49.1%, 60.5%] | 0.637 | 0.520 |
-| **dense-direction** | **88.9%** | **[84.7%, 92.0%]** | **0.890** | **0.983** |
-| **SAE-feature (top-15)** | **87.8%** | **[83.6%, 91.1%]** | **0.878** | **0.975** |
+| perplexity filter | 54.5% | [48.7%, 60.1%] | 0.634 | 0.520 |
+| LLM judge (70B) | 93.8% | [90.3%, 96.0%] | 0.942 | 0.954 |
+| **dense-direction** | **92.0%** | **[88.3%, 94.6%]** | **0.925** | **0.983** |
+| **SAE-feature (top-15)** | **92.0%** | **[88.3%, 94.6%]** | **0.923** | **0.975** |
 
 On clean, in-distribution prompts the two activation-based detectors
 clearly beat both baselines -- an AUROC of 0.98/0.975 vs. 0.60/0.52.
@@ -602,8 +603,9 @@ breakdown" discipline as the moralize-vs-comply finding above.
 |---|---|---|---|
 | keyword filter | 17.1% [8.1%, 32.7%] | 7.1% [1.3%, 31.5%] | 23.8% [10.6%, 45.1%] |
 | perplexity filter | 40.0% [25.6%, 56.4%] | **100.0%** [78.5%, 100%] | **0.0%** [0%, 15.5%] |
-| dense-direction | 62.9% [46.3%, 76.8%] | 92.9% [68.5%, 98.7%] | 42.9% [24.5%, 63.4%] |
-| SAE-feature (top-15) | 57.1% [40.9%, 72.0%] | 92.9% [68.5%, 98.7%] | 33.3% [17.2%, 54.6%] |
+| LLM judge (70B) | 88.6% [73.9%, 95.5%] | **100.0%** [78.5%, 100%] | 81.0% [60.0%, 92.3%] |
+| dense-direction | 68.6% [52.0%, 81.5%] | 92.9% [68.5%, 98.7%] | 52.4% [32.4%, 71.7%] |
+| SAE-feature (top-15) | 68.6% [52.0%, 81.5%] | 92.9% [68.5%, 98.7%] | 52.4% [32.4%, 71.7%] |
 
 **Honest findings, not smoothed over:**
 
@@ -627,18 +629,19 @@ breakdown" discipline as the moralize-vs-comply finding above.
    perplexity detects none of it.
 4. **On PAIR -- the case this evaluation is actually named for -- all four
    detectors degrade sharply relative to their TEST-split performance**
-   (dense-direction: 88.9% to 42.9%; SAE-feature: 87.8% to 33.3%; keyword:
-   56.6% to 23.8%; perplexity: 54.9% to 0.0%). Fluent paraphrase is a hard
-   case across the board, including for the activation-based methods.
+   (dense-direction: 92.0% to 52.4%; SAE-feature: 92.0% to 52.4%; keyword:
+   56.6% to 23.8%; perplexity: 54.5% to 0.0%; the 70B LLM judge degrades
+   least, 93.8% to 81.0%). Fluent paraphrase is a hard case across the
+   board, including for the activation-based methods.
 5. **This does not replicate arXiv:2505.23556's finding that SAE features
    are more robust to adversarial paraphrase than a dense direction** -- on
-   PAIR, dense-direction (42.9%) numerically edges out SAE-feature (33.3%),
-   the opposite direction. Tested with a paired exact McNemar's test on the
+   PAIR the two detectors now score identically (52.4% each) on Qwen3-8B
+   under the adopted threshold rule, so there is no advantage in either
+   direction here. Tested with a paired exact McNemar's test on the
    same 21 prompts (`src.eval.detector_metrics.mcnemar_exact` -- the correct
    test here, since both detectors are scored on identical items, not a
    comparison of two independent Wilson CIs): only 2 of 21 pairs are
-   discordant (dense flags 2 prompts SAE doesn't; SAE flags none dense
-   doesn't), **p = 0.5** -- nowhere near significant. Reported honestly as
+   discordant (one each way), **p = 1.0** -- nowhere near significant. Reported honestly as
    "no replication of that specific claim at this sample size," not as a
    reversal of it. (Unaffected by the perplexity-backbone switch -- this
    comparison never involved perplexity.)
@@ -655,9 +658,9 @@ generalization before looking at the finer comparisons.
 
 | | TEST AUROC (dense/SAE) | DeLong p | PAIR detect (dense/SAE) | pooled adversarial McNemar p |
 |---|---|---|---|---|
-| Qwen3-8B | 0.983 / 0.975 | 0.068 (n.s.) | 42.9% / 33.3% | 0.5 (n.s.) |
-| Llama-3.1-8B | 0.989 / 0.978 | **0.024** | 66.7% / **80.9%** | 0.25 (n.s.) |
-| gemma-2-9b-it | 0.984 / 0.966 | **0.0063** | **47.6%** / 23.8% | **0.0156** |
+| Qwen3-8B | 0.983 / 0.975 | 0.068 (n.s.) | 52.4% / 52.4% | 1.0 (n.s.) |
+| Llama-3.1-8B | 0.989 / 0.978 | **0.024** | 71.4% / **81.0%** | 0.5 (n.s.) |
+| gemma-2-9b-it | 0.984 / 0.966 | **0.0063** | 47.6% / 47.6% | 1.0 (n.s.) |
 
 **A genuinely different story per model**, flagged as unresolved rather
 than forced into a pattern:
@@ -666,15 +669,17 @@ than forced into a pattern:
   indistinguishable everywhere tested.
 - **Llama-3.1-8B**: dense-direction significantly better overall
   (p=0.024) -- but on PAIR specifically, SAE-feature numerically *beats*
-  dense-direction (80.9% vs 66.7%, McNemar p=0.25, not significant at
-  n=21). The one case in this project where SAE-feature out-robusts dense
+  dense-direction (81.0% vs 71.4%, McNemar p=0.5 on 2 discordant prompts,
+  not significant at n=21). The one case in this project where SAE-feature out-robusts dense
   direction on paraphrase, the direction arXiv:2505.23556 originally
   claimed -- still not formally significant, but the first time this
   project's own numbers point that way at all.
-- **gemma-2-9b-it**: dense-direction significantly better both overall
-  (p=0.0063) and on the pooled adversarial set (p=0.0156, all 7
-  discordant pairs favor dense) -- the strongest, most one-sided result
-  for dense-direction of any model tested.
+- **gemma-2-9b-it**: dense-direction significantly better on TEST AUROC
+  (p=0.0063), but under the adopted threshold rule the two detectors now
+  make *identical* decisions on the whole adversarial set (zero discordant
+  pairs, p=1.0). The previously-reported one-sided adversarial advantage
+  (p=0.0156 at the Youden thresholds) was a property of the old operating
+  point, not of the detectors.
 
 Full per-model numbers (TEST-overall, XSTest-safe, adversarial pooled +
 by-method) in `results/detector_head_to_head_{Llama-3.1-8B-Instruct,
@@ -703,9 +708,10 @@ relative terms** -- not just a difference in where the binary threshold
 happens to fall. A **paired Wilcoxon signed-rank test on the same 21
 prompts' continuous margins** (more statistical power than McNemar's test on
 the binarized outcome, since it uses the full margin rather than just
-above/below threshold): **statistic=73.0, p=0.147** -- lower than the
-original McNemar p=0.25, but still not significant at the conventional 0.05
-threshold.
+above/below threshold): **statistic=82.0, p=0.257** (recomputed 2026-08-04
+under the adopted threshold rule; was statistic=73.0, p=0.147 at the Youden
+thresholds) -- still not significant at the conventional 0.05 threshold, and
+the conclusion is unchanged.
 
 **Genuinely inconclusive, not resolved either way**: a more powered
 continuous test moves the p-value in the direction of "more likely real"
@@ -1403,12 +1409,12 @@ ablation on a narrower dataset).
 
 | model | layer | TEST accuracy | TEST AUROC | XSTest-safe correctly-not-flagged | adversarial (pooled) | GCG | PAIR |
 |---|---|---|---|---|---|---|---|
-| DeepSeek-R1-Distill-Qwen-1.5B | 7 | 84.7% [80.1%, 88.4%] | 0.911 | **100.0%** [90.6%, 100%] | 40.0% [25.6%, 56.4%] | 85.7% [60.1%, 96.0%] | 9.5% [2.6%, 28.9%] |
-| Qwen2.5-1.5B-Instruct | 20 | 89.6% [85.5%, 92.6%] | 0.970 | 75.7% [59.9%, 86.6%] | 42.9% [28.0%, 59.1%] | 50.0% [26.8%, 73.2%] | 38.1% [20.7%, 59.1%] |
-| SmolLM2-1.7B-Instruct | 14 | 87.8% [83.6%, 91.1%] | 0.945 | **100.0%** [90.6%, 100%] | **91.4%** [77.6%, 97.0%] | **92.9%** [68.5%, 98.7%] | **90.5%** [71.1%, 97.4%] |
-| Qwen3-8B (from above) | 23 | 88.9% [84.7%, 92.0%] | 0.983 | 94.6% [82.3%, 98.5%] | 62.9% [46.3%, 76.8%] | 92.9% [68.5%, 98.7%] | 42.9% [24.5%, 63.4%] |
-| **Llama-3.1-8B-Instruct** | 27 | **93.1%** [89.5%, 95.5%] | **0.989** | 97.3% [86.2%, 99.5%] | 80.0% [64.1%, 90.0%] | **100.0%** [78.5%, 100%] | 66.7% [45.4%, 82.8%] |
-| Gemma-2-9B-it | 34 | 93.1% [89.5%, 95.5%] | 0.984 | 89.2% [75.3%, 95.7%] | 68.6% [52.0%, 81.5%] | **100.0%** [78.5%, 100%] | 47.6% [28.3%, 67.6%] |
+| DeepSeek-R1-Distill-Qwen-1.5B | 7 | 84.7% [80.1%, 88.4%] | 0.911 | **100.0%** [90.6%, 100.0%] | 40.0% [25.6%, 56.4%] | 85.7% [60.1%, 96.0%] | 9.5% [2.6%, 28.9%] |
+| Qwen2.5-1.5B-Instruct | 20 | 89.2% [85.1%, 92.3%] | 0.970 | 73.0% [57.0%, 84.6%] | 54.3% [38.2%, 69.5%] | 64.3% [38.8%, 83.7%] | 47.6% [28.3%, 67.6%] |
+| SmolLM2-1.7B-Instruct | 14 | 84.7% [80.1%, 88.4%] | 0.945 | 94.6% [82.3%, 98.5%] | **100.0%** [90.1%, 100.0%] | **100.0%** [78.5%, 100.0%] | **100.0%** [84.5%, 100.0%] |
+| Qwen3-8B (from above) | 23 | 92.0% [88.3%, 94.6%] | 0.983 | 89.2% [75.3%, 95.7%] | 68.6% [52.0%, 81.5%] | 92.9% [68.5%, 98.7%] | 52.4% [32.4%, 71.7%] |
+| **Llama-3.1-8B-Instruct** | 27 | **93.1%** [89.5%, 95.5%] | **0.989** | 97.3% [86.2%, 99.5%] | 82.9% [67.3%, 91.9%] | **100.0%** [78.5%, 100.0%] | 71.4% [50.0%, 86.2%] |
+| Gemma-2-9B-it | 34 | 93.1% [89.5%, 95.5%] | 0.984 | 89.2% [75.3%, 95.7%] | 68.6% [52.0%, 81.5%] | **100.0%** [78.5%, 100.0%] | 47.6% [28.3%, 67.6%] |
 
 **Five of six models achieve comparably strong TEST-split accuracy**
 (87.8-93.1%, AUROC 0.94-0.99); **DeepSeek is the outlier, weakest of all
@@ -1418,16 +1424,19 @@ TEST accuracy and AUROC of any model tried in this project so far**,
 including Qwen3-8B.
 
 **PAIR-paraphrase robustness shows a clear ranking across six models,
-with DeepSeek a dramatic new low**: SmolLM2 (90.5%) > Llama-3.1-8B (66.7%)
-> Gemma-2-9B (47.6%) > Qwen3-8B (42.9%) > Qwen2.5-1.5B (38.1%) >
-**DeepSeek (9.5%)** -- roughly a quarter of the next-lowest model's rate.
+with DeepSeek a dramatic new low**: SmolLM2 (100.0%) > Llama-3.1-8B (71.4%)
+> Qwen3-8B (52.4%) > Qwen2.5-1.5B (47.6%) = Gemma-2-9B (47.6%) >
+**DeepSeek (9.5%)** -- roughly a fifth of the next-lowest model's rate.
+(Rates recomputed 2026-08-04 under the adopted accuracy-maximizing threshold
+rule; the ranking's top and bottom are unchanged, but Qwen3-8B and Gemma-2-9B
+swapped, and Qwen2.5-1.5B now ties Gemma.)
 Tested formally with Cochran's Q across all six
 (`src.eval.detector_metrics.cochrans_q` -- generalizes McNemar's paired
 test to *k* related classifiers scored on the same 21 items, the correct
-tool instead of eyeballing pairwise CIs): **Q = 34.44, df = 5, p = 1.94e-6**
-(recomputed 2026-07-27 with DeepSeek added; was Q=19.52, df=4, p=0.0006 at
-5 models -- DeepSeek's extreme outlier value widened an already-real
-spread further, not an artifact of adding a 6th model) -- clearly
+tool instead of eyeballing pairwise CIs): **Q = 44.55, df = 5, p < 1e-6**
+(recomputed 2026-08-04 under the adopted threshold rule; was Q=34.44 with
+DeepSeek added at the Youden thresholds, and Q=19.52, df=4, p=0.0006 at 5
+models -- the spread has widened at every recomputation, not narrowed) -- clearly
 significant, confirming this spread is real across all six models, not
 just a SmolLM2-vs-everyone-else artifact. This is not explained by this
 project's data alone. One plausible connection (not established, just a
@@ -1484,7 +1493,7 @@ SmolLM2 needed a one-time forward-pass-only extraction first
 
 Recomputing each model's PAIR detection rate directly from these margins
 (fraction with projection above threshold) reproduces the published rates
-exactly (0.381/0.905/0.429/0.667/0.476/0.095) -- a sanity check that the
+exactly (0.476/1.000/0.524/0.714/0.476/0.095) -- a sanity check that the
 already-persisted directions/thresholds are being applied correctly, not new
 information on its own. **The real new result**: a formal Spearman rank
 correlation between mean PAIR margin and known detection rate, **rho = 0.90,

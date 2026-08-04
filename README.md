@@ -81,9 +81,9 @@ Headline findings so far:
   concentration-vs-distribution asymmetry is the throughline behind both the
   causal-gap result above and the paraphrase-robustness mechanism below.
 - **PAIR-paraphrase robustness has a real, statistically confirmed 6-model
-  spread** (Cochran's Q = 34.44, df = 5, p = 1.94e-6): SmolLM2 (90.5%) >
-  Llama-3.1-8B (66.7%) > gemma-2-9b-it (47.6%) > Qwen3-8B (42.9%) >
-  Qwen2.5-1.5B (38.1%) > **DeepSeek-R1-Distill-Qwen-1.5B (9.5%)**, a dramatic
+  spread** (Cochran's Q = 44.55, df = 5, p < 1e-6): SmolLM2 (100.0%) >
+  Llama-3.1-8B (71.4%) > Qwen3-8B (52.4%) > Qwen2.5-1.5B (47.6%) =
+  gemma-2-9b-it (47.6%) > **DeepSeek-R1-Distill-Qwen-1.5B (9.5%)**, a dramatic
   new low. A **controlled wrapper-swap factorial** (real core-request ×
   wrapper-framing design, not just observational PAIR transcripts) explains
   *why* for the two models examined in full depth: Qwen3-8B's dominant feature
@@ -168,16 +168,16 @@ paraphrase set reused across all six models.
 | model | layer | TEST accuracy | TEST AUROC | XSTest-safe correctly-not-flagged | PAIR detection |
 |---|---|---|---|---|---|
 | DeepSeek-R1-Distill-Qwen-1.5B | 7 | 84.7% | 0.911 | **100.0%** | **9.5%** |
-| Qwen2.5-1.5B-Instruct | 20 | 89.6% | 0.970 | 75.7% | 38.1% |
-| SmolLM2-1.7B-Instruct | 14 | 87.8% | 0.945 | **100.0%** | **90.5%** |
-| Qwen3-8B | 23 | 88.9% | 0.983 | 94.6% | 42.9% |
-| **Llama-3.1-8B-Instruct** | 27 | **93.1%** | **0.989** | 97.3% | 66.7% |
+| Qwen2.5-1.5B-Instruct | 20 | 89.2% | 0.970 | 73.0% | 47.6% |
+| SmolLM2-1.7B-Instruct | 14 | 84.7% | 0.945 | 94.6% | **100.0%** |
+| Qwen3-8B | 23 | 92.0% | 0.983 | 89.2% | 52.4% |
+| **Llama-3.1-8B-Instruct** | 27 | **93.1%** | **0.989** | 97.3% | 71.4% |
 | Gemma-2-9B-it | 34 | 93.1% | 0.984 | 89.2% | 47.6% |
 
-Five of six models land in a comparably strong 87.8–93.1% accuracy / 0.94–0.99
+Five of six models land in a comparably strong 84.7–93.1% accuracy / 0.94–0.99
 AUROC band on clean, in-distribution prompts; DeepSeek is the outlier, weakest of
 all six but still a working classifier. The PAIR-robustness spread is where
-models genuinely diverge, DeepSeek most dramatically (Cochran's Q = 34.44,
+models genuinely diverge, DeepSeek most dramatically (Cochran's Q = 44.55,
 df = 5, **p = 1.94e-6**).
 
 ### Are the differences real? (formal significance testing)
@@ -191,12 +191,13 @@ the same items, not two independently-eyeballed confidence intervals:
   both Llama-3.1-8B (p=0.024) and gemma-2-9b-it (p=0.0063). A genuinely
   different outcome per model, not smoothed into one headline.
 - **Dense-direction vs. SAE-feature on the adversarial set** (McNemar's exact):
-  not significant for Qwen3-8B (p=0.5) or Llama-3.1-8B (p=0.25, though
-  SAE-feature numerically *beats* dense-direction here, 80.9% vs. 66.7%, the
-  one case in this project matching the source paper's original claim), except
-  gemma-2-9b-it (p=0.0156, all 7 discordant pairs favor dense).
+  not significant on any of the three (Qwen3-8B p=1.0, Llama-3.1-8B p=0.5,
+  gemma-2-9b-it p=1.0 with zero discordant pairs). On Llama, SAE-feature still
+  numerically beats dense-direction on PAIR (81.0% vs. 71.4%), the one case in
+  this project matching the source paper's original claim, but on 2 discordant
+  prompts it is not a distinguishable difference.
 - **PAIR-robustness across all 6 models** (Cochran's Q, generalizes McNemar's to
-  *k* related classifiers on the same items): Q=34.44, df=5, **p=1.94e-6**.
+  *k* related classifiers on the same items): Q=44.55, df=5, **p<1e-6**.
 - **Llama's own dense-direction causal necessity, independently replicated at
   n=75**: baseline 96.0% vs. own-ablation 94.7%, McNemar p=1.0. This does not
   confirm the original n=50 reading (92%→88%, thought to be "real but small");
