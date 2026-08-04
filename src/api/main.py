@@ -9,6 +9,7 @@ overrides `get_manager` with a fake).
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException
@@ -31,6 +32,25 @@ WEBAPP_DIR = Path(__file__).resolve().parents[2] / "webapp"
 EXAMPLES_PATH = Path(__file__).resolve().parents[2] / "results" / "adversarial_paraphrase_manifest.json"
 EXAMPLES_PER_METHOD = 4
 ATTRIBUTION_PATH = Path(__file__).resolve().parents[2] / "results" / "token_attribution.json"
+ENV_PATH = Path(__file__).resolve().parents[2] / ".env"
+
+
+def _load_env_file(path: Path = ENV_PATH) -> None:
+    """The LLM-judge detector needs GROQ_API_KEY, and the dev server is
+    usually started from an editor terminal that has no way to carry it.
+    Reads a gitignored .env if present. Never overrides a variable already
+    set in the real environment, so an explicit export still wins."""
+    if not path.exists():
+        return
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        os.environ.setdefault(key.strip(), value.strip().strip("\"'"))
+
+
+_load_env_file()
 
 app = FastAPI(title="Jailbreak Activation Detector")
 
