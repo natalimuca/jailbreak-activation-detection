@@ -226,7 +226,7 @@ direction. DeepSeek's SAE-feature detector is a genuine architectural failure,
 not a calibration bug: its SAE's hard top-32-of-65536 sparsity means only a
 handful of the 15 hand-selected features ever fire on a given prompt at all.
 
-### Baseline detectors and adversarial evaluation
+### Baseline detectors and adversarial evaluation (activation rows: Qwen3-8B)
 
 | detector | TEST accuracy | TEST AUROC | adversarial pooled (n=35) | GCG (n=14) | PAIR (n=21) |
 |---|---|---|---|---|---|
