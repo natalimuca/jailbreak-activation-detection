@@ -35,7 +35,7 @@ from src.detectors.dense_direction_detector import calibrate as calibrate_dense
 from src.detectors.dense_direction_detector import resolve_layer_for_model
 from src.detectors.sae_feature_detector import calibrate as calibrate_sae, load_top_features
 from src.direction.compute import compute_directions
-from src.eval.detector_metrics import youden_threshold
+from src.eval.detector_metrics import max_accuracy_threshold
 from src.sae.registry import SAE_PROVIDERS
 
 DEFAULT_MODEL = "Qwen/Qwen3-8B"
@@ -75,14 +75,14 @@ def main() -> None:
     if cache_label == "Qwen3-8B":
         print("\n--- keyword filter ---")
         kw_scores = [keyword_score(t) for t in val_texts]
-        thresholds["keyword"] = youden_threshold(kw_scores, val_labels)
+        thresholds["keyword"] = max_accuracy_threshold(kw_scores, val_labels)
         print(f"threshold: {thresholds['keyword']}")
 
         print("\n--- perplexity filter ---")
         print("Loading Olmo-3-1025-7B (4-bit)")
         ppl_model, ppl_tok = load_perplexity_model()
         ppl_scores = [compute_perplexity(t, ppl_model, ppl_tok) for t in val_texts]
-        thresholds["perplexity"] = youden_threshold(ppl_scores, val_labels)
+        thresholds["perplexity"] = max_accuracy_threshold(ppl_scores, val_labels)
         print(f"threshold: {thresholds['perplexity']:.2f}")
 
         print("\n--- LLM judge (Llama-3.3-70B via Groq) ---")
@@ -94,7 +94,7 @@ def main() -> None:
                 save_judge_cache(judge_cache)
                 print(f"  scored {i + 1}/{len(val_texts)}")
         save_judge_cache(judge_cache)
-        thresholds["llm_judge"] = youden_threshold(judge_scores, val_labels)
+        thresholds["llm_judge"] = max_accuracy_threshold(judge_scores, val_labels)
         print(f"threshold: {thresholds['llm_judge']:.2f}")
     else:
         print("\n--- keyword filter + perplexity filter + LLM judge ---")

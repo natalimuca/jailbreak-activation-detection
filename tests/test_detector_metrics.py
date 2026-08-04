@@ -8,6 +8,8 @@ from src.eval.detector_metrics import (
     delong_auc_test,
     detector_stats,
     mcnemar_exact,
+    max_accuracy_threshold,
+    mcnemar_accuracy,
     youden_threshold,
 )
 
@@ -166,3 +168,42 @@ def test_cochrans_q_equal_marginal_rates_gives_zero_q_regardless_of_pattern():
     ]
     result = cochrans_q(preds_matrix)
     assert result["q"] == pytest.approx(0.0, abs=1e-9)
+
+
+def test_max_accuracy_threshold_separates_perfectly_separable_scores():
+    scores = [0.0, 1.0, 2.0, 3.0, 10.0, 11.0, 12.0, 13.0]
+    labels = [False] * 4 + [True] * 4
+    thr = max_accuracy_threshold(scores, labels)
+    assert all((s >= thr) == l for s, l in zip(scores, labels))
+
+
+def test_max_accuracy_threshold_beats_youden_on_skewed_costs():
+    # One extreme positive drags Youden's cutoff high enough to miss the
+    # cluster of ordinary positives; maximizing accuracy directly does not.
+    scores = [0.0, 0.1, 0.2, 5.0, 5.1, 5.2, 100.0]
+    labels = [False, False, False, True, True, True, True]
+    acc = lambda t: sum((s >= t) == l for s, l in zip(scores, labels)) / len(labels)
+    assert acc(max_accuracy_threshold(scores, labels)) >= acc(youden_threshold(scores, labels))
+
+
+def test_max_accuracy_threshold_handles_single_unique_score():
+    assert isinstance(max_accuracy_threshold([1.0, 1.0, 1.0], [True, False, True]), float)
+
+
+def test_mcnemar_accuracy_differs_from_prediction_level_test_on_mixed_labels():
+    # b flags everything: identical accuracy to a here, but a large
+    # prediction-level discordance. Only the correctness-based test is
+    # answering the accuracy question.
+    labels = [True, True, False, False]
+    a = [True, False, False, False]
+    b = [True, True, True, True]
+    assert mcnemar_exact(a, b)["n_discordant"] == 3
+    assert mcnemar_accuracy(a, b, labels)["n_discordant"] == 3
+    assert mcnemar_accuracy(a, b, labels)["only_a"] == 2
+
+
+def test_mcnemar_accuracy_matches_prediction_test_when_all_labels_positive():
+    labels = [True] * 5
+    a = [True, True, False, False, True]
+    b = [True, False, False, True, True]
+    assert mcnemar_accuracy(a, b, labels)["p_value"] == mcnemar_exact(a, b)["p_value"]

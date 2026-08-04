@@ -19,7 +19,7 @@ from pathlib import Path
 
 import torch
 
-from src.eval.detector_metrics import youden_threshold
+from src.eval.detector_metrics import max_accuracy_threshold
 from src.sae.jumprelu_sae import JumpReLUSAE
 from src.sae.qwen_scope import TopKSAE
 
@@ -64,7 +64,7 @@ def calibrate(
     """Calibrates the decision threshold on a labeled split (VAL, per Phase
     4's split discipline -- see reports/DECISIONS.md) via Youden's J."""
     scores = score(val_activations_by_layer, saes, features).tolist()
-    return youden_threshold(scores, val_labels)
+    return max_accuracy_threshold(scores, val_labels)
 
 
 def is_flagged(s: float, threshold: float) -> bool:

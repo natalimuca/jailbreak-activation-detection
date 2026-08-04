@@ -3273,3 +3273,48 @@ justification for `max_accuracy` has to rest on it optimizing the metric being
 reported, not on it having looked better during calibration -- and that
 distinction is worth stating plainly, because the alternative framing ("we
 found a better threshold") would be indistinguishable from tuning on TEST.
+
+## A wrong paired test, caught and corrected (2026-08-04)
+
+**The error.** The first LLM-judge write-up claimed the judge was
+significantly more accurate than dense-direction on TEST (p<0.001 on two
+models). That claim came from calling `mcnemar_exact` on the two detectors'
+raw *predictions*. On a mixed-label split that tests the wrong hypothesis: it
+asks whether the two detectors *decide differently*, not whether one is *more
+accurate*. A detector that simply flags more will produce a large
+prediction-level discordance no matter how its accuracy compares.
+
+**How it surfaced.** The arithmetic stopped agreeing with itself. On
+Llama the test reported 22 judge-only versus 2 dense-only discordant pairs,
+which implies a ~6.9pp accuracy gap, while the measured accuracies differed by
+0.7pp. A paired test that contradicts the marginals it is supposed to explain
+is wrong by inspection.
+
+**The correction.** Recomputed on per-item correctness, none of the accuracy
+differences are significant on any model (p=0.38 / 0.84 / 0.82, versus the
+p<0.001 originally reported). The threshold-reselection result survives but
+weakens (p=0.0225, not p=0.0002). The DeLong AUROC comparisons were never
+affected -- they operate on scores, not thresholded decisions -- and the
+adversarial-set McNemars were never affected either, because every prompt in
+those conditions is harmful, which is the one case where prediction-level and
+correctness-level discordance coincide. That is also why the original helper
+was written the way it was: its docstring scopes it to "flag/no-flag calls on
+the same 21 PAIR prompts", and it is correct there.
+
+**The fix, at the source rather than the call site.**
+`src.eval.detector_metrics.mcnemar_accuracy(preds_a, preds_b, labels)` now
+exists and compares correctness explicitly, with a docstring stating when each
+form applies. Two regression tests pin the distinction: one where the two
+forms must diverge (mixed labels, one detector flagging everything) and one
+where they must agree (all-positive labels). Every other `mcnemar_exact` call
+site in the repo was audited and is operating on all-harmful or refusal-rate
+data, where the original form is correct.
+
+**Why this is recorded rather than quietly amended.** Three published claims
+changed direction: "the judge is significantly more accurate" became "no
+significant difference", and the reselection p-value moved by two orders of
+magnitude. A reader comparing this repository's history against its current
+numbers would otherwise find an unexplained discrepancy, and the most useful
+part of the episode is the failure mode itself -- a paired test applied to the
+wrong quantity produces confident, plausible, wrong p-values, and the thing
+that caught it was a marginals check, not the test.

@@ -16,7 +16,7 @@ from src.baselines.llm_judge import DEFAULT_MODEL as JUDGE_MODEL
 from src.baselines.llm_judge import _cache_key
 from src.detectors.dense_direction_detector import project as dense_project
 from src.direction.compute import compute_directions
-from src.eval.detector_metrics import classify, detector_stats, mcnemar_exact, youden_threshold
+from src.eval.detector_metrics import classify, detector_stats, mcnemar_accuracy, youden_threshold
 
 RESULTS_DIR = Path(__file__).resolve().parents[1] / "results"
 MODELS = {
@@ -105,8 +105,8 @@ def main() -> None:
                 "test_accuracy": stats_test["accuracy"]["rate"],
                 "test_f1": stats_test["f1"],
                 "test_auroc": stats_test["auroc"],
-                "vs_youden_mcnemar": mcnemar_exact(preds, baseline_preds),
-                "vs_judge_mcnemar": mcnemar_exact(preds, classify(judge_test, judge_threshold)),
+                "vs_youden_mcnemar": mcnemar_accuracy(preds, baseline_preds, test_labels),
+                "vs_judge_mcnemar": mcnemar_accuracy(preds, classify(judge_test, judge_threshold), test_labels),
             }
         judge_stats = detector_stats(judge_test, test_labels, judge_threshold)
         model_out["judge_test_accuracy"] = judge_stats["accuracy"]["rate"]

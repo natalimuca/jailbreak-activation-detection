@@ -231,10 +231,10 @@ handful of the 15 hand-selected features ever fire on a given prompt at all.
 | detector | TEST accuracy | TEST AUROC | adversarial pooled (n=35) | GCG (n=14) | PAIR (n=21) |
 |---|---|---|---|---|---|
 | keyword filter | 56.6% | 0.603 | 17.1% | 7.1% | 23.8% |
-| perplexity filter (Olmo-3-1025-7B) | 54.9% | 0.520 | 40.0% | **100.0%** | **0.0%** |
-| LLM judge (Llama-3.3-70B, text only) | **94.1%** | 0.954 | 71.4% | 92.9% | 57.1% |
-| **dense-direction** | 88.9% | **0.983** | 62.9% | 92.9% | 42.9% |
-| **SAE-feature (top-15)** | 87.8% | 0.975 | 57.1% | 92.9% | 33.3% |
+| perplexity filter (Olmo-3-1025-7B) | 54.5% | 0.520 | 40.0% | **100.0%** | **0.0%** |
+| LLM judge (Llama-3.3-70B, text only) | 93.8% | 0.954 | 88.6% | 100.0% | 81.0% |
+| **dense-direction** | 92.0% | **0.983** | 68.6% | 92.9% | 52.4% |
+| **SAE-feature (top-15)** | 92.0% | 0.975 | 68.6% | 92.9% | 52.4% |
 
 **GCG (gibberish-suffix) detection is a perfect 100% across five independent
 perplexity backbones tried**: strong, convergent evidence this is a real,
@@ -245,20 +245,19 @@ paraphrase attacks. Every detector, including the activation-based ones,
 degrades sharply on PAIR relative to clean TEST performance.
 
 **A frontier LLM prompted as a classifier is a genuinely strong text-only
-baseline, and the comparison splits -- tested on three models.**
-Dense-direction wins threshold-independent ranking on all three, always
-significantly (AUROC 0.983/0.989/0.984 vs the judge's 0.954; DeLong
-p=0.0041/0.0015/0.0053). The judge is more accurate at its operating point on
-two of the three (Qwen3-8B +5.2pp, Llama +1.0pp) and indistinguishable on
-gemma (p=1.0). **On PAIR no difference is significant on any model**,
-including Llama, where dense-direction's 66.7% and SAE-feature's 81.0% against
-the judge's 57.1% still gives McNemar p=0.73 at n=21. Better ranking alongside
-worse thresholded accuracy points at threshold selection, not signal quality:
-the judge's scores are bimodal (0 or 100, threshold 100.0), so it is already a
-binary classifier with little left to rank, while the activation detectors'
-continuous scores rank better but sit on a suboptimal Youden-J operating point.
-The judge also over-refuses: 13.5% false positives on XSTest's
-harmless-but-scary prompts, against dense-direction's 2.7%.
+baseline, tested on three models with every detector calibrated by the same
+rule.** Activation-based detection wins threshold-independent ranking on all
+three, always significantly (AUROC 0.983/0.989/0.984 vs the judge's 0.954;
+DeLong p=0.0041/0.0015/0.0053) -- an 8-9B model's internals separating harmful
+from harmless better than a 70B model reading the same text. **Thresholded
+accuracy is statistically indistinguishable** on all three (McNemar on
+per-item correctness, p=0.38/0.84/0.82). **The judge detects more PAIR
+attacks** (81.0% vs 52.4%/71.4%/47.6%, significant on Qwen3 p=0.031 and gemma
+p=0.039) **but buys it with false alarms**: it wrongly flags 18.9% of XSTest's
+harmless-but-scary prompts against dense-direction's 2.7-10.8%. On an
+all-harmful set any detector's rate rises as its threshold falls, which is why
+AUROC -- the measure that sweeps every threshold -- carries the weight here.
+Both PAIR results rest on 6 and 8 discordant prompts out of 21.
 
 ### Cross-model direction transfer
 
@@ -593,12 +592,14 @@ the newer transfer/wrapper-swap/mechanistic results aren't in it by design.
   baseline replacing comparison against weak strawmen alone, evaluated on
   three models with paired significance tests. Activation-based detection
   wins threshold-independent ranking on all three (DeLong p=0.0041/0.0015/
-  0.0053); the judge is more accurate at its operating point on two of three;
-  no PAIR difference is significant on any model.
-- **Threshold reselection experiment**: tests the calibration diagnosis the
-  judge comparison produced. Changing only the VAL-fitted threshold rule lifts
-  Qwen3-8B's TEST accuracy 88.9% -> 92.0% (McNemar p=0.0002) and is a no-op on
-  Llama and gemma, exactly where the diagnosis predicted.
+  0.0053); thresholded accuracy is indistinguishable; the judge catches more
+  PAIR attacks at roughly double the false-positive rate.
+- **Threshold reselection, tested and then adopted**: changing only the
+  VAL-fitted threshold rule lifts Qwen3-8B's TEST accuracy 88.9% -> 92.0%
+  (McNemar on correctness, p=0.0225) and is a no-op on Llama and gemma,
+  exactly where the diagnosis predicted. Now the default for every detector
+  and model, since a head-to-head is only fair if all detectors are calibrated
+  the same way -- including the opponent, whose PAIR detection it raised.
 - Interactive frontend: live probe across five detectors, published-attack
   presets from the real JailbreakBench artifacts, token-level attribution
   view over the completed leave-one-out run, corpus composition panel, and
@@ -606,13 +607,6 @@ the newer transfer/wrapper-swap/mechanistic results aren't in it by design.
 - Ethics documentation split: a public safety-handling document in this repo,
   with the signed institutional submission kept outside it (still only
   submittable by the project owner, not something this repo automates).
-
-**Open decisions:**
-- **Whether to adopt the reselected threshold as default.** It is a
-  significant improvement on Qwen3-8B and a no-op elsewhere, but adopting it
-  means re-running the head-to-head and updating every downstream number, and
-  applying it only to the model it helps invites the obvious objection. The
-  result is recorded; the decision is deliberately left open.
 
 **Remaining, deliberately not pursued right now:**
 - **A reusable automated moralize-vs-comply classifier**: three candidate

@@ -46,6 +46,32 @@ def youden_threshold(scores: list[float], labels: list[bool]) -> float:
     return float(thresholds[j.argmax()])
 
 
+def max_accuracy_threshold(scores: list[float], labels: list[bool]) -> float:
+    """Calibrates a decision threshold by directly maximizing accuracy on
+    labeled (score, label) pairs, rather than Youden's J (TPR - FPR). Youden's
+    J optimizes a different objective, which coincides with accuracy only near
+    balanced class costs -- so when accuracy is the reported metric, this is
+    the rule that optimizes what is actually reported (see reports/RESULTS.md's
+    threshold-reselection entry). Candidates are midpoints between adjacent
+    unique scores, so the chosen cutoff can never depend on floating-point
+    ties. Intended to be called on VAL, never on the reported split."""
+    y = np.asarray(labels, dtype=bool)
+    s = np.asarray(scores, dtype=float)
+    unique = np.unique(s)
+    if unique.size < 2:
+        return float(unique[0]) if unique.size else 0.0
+    candidates = np.concatenate(
+        [[unique[0] - 1e-9], (unique[:-1] + unique[1:]) / 2.0, [unique[-1] + 1e-9]]
+    )
+    best_t, best_v = float(s.min()), -1.0
+    for t in candidates:
+        pred = s >= t
+        v = float(((pred & y) | (~pred & ~y)).sum()) / len(y)
+        if v > best_v:
+            best_v, best_t = v, float(t)
+    return best_t
+
+
 def classify(scores: list[float], threshold: float) -> list[bool]:
     return [s >= threshold for s in scores]
 
@@ -115,6 +141,24 @@ def mcnemar_exact(preds_a: list[bool], preds_b: list[bool]) -> dict:
         return {"only_a": only_a, "only_b": only_b, "n_discordant": 0, "p_value": 1.0}
     p_value = binomtest(min(only_a, only_b), n_discordant, 0.5).pvalue
     return {"only_a": only_a, "only_b": only_b, "n_discordant": n_discordant, "p_value": round(p_value, 4)}
+
+
+def mcnemar_accuracy(preds_a: list[bool], preds_b: list[bool], labels: list[bool]) -> dict:
+    """McNemar's test on which detector is *more accurate*, not on which
+    flags more often. Use this whenever the evaluation set contains both
+    positives and negatives.
+
+    `mcnemar_exact` compares raw predictions, which answers "do these two
+    detectors decide differently". That coincides with "which is better" only
+    when every label is positive -- true for this project's all-harmful
+    adversarial conditions, false for the mixed-label TEST split, where a
+    detector that simply flags more will show a large prediction-level
+    discordance that says nothing about accuracy. This wrapper compares
+    per-item correctness instead, which is the quantity an accuracy claim
+    is about."""
+    correct_a = [p == l for p, l in zip(preds_a, labels)]
+    correct_b = [p == l for p, l in zip(preds_b, labels)]
+    return mcnemar_exact(correct_a, correct_b)
 
 
 def _delong_placements(pos_scores: np.ndarray, neg_scores: np.ndarray) -> tuple[np.ndarray, np.ndarray]:

@@ -17,7 +17,7 @@ from pathlib import Path
 import torch
 
 from src.direction.compute import compute_directions, select_candidate_layers, separation_score
-from src.eval.detector_metrics import youden_threshold
+from src.eval.detector_metrics import max_accuracy_threshold
 
 RESULTS_DIR = Path(__file__).resolve().parents[2] / "results"
 QWEN3_ABLATION_LAYER_PATH = RESULTS_DIR / "dense_direction_ablation_Qwen3-8B.json"
@@ -37,7 +37,7 @@ def calibrate(val_activations: torch.Tensor, val_labels: list[bool], direction: 
     """Calibrates the decision threshold on a labeled split (VAL, per Phase
     4's split discipline -- see reports/DECISIONS.md) via Youden's J."""
     scores = project(val_activations, direction).tolist()
-    return youden_threshold(scores, val_labels)
+    return max_accuracy_threshold(scores, val_labels)
 
 
 def is_flagged(score: float, threshold: float) -> bool:

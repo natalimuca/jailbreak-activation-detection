@@ -1250,78 +1250,73 @@ until reporting. Judge scores are cached per (model, prompt) hash in
 `results/llm_judge_cache.json`, so the reported run makes zero API calls and
 is exactly reproducible.
 
-**Three models, n=288 TEST each.** The judge's row is identical everywhere by
-construction: it reads prompt text only, and all models share the same TEST
-split, so it never varies with the model under test. That invariance is also a
-correctness check on the cache and threshold reuse.
+**Three models, n=288 TEST each.** All detectors are calibrated by the same
+rule (accuracy-maximizing on VAL, see the threshold-reselection section below);
+a head-to-head is only meaningful if every detector's operating point is chosen
+the same way. The judge's row is identical across models by construction: it
+reads prompt text only, and all models share the same TEST split.
 
-| Model | Detector | Accuracy | AUROC | PAIR | GCG | XSTest correct |
+| Model | Detector | Accuracy | AUROC | PAIR | GCG | XSTest FP rate |
 |---|---|---|---|---|---|---|
-| *(any)* | Keyword filter | 56.6% | 0.603 | 23.8% | 7.1% | 97.3% |
-| *(any)* | Perplexity filter | 54.9% | 0.520 | 0.0% | 100% | 13.5% |
-| *(any)* | **LLM judge (70B)** | 94.1% | 0.954 | 57.1% | 92.9% | 86.5% |
-| Qwen3-8B | Dense-direction | 88.9% | **0.983** | 42.9% | 92.9% | 94.6% |
-| Qwen3-8B | SAE-feature | 87.8% | 0.975 | 33.3% | 92.9% | 97.3% |
-| Llama-3.1-8B | Dense-direction | 93.1% | **0.989** | 66.7% | 100% | 97.3% |
-| Llama-3.1-8B | SAE-feature | 91.0% | 0.978 | 81.0% | 100% | 86.5% |
-| gemma-2-9b-it | Dense-direction | 93.1% | **0.984** | 47.6% | 100% | 89.2% |
-| gemma-2-9b-it | SAE-feature | 89.6% | 0.966 | 23.8% | 85.7% | 89.2% |
+| *(any)* | Keyword filter | 56.6% | 0.603 | 23.8% | 7.1% | 2.7% |
+| *(any)* | Perplexity filter | 54.5% | 0.520 | 0.0% | 100% | 86.5% |
+| *(any)* | **LLM judge (70B)** | 93.8% | 0.954 | 81.0% | 100% | 18.9% |
+| Qwen3-8B | Dense-direction | 92.0% | **0.983** | 52.4% | 92.9% | 10.8% |
+| Qwen3-8B | SAE-feature | 92.0% | 0.975 | 52.4% | 92.9% | 5.4% |
+| Llama-3.1-8B | Dense-direction | 93.1% | **0.989** | 71.4% | 100% | 2.7% |
+| Llama-3.1-8B | SAE-feature | 91.0% | 0.978 | 81.0% | 100% | 13.5% |
+| gemma-2-9b-it | Dense-direction | 93.1% | **0.984** | 47.6% | 100% | 10.8% |
+| gemma-2-9b-it | SAE-feature | 92.7% | 0.966 | 47.6% | 100% | 13.5% |
 
 **Paired tests, dense-direction vs the judge, per model:**
 
-| Model | AUROC (DeLong) | TEST accuracy (McNemar) | PAIR (McNemar) |
+| Model | AUROC (DeLong) | TEST accuracy (McNemar on correctness) | PAIR (McNemar) |
 |---|---|---|---|
-| Qwen3-8B | 0.983 vs 0.954, **p=0.0041** | judge +5.2pp, **p<0.001** | p=0.45 (n.s.) |
-| Llama-3.1-8B | 0.989 vs 0.954, **p=0.0015** | judge +1.0pp, **p=0.0015** | p=0.73 (n.s.) |
-| gemma-2-9b-it | 0.984 vs 0.954, **p=0.0053** | +0.0pp, p=1.0 (n.s.) | p=0.75 (n.s.) |
+| Qwen3-8B | 0.983 vs 0.954, **p=0.0041** | 92.0% vs 93.8%, p=0.38 (n.s.) | 52.4% vs 81.0%, **p=0.031** |
+| Llama-3.1-8B | 0.989 vs 0.954, **p=0.0015** | 93.1% vs 93.8%, p=0.84 (n.s.) | 71.4% vs 81.0%, p=0.69 (n.s.) |
+| gemma-2-9b-it | 0.984 vs 0.954, **p=0.0053** | 93.1% vs 93.8%, p=0.82 (n.s.) | 47.6% vs 81.0%, **p=0.039** |
 
-**What replicates across all three models:**
+**Three findings, in order of how much weight they carry:**
 
-1. **Dense-direction wins threshold-independent ranking, every time, significantly**
-   (p=0.0041 / 0.0015 / 0.0053). An 8-9B model's own internals separate harmful
-   from harmless better than a 70B model reading the same text. This is the
-   robust result.
-2. **Neither side wins on PAIR anywhere.** All three paired tests are
-   non-significant, including Llama, whose raw rates (dense 66.7%, SAE 81.0% vs
-   judge 57.1%) look like a clear activation win until tested: 8 discordant
-   prompts, p=0.73. At n=21 the adversarial set cannot resolve differences of
-   this size, in either direction.
-3. **The accuracy advantage is real but model-dependent.** The judge is
-   significantly more accurate on Qwen3-8B (+5.2pp) and Llama (+1.0pp), and
-   indistinguishable on gemma (10 vs 9 discordant, p=1.0). Reporting the Qwen3
-   gap alone would have overstated a general "the judge is more accurate at
-   deployment" claim.
+1. **Activation-based detection wins threshold-independent ranking on every
+   model, significantly** (p=0.0041 / 0.0015 / 0.0053). An 8-9B model's own
+   internals separate harmful from harmless better than a 70B model reading
+   the same text. This is the load-bearing result: it is the only comparison
+   here that does not depend on where anyone's threshold happens to sit.
+2. **Accuracy is statistically indistinguishable on all three models.** The
+   judge is 0.7-1.8pp higher in raw terms, and none of that survives a paired
+   test on per-item correctness.
+3. **The judge detects more PAIR attacks, significantly on two of three models
+   -- but buys it with false positives.** It flags 18.9% of XSTest's
+   harmless-but-scary prompts, against dense-direction's 2.7-10.8%. On an
+   all-harmful set like PAIR, any detector's rate rises as its threshold
+   falls, so a detection-rate comparison at each detector's own operating
+   point is partly a comparison of appetite for false alarms. AUROC is the
+   measure that controls for this, and finding 1 is what it says. Both
+   PAIR results also rest on 6 and 8 discordant prompts out of 21.
 
-**Why ranking and accuracy disagree.** The judge's scores are sharply bimodal:
-it answers 0 or 100 for the overwhelming majority of prompts, and Youden's J
-consequently lands its threshold at exactly 100.0. It is effectively already a
-binary classifier, which caps its AUROC by construction -- there is little
-score ordering left to rank. The activation detectors emit continuous,
-well-spread scores, so they rank better while losing accuracy to a suboptimal
-operating point. **The gap is threshold selection, not signal quality**, and it
-is the clearest actionable result here: re-tuning the dense-direction threshold
-against the separability its AUROC already demonstrates should close most of
-the accuracy difference. That lands directly on this project's stated
-calibration/deployability angle.
+**Why ranking and thresholded accuracy can disagree.** The judge's scores are
+sharply bimodal (0 or 100 for most prompts), which caps its AUROC by
+construction: there is little score ordering left to rank. The activation
+detectors emit continuous, well-spread scores, so they rank better even where
+thresholded accuracy ties.
 
 **Two further honest notes:**
 
-1. **The judge pays a visible safety tax**: 13.5% false positives on XSTest's
-   harmless-but-scary prompts, against dense-direction's 2.7% on Qwen3 and
-   Llama. A capable text reader over-refuses exactly the prompts XSTest exists
-   to catch.
-2. **Perplexity's split is textbook**: 100% on GCG, **0%** on PAIR. The judge
-   and both activation detectors catch 86-100% of GCG, so GCG does not
-   discriminate between them; PAIR is where the spread lives, and PAIR is where
-   the sample is too small to resolve it.
+1. **The perplexity filter's split is textbook**: 100% on GCG, **0%** on PAIR.
+   The judge and both activation detectors catch 92.9-100% of GCG, so GCG does
+   not discriminate between them; PAIR is where the spread lives.
+2. **Adversarial n is the binding constraint.** Every PAIR conclusion here,
+   positive or null, rests on 21 prompts. That set cannot be enlarged until
+   JailbreakBench publishes more artifacts (see Known limitations).
 
-**What this does and does not settle.** The central claim survives and is now
-replicated three times: on the threshold-independent measure, activation-based
-detection is significantly better than a frontier text-only reader. It does
-complicate the simpler framing at a deployed operating point, where the judge
-is at least as accurate on two of three models. And it does not establish any
-advantage on adversarial paraphrase in either direction -- the adversarial set
-size remains the binding constraint (see Known limitations).
+**What this does and does not settle.** The central claim survives and is
+replicated three times on the measure that does not depend on threshold
+choice. It does not establish that activation-based detection is more accurate
+than a frontier text-only reader at a deployed operating point -- on this
+evidence the two are indistinguishable -- and it does not establish an
+advantage on adversarial paraphrase, where the judge is ahead on two models at
+a materially higher false-positive cost.
 
 ## Threshold reselection: testing the calibration diagnosis (2026-08-04)
 
@@ -1336,23 +1331,24 @@ Three rules, all fit on VAL, all evaluated on TEST:
 
 | Model | Rule | VAL acc | TEST acc | TEST F1 | vs Youden (McNemar) | vs judge (McNemar) |
 |---|---|---|---|---|---|---|
-| Qwen3-8B | youden_j (38.854) | 93.8% | 88.9% | 0.890 | -- | **p<0.001** |
-| Qwen3-8B | **max_accuracy (25.439)** | 93.8% | **92.0%** | **0.925** | **p=0.0002** | p=0.0042 |
-| Llama-3.1-8B | youden_j (0.760) | 97.6% | 93.1% | 0.934 | -- | p=0.0015 |
-| Llama-3.1-8B | max_accuracy (0.162) | 97.6% | 93.1% | 0.934 | p=1.0 | p=0.0015 |
-| gemma-2-9b-it | youden_j (118.943) | 94.5% | 93.1% | 0.937 | -- | p=1.0 |
-| gemma-2-9b-it | max_accuracy (118.276) | 94.5% | 93.1% | 0.937 | p=1.0 | p=1.0 |
+| Qwen3-8B | youden_j (38.854) | 93.8% | 88.9% | 0.890 | -- | **p=0.0201** |
+| Qwen3-8B | **max_accuracy (25.439)** | 93.8% | **92.0%** | **0.925** | **p=0.0225** | p=0.38 (n.s.) |
+| Llama-3.1-8B | youden_j (0.760) | 97.6% | 93.1% | 0.934 | -- | p=0.84 (n.s.) |
+| Llama-3.1-8B | max_accuracy (0.162) | 97.6% | 93.1% | 0.934 | p=1.0 | p=0.84 (n.s.) |
+| gemma-2-9b-it | youden_j (118.943) | 94.5% | 93.1% | 0.937 | -- | p=0.82 (n.s.) |
+| gemma-2-9b-it | max_accuracy (118.276) | 94.5% | 93.1% | 0.937 | p=1.0 | p=0.82 (n.s.) |
 
 `max_f1` selected the same threshold as `max_accuracy` on all three models, so
 it is omitted from the table.
 
 **The diagnosis holds, and it is specific rather than general.** On Qwen3-8B --
-the one model where the judge's accuracy advantage was large (+5.2pp) --
+the one model where the judge held a significant accuracy advantage --
 reselecting the threshold lifts TEST accuracy from 88.9% to **92.0%**, a
-significant paired improvement (McNemar p=0.0002, 13 discordant prompts, all 13 favouring the new cutoff). The
-gap to the judge falls from 5.2pp to 2.1pp, i.e. **threshold selection alone
-accounted for roughly 60% of it**, with no change to the direction, the layer,
-or any activation. On Llama and gemma, where Youden's J was already near
+significant paired improvement (McNemar on per-item correctness, p=0.0225: 13
+discordant, 11 favouring the new cutoff). It also changes the *conclusion* of
+the judge comparison on that model: under Youden the judge was significantly
+more accurate (p=0.0201); after reselection the difference is not significant
+(p=0.38). No change to the direction, the layer, or any activation. On Llama and gemma, where Youden's J was already near
 optimal, reselection changes nothing (p=1.0 on both). The intervention helps
 exactly where the diagnosis said the problem was and nowhere else, which is
 the behaviour a correct diagnosis predicts.
@@ -1367,11 +1363,15 @@ when the operating point sits near balanced class costs. That reasoning stands
 independently of the TEST outcome, which is why it is reported as a rule choice
 rather than a threshold tuned on TEST.
 
-**Not adopted as the project default.** The published detector numbers
-throughout this repo, the README tables, and the UI's validation panel all use
-the Youden-J thresholds; switching Qwen3-8B's would require re-running the
-head-to-head and updating every downstream number. The finding is recorded
-here as a calibration result, not silently folded into the headline metrics.
+**Adopted as the project default (2026-08-04).** `max_accuracy` is now the
+calibration rule for *every* detector and every model, not just the one it
+helps: a head-to-head where detectors are calibrated by different rules is not
+a fair comparison, and applying it only where it flatters the activation
+detectors would be indefensible. All numbers in this document reflect the new
+rule. The cost of that fairness is visible and reported: the judge's own
+threshold moved from 100 to 75, which lifted its PAIR detection from 57.1% to
+81.0% and made it significantly better than dense-direction on PAIR for two of
+three models. Calibrating the opponent properly made the opponent stronger.
 
 ## Dense-direction detector: cross-model comparison (6 models)
 

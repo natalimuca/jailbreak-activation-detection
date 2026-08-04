@@ -60,8 +60,8 @@ const LOADING_MESSAGES = [
 const MODEL_VALIDATION = {
   "Qwen/Qwen2.5-1.5B-Instruct": { layer: 20, testAcc: "89.6%", testAuroc: "0.970", pair: "38.1%", saeAuroc: null, saeNote: "n/a — no SAE suite" },
   "HuggingFaceTB/SmolLM2-1.7B-Instruct": { layer: 14, testAcc: "87.8%", testAuroc: "0.945", pair: "90.5%", saeAuroc: null, saeNote: "n/a — no SAE suite" },
-  "Qwen/Qwen3-8B": { layer: 23, testAcc: "88.9%", testAuroc: "0.983", pair: "42.9%", saeAuroc: "0.975", saeNote: null },
-  "meta-llama/Llama-3.1-8B-Instruct": { layer: 27, testAcc: "93.1%", testAuroc: "0.989", pair: "66.7%", saeAuroc: "0.978", saeNote: null },
+  "Qwen/Qwen3-8B": { layer: 23, testAcc: "92.0%", testAuroc: "0.983", pair: "52.4%", saeAuroc: "0.975", saeNote: null },
+  "meta-llama/Llama-3.1-8B-Instruct": { layer: 27, testAcc: "93.1%", testAuroc: "0.989", pair: "71.4%", saeAuroc: "0.978", saeNote: null },
   "google/gemma-2-9b-it": { layer: 34, testAcc: "93.1%", testAuroc: "0.984", pair: "47.6%", saeAuroc: "0.966", saeNote: null },
   "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B": { layer: 7, testAcc: "84.7%", testAuroc: "0.911", pair: "9.5%", saeAuroc: null, saeNote: "n/a — fires on 4.4% of harmful VAL prompts, see RESULTS.md" },
 };
@@ -547,8 +547,9 @@ function renderLLMJudge(result) {
   return (
     renderMagnitudeAxis(result.flagged, result.score, result.threshold) +
     `<p class="empty-note">0-100 likelihood from a 70B model reading the prompt text. Beats both weak
-     baselines, but is out-ranked on TEST AUROC by the activation detectors below (0.954 vs 0.983,
-     DeLong p=0.0041).</p>`
+     baselines. Out-ranked on TEST AUROC by the activation detectors below
+     (0.954 vs 0.983, DeLong p=0.0041) and statistically tied on accuracy, but it
+     catches more PAIR attacks at roughly double the false-positive rate.</p>`
   );
 }
 
