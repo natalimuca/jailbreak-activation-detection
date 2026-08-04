@@ -64,6 +64,9 @@ class ModelConfig:
     keyword_threshold: float
     perplexity_threshold: float
     sae_feature: SAEFeatureConfig | None
+    # Optional and last: only models calibrated after the judge baseline was
+    # added carry this, and it must not become a required positional arg.
+    llm_judge_threshold: float | None = None
 
 
 def _load_thresholds(cache_label: str, results_dir: Path) -> dict:
@@ -91,6 +94,7 @@ def _load_thresholds(cache_label: str, results_dir: Path) -> dict:
         "thresholds": {
             "keyword": qwen3["thresholds"]["keyword"],
             "perplexity": qwen3["thresholds"]["perplexity"],
+            "llm_judge": qwen3["thresholds"].get("llm_judge"),
             "dense_direction": cross_model["threshold"],
         },
     }
@@ -141,6 +145,7 @@ def load_model_config(hf_name: str, results_dir: Path = RESULTS_DIR) -> ModelCon
         dense_direction_threshold=thresholds_payload["thresholds"]["dense_direction"],
         keyword_threshold=thresholds_payload["thresholds"]["keyword"],
         perplexity_threshold=thresholds_payload["thresholds"]["perplexity"],
+        llm_judge_threshold=thresholds_payload["thresholds"].get("llm_judge"),
         sae_feature=_load_sae_feature_config(hf_name, cache_label, thresholds_payload, results_dir),
     )
 

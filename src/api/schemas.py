@@ -38,6 +38,14 @@ class PerplexityResult(BaseModel):
     threshold: float
 
 
+class LLMJudgeResult(BaseModel):
+    available: bool
+    reason: str | None = None
+    flagged: bool | None = None
+    score: float | None = None
+    threshold: float | None = None
+
+
 class DenseDirectionResult(BaseModel):
     flagged: bool
     score: float
@@ -91,5 +99,6 @@ class AttributionResponse(BaseModel):
 class AnalyzeResponse(BaseModel):
     keyword: KeywordResult | None = None
     perplexity: PerplexityResult | None = None
+    llm_judge: LLMJudgeResult | None = None
     dense_direction: DenseDirectionResult | None = None
     sae_feature: SAEFeatureResult | None = None

@@ -540,9 +540,22 @@ function renderSAEFeature(result) {
   return html;
 }
 
+function renderLLMJudge(result) {
+  if (!result.available) {
+    return renderPill("unavailable", "Unavailable") + `<p class="empty-note">${result.reason}</p>`;
+  }
+  return (
+    renderMagnitudeAxis(result.flagged, result.score, result.threshold) +
+    `<p class="empty-note">0-100 likelihood from a 70B model reading the prompt text. Beats both weak
+     baselines, but is out-ranked on TEST AUROC by the activation detectors below (0.954 vs 0.983,
+     DeLong p=0.0041).</p>`
+  );
+}
+
 const RENDERERS = {
   keyword: renderKeyword,
   perplexity: renderPerplexity,
+  llm_judge: renderLLMJudge,
   dense_direction: renderDenseDirection,
   sae_feature: renderSAEFeature,
 };

@@ -22,6 +22,7 @@ what reports/RESULTS.md reports.
 
 from __future__ import annotations
 
+import os
 import threading
 
 import torch
@@ -30,6 +31,10 @@ from src.activations.extract import format_prompt, load_model
 from src.api.model_registry import ModelConfig, load_model_config
 from src.baselines.keyword_filter import is_flagged as keyword_is_flagged
 from src.baselines.keyword_filter import matched_keywords
+from src.baselines.llm_judge import is_flagged as judge_is_flagged
+from src.baselines.llm_judge import load_cache as load_judge_cache
+from src.baselines.llm_judge import save_cache as save_judge_cache
+from src.baselines.llm_judge import score as judge_score
 from src.baselines.perplexity_filter import compute_perplexity, load_perplexity_model
 from src.baselines.perplexity_filter import is_flagged as perplexity_is_flagged
 from src.detectors.dense_direction_detector import is_flagged as dense_is_flagged
@@ -38,7 +43,7 @@ from src.detectors.sae_feature_detector import is_flagged as sae_is_flagged
 from src.detectors.sae_feature_detector import score as sae_score
 from src.sae.registry import SAE_PROVIDERS
 
-ALL_DETECTORS = ("keyword", "perplexity", "dense_direction", "sae_feature")
+ALL_DETECTORS = ("keyword", "perplexity", "llm_judge", "dense_direction", "sae_feature")
 
 
 class DetectorInferenceManager:
@@ -130,6 +135,29 @@ class DetectorInferenceManager:
             "threshold": config.perplexity_threshold,
         }
 
+    def _score_llm_judge(self, prompt: str, config: ModelConfig) -> dict:
+        """Text-only, so the score never varies by target model -- but it is
+        the one detector that leaves this machine, and Groq's free tier can
+        be exhausted or the key absent. Both report as unavailable rather
+        than failing the whole request, matching how the SAE panel reports
+        models without a pretrained suite."""
+        if config.llm_judge_threshold is None:
+            return {"available": False, "reason": "no calibrated llm_judge threshold"}
+        if not os.environ.get("GROQ_API_KEY"):
+            return {"available": False, "reason": "GROQ_API_KEY not set"}
+        cache = load_judge_cache()
+        try:
+            score = judge_score(prompt, cache)
+        except Exception as exc:
+            return {"available": False, "reason": f"judge API unavailable ({type(exc).__name__})"}
+        save_judge_cache(cache)
+        return {
+            "available": True,
+            "flagged": judge_is_flagged(score, config.llm_judge_threshold),
+            "score": score,
+            "threshold": config.llm_judge_threshold,
+        }
+
     def _score_dense_direction(self, layer_acts: dict[int, torch.Tensor], config: ModelConfig) -> dict:
         acts = layer_acts[config.dense_direction_layer]
         s = dense_project(acts, config.dense_direction).item()
@@ -179,6 +207,9 @@ class DetectorInferenceManager:
         with self._lock:
             if "keyword" in detectors:
                 result["keyword"] = self._score_keyword(prompt, config)
+
+            if "llm_judge" in detectors:
+                result["llm_judge"] = self._score_llm_judge(prompt, config)
 
             needs_target = "dense_direction" in detectors or (
                 "sae_feature" in detectors and config.sae_feature is not None
