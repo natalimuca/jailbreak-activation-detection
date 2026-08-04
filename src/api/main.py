@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import os
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException
@@ -39,7 +40,12 @@ def _load_env_file(path: Path = ENV_PATH) -> None:
     """The LLM-judge detector needs GROQ_API_KEY, and the dev server is
     usually started from an editor terminal that has no way to carry it.
     Reads a gitignored .env if present. Never overrides a variable already
-    set in the real environment, so an explicit export still wins."""
+    set in the real environment, so an explicit export still wins.
+
+    Wired to startup rather than import: mutating os.environ at import time
+    leaks the key into any process that merely imports this module, which
+    silently un-skips the network-marked judge test during a full test run.
+    """
     if not path.exists():
         return
     for line in path.read_text(encoding="utf-8").splitlines():
@@ -50,9 +56,13 @@ def _load_env_file(path: Path = ENV_PATH) -> None:
         os.environ.setdefault(key.strip(), value.strip().strip("\"'"))
 
 
-_load_env_file()
+@asynccontextmanager
+async def _lifespan(_app: FastAPI):
+    _load_env_file()
+    yield
 
-app = FastAPI(title="Jailbreak Activation Detector")
+
+app = FastAPI(title="Jailbreak Activation Detector", lifespan=_lifespan)
 
 _manager = DetectorInferenceManager()
 
