@@ -365,7 +365,6 @@ function renderMagnitudeAxis(flagged, score, threshold) {
   const thresholdPct = Math.min(98, (threshold / domain) * 100);
   return `
     <div class="score-stats">
-      <span class="score-glyph ${stateClass}" aria-label="${flagged ? "Flagged" : "Clear"}">${ICONS[stateClass]}</span>
       <span class="score-value ${stateClass}">${formatScore(score)}</span>
       <span class="score-threshold">/ ${formatScore(threshold)} threshold</span>
     </div>
@@ -390,7 +389,6 @@ function renderDivergingAxis(flagged, score, threshold) {
   const fillWidth = Math.abs(scorePct);
   return `
     <div class="score-stats">
-      <span class="score-glyph ${stateClass}" aria-label="${flagged ? "Flagged" : "Clear"}">${ICONS[stateClass]}</span>
       <span class="score-value ${stateClass}">${score >= 0 ? "+" : ""}${formatScore(score)}</span>
       <span class="score-threshold">/ ${formatScore(threshold)} threshold</span>
     </div>

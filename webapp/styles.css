@@ -1627,26 +1627,3 @@ button#analyze-button:disabled {
   }
 }
 
-/* Shape cue beside the score. The pill that used to carry it is gone, and
-   status red vs green are only ΔE 4.1 apart under deuteranopia -- without a
-   glyph the flagged/clear distinction would rest on hue alone. */
-.score-glyph {
-  display: inline-flex;
-  align-items: center;
-  flex-shrink: 0;
-  /* .score-stats aligns on the text baseline, which an icon has none of */
-  align-self: center;
-}
-
-.score-glyph svg {
-  width: 0.95rem;
-  height: 0.95rem;
-}
-
-.score-glyph.flagged {
-  color: var(--color-flagged);
-}
-
-.score-glyph.clear {
-  color: var(--color-clear);
-}
