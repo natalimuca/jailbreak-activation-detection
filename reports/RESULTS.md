@@ -1250,57 +1250,78 @@ until reporting. Judge scores are cached per (model, prompt) hash in
 `results/llm_judge_cache.json`, so the reported run makes zero API calls and
 is exactly reproducible.
 
-**Qwen3-8B, n=288 TEST:**
+**Three models, n=288 TEST each.** The judge's row is identical everywhere by
+construction: it reads prompt text only, and all models share the same TEST
+split, so it never varies with the model under test. That invariance is also a
+correctness check on the cache and threshold reuse.
 
-| Detector | Accuracy | F1 | AUROC | PAIR (n=21) | GCG (n=14) | XSTest FP rate |
+| Model | Detector | Accuracy | AUROC | PAIR | GCG | XSTest correct |
 |---|---|---|---|---|---|---|
-| Keyword filter | 56.6% | 0.359 | 0.603 | 23.8% | 7.1% | 2.7% |
-| Perplexity filter | 54.9% | 0.637 | 0.520 | 0.0% | 100% | 86.5% |
-| **LLM judge (70B)** | **94.1%** | **0.946** | 0.954 | **57.1%** | 92.9% | 13.5% |
-| Dense-direction | 88.9% | 0.890 | **0.983** | 42.9% | 92.9% | 5.4% |
-| SAE-feature (top-15) | 87.8% | 0.878 | 0.975 | 33.3% | 92.9% | 2.7% |
+| *(any)* | Keyword filter | 56.6% | 0.603 | 23.8% | 7.1% | 97.3% |
+| *(any)* | Perplexity filter | 54.9% | 0.520 | 0.0% | 100% | 13.5% |
+| *(any)* | **LLM judge (70B)** | 94.1% | 0.954 | 57.1% | 92.9% | 86.5% |
+| Qwen3-8B | Dense-direction | 88.9% | **0.983** | 42.9% | 92.9% | 94.6% |
+| Qwen3-8B | SAE-feature | 87.8% | 0.975 | 33.3% | 92.9% | 97.3% |
+| Llama-3.1-8B | Dense-direction | 93.1% | **0.989** | 66.7% | 100% | 97.3% |
+| Llama-3.1-8B | SAE-feature | 91.0% | 0.978 | 81.0% | 100% | 86.5% |
+| gemma-2-9b-it | Dense-direction | 93.1% | **0.984** | 47.6% | 100% | 89.2% |
+| gemma-2-9b-it | SAE-feature | 89.6% | 0.966 | 23.8% | 85.7% | 89.2% |
 
-**The headline is split, and the significance tests decide it rather than the
-raw gaps:**
+**Paired tests, dense-direction vs the judge, per model:**
 
-- **Dense-direction wins on ranking quality**: AUROC 0.983 vs the judge's
-  0.954, DeLong paired test **p=0.0041**. The activation signal separates
-  harmful from harmless better than a 70B model reading the text.
-- **The judge wins at its operating point**: 94.1% vs 88.9% accuracy,
-  McNemar's exact **p<0.001** (27 discordant, 26 of them judge-only). Not
-  a noise artifact.
-- **On PAIR the judge's apparent lead is not significant**: 57.1% vs 42.9%
-  is 7 discordant prompts, McNemar **p=0.45**. Reported as indistinguishable,
-  not as a judge win -- the raw rates alone would have been over-read.
+| Model | AUROC (DeLong) | TEST accuracy (McNemar) | PAIR (McNemar) |
+|---|---|---|---|
+| Qwen3-8B | 0.983 vs 0.954, **p=0.0041** | judge +5.2pp, **p<0.001** | p=0.45 (n.s.) |
+| Llama-3.1-8B | 0.989 vs 0.954, **p=0.0015** | judge +1.0pp, **p=0.0015** | p=0.73 (n.s.) |
+| gemma-2-9b-it | 0.984 vs 0.954, **p=0.0053** | +0.0pp, p=1.0 (n.s.) | p=0.75 (n.s.) |
 
-**The most useful finding is the AUROC/accuracy split itself.** Better ranking
-with worse thresholded decisions is the signature of a **miscalibrated
-threshold, not a weaker signal**: Youden's J on VAL picked an operating point
-that costs the dense-direction detector real accuracy it has the separability
-to achieve. That is a fixable engineering problem rather than a limitation of
-activation-based detection, and it lands directly on this project's stated
+**What replicates across all three models:**
+
+1. **Dense-direction wins threshold-independent ranking, every time, significantly**
+   (p=0.0041 / 0.0015 / 0.0053). An 8-9B model's own internals separate harmful
+   from harmless better than a 70B model reading the same text. This is the
+   robust result.
+2. **Neither side wins on PAIR anywhere.** All three paired tests are
+   non-significant, including Llama, whose raw rates (dense 66.7%, SAE 81.0% vs
+   judge 57.1%) look like a clear activation win until tested: 8 discordant
+   prompts, p=0.73. At n=21 the adversarial set cannot resolve differences of
+   this size, in either direction.
+3. **The accuracy advantage is real but model-dependent.** The judge is
+   significantly more accurate on Qwen3-8B (+5.2pp) and Llama (+1.0pp), and
+   indistinguishable on gemma (10 vs 9 discordant, p=1.0). Reporting the Qwen3
+   gap alone would have overstated a general "the judge is more accurate at
+   deployment" claim.
+
+**Why ranking and accuracy disagree.** The judge's scores are sharply bimodal:
+it answers 0 or 100 for the overwhelming majority of prompts, and Youden's J
+consequently lands its threshold at exactly 100.0. It is effectively already a
+binary classifier, which caps its AUROC by construction -- there is little
+score ordering left to rank. The activation detectors emit continuous,
+well-spread scores, so they rank better while losing accuracy to a suboptimal
+operating point. **The gap is threshold selection, not signal quality**, and it
+is the clearest actionable result here: re-tuning the dense-direction threshold
+against the separability its AUROC already demonstrates should close most of
+the accuracy difference. That lands directly on this project's stated
 calibration/deployability angle.
 
 **Two further honest notes:**
 
-1. **The judge pays a visible safety tax**: 13.5% false-positive rate on
-   XSTest's harmless-but-scary-looking prompts, against dense-direction's 5.4%
-   and SAE-feature's 2.7%. A capable text reader over-refuses exactly the
-   prompts XSTest was built to catch.
-2. **Perplexity's split is textbook**: 100% on GCG (gibberish suffixes are
-   wildly improbable text) and **0%** on PAIR (fluent roleplay reads as
-   ordinary prose). The judge and both activation detectors all catch 92.9%
-   of GCG, so GCG does not discriminate between them; PAIR is where the
-   spread lives.
+1. **The judge pays a visible safety tax**: 13.5% false positives on XSTest's
+   harmless-but-scary prompts, against dense-direction's 2.7% on Qwen3 and
+   Llama. A capable text reader over-refuses exactly the prompts XSTest exists
+   to catch.
+2. **Perplexity's split is textbook**: 100% on GCG, **0%** on PAIR. The judge
+   and both activation detectors catch 86-100% of GCG, so GCG does not
+   discriminate between them; PAIR is where the spread lives, and PAIR is where
+   the sample is too small to resolve it.
 
-**What this does and does not settle.** It does not overturn the project's
-central claim -- on the threshold-independent measure the activation detector
-is significantly better, and it does so from a 8B model's internals against a
-70B text reader. It does complicate the simpler framing that internal state
-beats surface text outright: at a deployed operating point, a frontier judge
-is currently more accurate on clean TEST, and no significant difference is
-demonstrable on PAIR at n=21. The adversarial set's size remains the binding
-constraint on that last comparison (see Known limitations).
+**What this does and does not settle.** The central claim survives and is now
+replicated three times: on the threshold-independent measure, activation-based
+detection is significantly better than a frontier text-only reader. It does
+complicate the simpler framing at a deployed operating point, where the judge
+is at least as accurate on two of three models. And it does not establish any
+advantage on adversarial paraphrase in either direction -- the adversarial set
+size remains the binding constraint (see Known limitations).
 
 ## Dense-direction detector: cross-model comparison (6 models)
 

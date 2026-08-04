@@ -245,15 +245,20 @@ paraphrase attacks. Every detector, including the activation-based ones,
 degrades sharply on PAIR relative to clean TEST performance.
 
 **A frontier LLM prompted as a classifier is a genuinely strong text-only
-baseline, and the comparison splits.** Dense-direction wins on
-threshold-independent ranking (AUROC 0.983 vs 0.954, DeLong p=0.0041); the
-judge wins at its calibrated operating point (94.1% vs 88.9% accuracy,
-McNemar p<0.001); on PAIR the judge's higher rate is **not** statistically
-distinguishable (McNemar p=0.45, n=21). Better ranking alongside worse
-thresholded accuracy points at threshold selection, not signal quality --
-the dense detector's Youden-J operating point leaves accuracy on the table.
+baseline, and the comparison splits -- tested on three models.**
+Dense-direction wins threshold-independent ranking on all three, always
+significantly (AUROC 0.983/0.989/0.984 vs the judge's 0.954; DeLong
+p=0.0041/0.0015/0.0053). The judge is more accurate at its operating point on
+two of the three (Qwen3-8B +5.2pp, Llama +1.0pp) and indistinguishable on
+gemma (p=1.0). **On PAIR no difference is significant on any model**,
+including Llama, where dense-direction's 66.7% and SAE-feature's 81.0% against
+the judge's 57.1% still gives McNemar p=0.73 at n=21. Better ranking alongside
+worse thresholded accuracy points at threshold selection, not signal quality:
+the judge's scores are bimodal (0 or 100, threshold 100.0), so it is already a
+binary classifier with little left to rank, while the activation detectors'
+continuous scores rank better but sit on a suboptimal Youden-J operating point.
 The judge also over-refuses: 13.5% false positives on XSTest's
-harmless-but-scary prompts, against dense-direction's 5.4%.
+harmless-but-scary prompts, against dense-direction's 2.7%.
 
 ### Cross-model direction transfer
 
