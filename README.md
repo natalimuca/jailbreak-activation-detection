@@ -226,7 +226,7 @@ direction. DeepSeek's SAE-feature detector is a genuine architectural failure,
 not a calibration bug: its SAE's hard top-32-of-65536 sparsity means only a
 handful of the 15 hand-selected features ever fire on a given prompt at all.
 
-### Baseline detectors and adversarial evaluation (Qwen3-8B)
+### Baseline detectors and adversarial evaluation
 
 | detector | TEST accuracy | TEST AUROC | adversarial pooled (n=35) | GCG (n=14) | PAIR (n=21) |
 |---|---|---|---|---|---|
@@ -589,8 +589,30 @@ the newer transfer/wrapper-swap/mechanistic results aren't in it by design.
   investigated thoroughly and reported honestly rather than left untouched or
   forced into an answer.
 - Live-inference API backend, with full test coverage and a real-GPU smoke test.
-- ETHICS.md rewritten as a real submission-ready document (still only
+- **LLM-as-judge baseline** (Llama-3.3-70B, text-only): a strong third
+  baseline replacing comparison against weak strawmen alone, evaluated on
+  three models with paired significance tests. Activation-based detection
+  wins threshold-independent ranking on all three (DeLong p=0.0041/0.0015/
+  0.0053); the judge is more accurate at its operating point on two of three;
+  no PAIR difference is significant on any model.
+- **Threshold reselection experiment**: tests the calibration diagnosis the
+  judge comparison produced. Changing only the VAL-fitted threshold rule lifts
+  Qwen3-8B's TEST accuracy 88.9% -> 92.0% (McNemar p=0.0002) and is a no-op on
+  Llama and gemma, exactly where the diagnosis predicted.
+- Interactive frontend: live probe across five detectors, published-attack
+  presets from the real JailbreakBench artifacts, token-level attribution
+  view over the completed leave-one-out run, corpus composition panel, and
+  four evidence charts.
+- Ethics documentation split: a public safety-handling document in this repo,
+  with the signed institutional submission kept outside it (still only
   submittable by the project owner, not something this repo automates).
+
+**Open decisions:**
+- **Whether to adopt the reselected threshold as default.** It is a
+  significant improvement on Qwen3-8B and a no-op elsewhere, but adopting it
+  means re-running the head-to-head and updating every downstream number, and
+  applying it only to the model it helps invites the obvious objection. The
+  result is recorded; the decision is deliberately left open.
 
 **Remaining, deliberately not pursued right now:**
 - **A reusable automated moralize-vs-comply classifier**: three candidate
