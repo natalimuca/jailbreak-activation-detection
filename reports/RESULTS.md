@@ -1484,22 +1484,29 @@ SmolLM2 needed a one-time forward-pass-only extraction first
 
 | model | harmful-prompt margin | PAIR margin | PAIR as frac. of harmful margin | known PAIR detection |
 |---|---|---|---|---|
-| SmolLM2-1.7B-Instruct | 0.681 | **0.469** | 0.689 | 90.5% |
-| Llama-3.1-8B-Instruct | 0.936 | **0.332** | 0.355 | 66.7% |
-| gemma-2-9b-it | 1.018 | -0.049 | -0.049 | 47.6% |
-| Qwen2.5-1.5B-Instruct | 0.958 | -0.109 | -0.113 | 38.1% |
-| Qwen3-8B | 0.679 | -0.240 | -0.353 | 42.9% |
-| DeepSeek-R1-Distill-Qwen-1.5B | **0.308** | -0.221 | -0.719 | 9.5% |
+| SmolLM2-1.7B-Instruct | 0.893 | **0.681** | 0.763 | 100.0% |
+| Llama-3.1-8B-Instruct | 0.992 | **0.389** | 0.392 | 71.4% |
+| Qwen3-8B | 0.924 | 0.005 | 0.005 | 52.4% |
+| Qwen2.5-1.5B-Instruct | 1.067 | -0.000 | -0.000 | 47.6% |
+| gemma-2-9b-it | 1.021 | -0.046 | -0.045 | 47.6% |
+| DeepSeek-R1-Distill-Qwen-1.5B | **0.310** | -0.220 | -0.710 | 9.5% |
 
 Recomputing each model's PAIR detection rate directly from these margins
 (fraction with projection above threshold) reproduces the published rates
 exactly (0.476/1.000/0.524/0.714/0.476/0.095) -- a sanity check that the
 already-persisted directions/thresholds are being applied correctly, not new
 information on its own. **The real new result**: a formal Spearman rank
-correlation between mean PAIR margin and known detection rate, **rho = 0.90,
-p = 0.037 at n=5** (original 5 models); **recomputed at n=6 with DeepSeek
-added (2026-07-27): rho = 0.83, p = 0.042** -- still significant, holds up
-under the addition, though modestly weaker. The top 3 models (SmolLM2 >
+correlation between mean PAIR margin and detection rate, **rho = 0.986,
+p = 0.0003 at n=6** (recomputed 2026-08-04 under the adopted threshold rule).
+Earlier values: rho = 0.90, p = 0.037 at n=5, and rho = 0.83, p = 0.042 at
+n=6 with DeepSeek added. The script previously compared against a hardcoded
+copy of the detection rates, which the recalibration silently made stale; it
+now correlates against the rates recomputed in the same run, which is what
+produces the tighter value. Note this is a relationship between two summaries
+of the same projection distribution (a mean margin and a fraction above
+threshold), so a strong correlation is expected rather than surprising -- it
+confirms the continuous measure ranks models as the binary one does, and is
+not independent evidence. The top 3 models (SmolLM2 >
 Llama-3.1-8B > gemma-2-9b-it) match the detection-rate ranking exactly; the
 bottom three (Qwen2.5-1.5B, Qwen3-8B, DeepSeek) are not in perfect rank
 order by margin relative to detection rate, but DeepSeek's *harmful-prompt*
@@ -1535,14 +1542,24 @@ paraphrase's effect be measured directly per prompt-pair rather than across
 two different distributions -- still no new GPU generation, pure lookup and
 linear algebra over already-cached activations.
 
-**Motivation**: among the 3 SAE-having models, dense-direction PAIR
-robustness (Llama 66.7% > gemma 47.6% > Qwen3-8B 42.9%) ranks in the *same
-order* as SAE causal-effect concentration (Llama: one dominant feature;
-gemma: modest/gradual; Qwen3-8B: distributed, top-1 alone does nothing) --
-an ordinal match not previously tested. This rules out a naive "redundancy
-protects" story (the *most distributed* model is the *least* robust, not
-the most) and leaves "the concentrated feature is itself unusually
-paraphrase-invariant" as the standing candidate.
+**Motivation (as originally framed, and how it has since changed)**: among
+the 3 SAE-having models, dense-direction PAIR robustness used to rank
+Llama (66.7%) > gemma (47.6%) > Qwen3-8B (42.9%), the *same order* as SAE
+causal-effect concentration (Llama: one dominant feature; gemma:
+modest/gradual; Qwen3-8B: distributed, top-1 alone does nothing) -- an
+ordinal match that motivated the investigation below.
+
+**That ordinal match no longer holds.** Under the adopted threshold rule
+(2026-08-04) the robustness order is Llama (71.4%) > Qwen3-8B (52.4%) >
+gemma (47.6%): the *most distributed* model has moved above the
+modestly-concentrated one. The original argument -- that a naive
+"redundancy protects" story is ruled out because the most distributed model
+was the least robust -- no longer follows from these numbers, since Qwen3-8B
+is no longer the least robust of the three. The matched-pair evidence in the
+rest of this section stands on its own (it tests specific features directly
+rather than relying on this ranking), but the ordinal motivation that
+prompted it does not survive recalibration, and is left recorded rather than
+quietly restated.
 
 **Dense-direction, matched pairs, all 5 models** (`scripts/paraphrase_decay_dense.py`,
 delta = original margin minus paraphrased margin, positive = paraphrase

@@ -47,18 +47,6 @@ DENSE_DIRECTIONS_PATH = RESULTS_DIR / "dense_directions.pt"
 CROSS_MODEL_PATH = RESULTS_DIR / "dense_direction_cross_model.json"
 QWEN3_THRESHOLDS_PATH = RESULTS_DIR / "detector_thresholds_Qwen3-8B.json"
 
-# Known PAIR detection rates (reports/RESULTS.md's cross-model dense-direction section),
-# repeated here only for side-by-side comparison against the new margin numbers,
-# not recomputed.
-KNOWN_PAIR_DETECTION_RATE = {
-    "SmolLM2-1.7B-Instruct": 0.905,
-    "Llama-3.1-8B-Instruct": 0.667,
-    "gemma-2-9b-it": 0.476,
-    "Qwen3-8B": 0.429,
-    "Qwen2.5-1.5B-Instruct": 0.381,
-    "DeepSeek-R1-Distill-Qwen-1.5B": 0.095,
-}
-
 MODELS = [
     "Qwen2.5-1.5B-Instruct",
     "SmolLM2-1.7B-Instruct",
@@ -109,14 +97,13 @@ def analyze_model(cache_label: str, direction: torch.Tensor, layer: int, thresho
         "pair_margin_mean": round(pair_margin_mean, 4),
         "pair_margin_as_frac_of_harmful": round(pair_margin_mean / harmful_margin_mean, 4),
         "pair_detected_rate_reproduced": round(pair_detected_rate, 4),
-        "known_pair_detection_rate": KNOWN_PAIR_DETECTION_RATE[cache_label],
     }
 
 
 def main() -> None:
     directions = torch.load(DENSE_DIRECTIONS_PATH, map_location="cpu", weights_only=False)
     results = {}
-    print(f"{'model':<24} {'layer':>5} {'harmful margin':>15} {'PAIR margin':>12} {'PAIR/harmful':>13} {'PAIR detect (repro/known)':>28}")
+    print(f"{'model':<24} {'layer':>5} {'harmful margin':>15} {'PAIR margin':>12} {'PAIR/harmful':>13} {'PAIR detect':>13}")
     for cache_label in MODELS:
         layer, threshold = layer_and_threshold(cache_label)
         direction = directions[cache_label]["direction"].float()
@@ -124,12 +111,15 @@ def main() -> None:
         results[cache_label] = r
         print(f"{cache_label:<24} {r['layer']:>5} {r['harmful_val_margin_mean']:>15.3f} "
               f"{r['pair_margin_mean']:>12.3f} {r['pair_margin_as_frac_of_harmful']:>13.3f} "
-              f"{r['pair_detected_rate_reproduced']:>13.3f} / {r['known_pair_detection_rate']:<13.3f}")
+              f"{r['pair_detected_rate_reproduced']:>13.3f}")
 
+    # Correlate against the rates recomputed in this same run, never a
+    # hardcoded copy: a stale constant would silently correlate current
+    # margins against a previous calibration's detection rates.
     margins = [results[m]["pair_margin_mean"] for m in MODELS]
-    known_rates = [results[m]["known_pair_detection_rate"] for m in MODELS]
-    rho, p_value = spearmanr(margins, known_rates)
-    print(f"\nSpearman rank correlation (PAIR margin vs. known detection rate, n={len(MODELS)}): "
+    rates = [results[m]["pair_detected_rate_reproduced"] for m in MODELS]
+    rho, p_value = spearmanr(margins, rates)
+    print(f"\nSpearman rank correlation (PAIR margin vs. detection rate, n={len(MODELS)}): "
           f"rho={rho:.4f}, p={p_value:.4f}")
 
     out = {"per_model": results, "spearman": {"rho": round(float(rho), 4), "p_value": round(float(p_value), 4), "n": len(MODELS)}}
