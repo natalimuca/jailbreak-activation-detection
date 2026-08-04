@@ -103,17 +103,29 @@ than from a published benchmark.
 (model, prompt) pair to a numeric score (`results/llm_judge_cache.json`,
 gitignored). The cache holds no prompt text.
 
+**Provider terms, checked rather than assumed (verified 2026-08-04).** Groq's
+Services Agreement defines Inputs (prompts) and Outputs as Customer Data, and
+states that Groq "is not permitted to use Inputs or Outputs for training or
+fine-tuning any AI Model Services or other models" without the customer's
+explicit instruction. It commits to deleting Customer Data within 30 days of
+termination, and offers a zero-data-retention setting to eligible customers.
+The public Privacy Policy does not itself cover API request data, and draws no
+free-tier/paid-tier distinction; the Services Agreement is the governing
+document. Source: console.groq.com/docs/legal/services-agreement.
+
 **Residual risk and my assessment.** The material question is whether sending
 these prompts to a commercial provider creates harm. I assess it as low: the
 prompts are already public, published precisely so that safety researchers can
-evaluate against them, and the request asks the provider's model to *rate*
-them rather than to comply with them. I note two caveats honestly rather than
-claiming none exist. First, Groq's free tier terms govern retention and
-possible use of submitted data, and I have not negotiated any research-specific
-data agreement; anyone reproducing this work should check those terms as they
-stand at the time. Second, the provider's own safety systems see a stream of
-jailbreak prompts from my account, which could reasonably be flagged as abuse
-by automated monitoring even though the purpose is defensive evaluation.
+evaluate against them; the request asks the provider's model to *rate* them
+rather than to comply with them; and the provider is contractually barred from
+training on them. Two caveats I state rather than gloss. First, I have not
+confirmed whether a free-tier account qualifies as an "eligible customer" for
+the zero-retention setting, so I assume prompts are retained during normal
+operation. Second, the agreement contemplates provider access to Inputs for
+operational reliability and acceptable-use enforcement, which means Groq's
+abuse monitoring sees a stream of jailbreak prompts from my account; that is
+expected for this kind of evaluation but could be flagged automatically even
+though the purpose is defensive.
 
 **Avoidability.** This component is a comparison baseline, not part of the
 detector itself. The activation-based detectors, which are the actual
@@ -141,10 +153,11 @@ Two points I want to flag explicitly to my advisor/department for review:
    explicitly acknowledged as part of my ethics review, not assumed.
 3. **Sending published harmful prompts to a third-party API.** The LLM-judge
    baseline (section 5b) transmits public benchmark prompts to Groq for
-   scoring. I judge this low risk because the prompts are already public and
-   the model is asked to rate rather than comply, but it is the one part of
-   this project where data leaves my machine, so I am flagging it for review
-   rather than absorbing it into the "local processing" description.
+   scoring. I judge this low risk: the prompts are already public, the model
+   is asked to rate rather than comply, and Groq's Services Agreement bars
+   training on submitted Inputs. It remains the one part of this project where
+   data leaves my machine, so I am flagging it for review rather than
+   absorbing it into the "local processing" description.
 
 ## 7. Dissemination plan
 
