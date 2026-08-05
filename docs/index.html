@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Jailbreak Detection via Internal Activations</title>
+  <meta name="description" content="Detecting harmful-intent prompts from an LLM's internal activations instead of surface-level filtering, validated across 6 open-weight models." />
+  <script>
+    (function () {
+      var saved = localStorage.getItem("theme");
+      if (saved === "light" || saved === "dark") {
+        document.documentElement.dataset.theme = saved;
+      }
+    })();
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap"
+    rel="stylesheet"
+  />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236ea8fe' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='2,12 7,12 9,4 13,20 15,12 22,12'/%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="2,12 7,12 9,4 13,20 15,12 22,12" />
+          </svg>
+        </span>
+        <span class="brand-name">jailbreak-activation-detection</span>
+      </div>
+      <nav class="topnav">
+        <a href="https://github.com/natalimuca/jailbreak-activation-detection" target="_blank" rel="noopener">Repository</a>
+        <a href="#results">Results</a>
+        <a href="#how-it-works">Method</a>
+      </nav>
+      <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Switch to light mode">
+        <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" hidden>
+          <circle cx="12" cy="12" r="4.5" />
+          <line x1="12" y1="2.5" x2="12" y2="4.8" /><line x1="12" y1="19.2" x2="12" y2="21.5" />
+          <line x1="2.5" y1="12" x2="4.8" y2="12" /><line x1="19.2" y1="12" x2="21.5" y2="12" />
+          <line x1="5.3" y1="5.3" x2="6.9" y2="6.9" /><line x1="17.1" y1="17.1" x2="18.7" y2="18.7" />
+          <line x1="5.3" y1="18.7" x2="6.9" y2="17.1" /><line x1="17.1" y1="6.9" x2="18.7" y2="5.3" />
+        </svg>
+        <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a6.8 6.8 0 0 0 10.5 10.5Z" />
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <p class="hero-kicker">Defensive security research &middot; MSc thesis project</p>
+      <h1 class="flapboard" id="hero-flap" aria-label="Read the model's mind, not its words"></h1>
+      <p class="hero-sub">
+        A jailbreak detector built on an LLM's internal activations, not its output
+        text &mdash; validated across <strong>6 open-weight models</strong>, with a
+        70B text-only judge and formal significance testing at every claim.
+      </p>
+      <div class="hero-actions">
+        <a class="btn btn-primary" href="https://github.com/natalimuca/jailbreak-activation-detection" target="_blank" rel="noopener">View the repository</a>
+        <a class="btn btn-ghost" href="#results">See the results</a>
+      </div>
+      <dl class="hero-stats">
+        <div><dt>Models validated</dt><dd>6</dd></div>
+        <div><dt>Best TEST AUROC</dt><dd>0.989</dd></div>
+        <div><dt>Tests passing</dt><dd>190</dd></div>
+      </dl>
+    </section>
+
+    <section class="section" id="how-it-works">
+      <p class="section-kicker">The idea</p>
+      <h2>Surface filters read the words. This reads the state that decides them.</h2>
+      <p class="section-lead">
+        Builds on Arditi et al.'s finding that a single direction in residual-stream
+        activation space causally controls refusal across open chat models
+        (<a href="https://arxiv.org/abs/2406.11717" target="_blank" rel="noopener">NeurIPS 2024, arXiv:2406.11717</a>).
+        A keyword filter or a perplexity check only ever sees a prompt's wording, so
+        disguising a harmful request as fiction or roleplay is enough to slip past
+        them. An activation-based detector instead reads whatever internal state the
+        model itself uses to decide &ldquo;this is harmful&rdquo; &mdash; the disguise
+        never has to change what the request actually means.
+      </p>
+      <div class="method-grid">
+        <div class="method-card">
+          <span class="method-index">01</span>
+          <h3>Dense-direction detector</h3>
+          <p>The difference of means between harmful and harmless activations, at the
+          layer where it separates best. A new prompt is classified by projecting its
+          activation onto this direction and thresholding against a value calibrated
+          on held-out data.</p>
+        </div>
+        <div class="method-card">
+          <span class="method-index">02</span>
+          <h3>SAE-feature detector</h3>
+          <p>Where the dense direction finds one linear axis, this asks which specific
+          sparse, interpretable features &mdash; out of tens of thousands per layer
+          &mdash; are causally responsible for refusal, using each model's own
+          pretrained sparse autoencoder.</p>
+        </div>
+        <div class="method-card">
+          <span class="method-index">03</span>
+          <h3>LLM-judge baseline</h3>
+          <p>A 70B model (Llama-3.3, via Groq) prompted as a text-only classifier
+          &mdash; a genuinely strong opponent, not a keyword-list strawman, to make
+          the &ldquo;activations beat surface text&rdquo; claim mean something.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="results">
+      <p class="section-kicker">What it found</p>
+      <h2>Six models, real adversarial attacks, and a paired test behind every claim.</h2>
+
+      <div class="findings-grid">
+        <article class="finding-card">
+          <p class="finding-stat">0.91&ndash;0.99</p>
+          <p class="finding-label">AUROC across all 6 models</p>
+          <p class="finding-body">Both activation-based detectors crush the surface
+          baselines on clean prompts &mdash; keyword filtering sits at ~0.60,
+          perplexity filtering at ~0.52, essentially chance.</p>
+        </article>
+        <article class="finding-card">
+          <p class="finding-stat">p = 0.0041</p>
+          <p class="finding-label">Dense-direction vs. a 70B judge</p>
+          <p class="finding-body">Tested on 3 models against Llama-3.3-70B reading
+          the same prompts as text: activation-based ranking wins every time,
+          significantly (DeLong p = 0.0041 / 0.0015 / 0.0053).</p>
+        </article>
+        <article class="finding-card">
+          <p class="finding-stat">Q = 44.55</p>
+          <p class="finding-label">PAIR-paraphrase robustness spread</p>
+          <p class="finding-body">Real published jailbreak attacks (JailbreakBench's
+          PAIR and GCG), not synthetic ones. Cochran's Q across all 6 models
+          confirms the spread is real, not noise (p &lt; 1e-6).</p>
+        </article>
+        <article class="finding-card">
+          <p class="finding-stat">190 tests</p>
+          <p class="finding-label">Every number traces to a script</p>
+          <p class="finding-body">Logic lives in tested <code>src/</code> modules;
+          <code>scripts/</code> are standalone pipeline stages, one per experiment
+          &mdash; no notebook-cell numbers that can't be reproduced.</p>
+        </article>
+      </div>
+
+      <div class="table-wrap">
+        <table class="results-table">
+          <caption>Dense-direction detector, held-out TEST split (n=288)</caption>
+          <thead>
+            <tr><th>Model</th><th>TEST accuracy</th><th>TEST AUROC</th><th>PAIR detection</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>DeepSeek-R1-Distill-Qwen-1.5B</td><td>84.7%</td><td>0.911</td><td>9.5%</td></tr>
+            <tr><td>Qwen2.5-1.5B-Instruct</td><td>89.2%</td><td>0.970</td><td>47.6%</td></tr>
+            <tr><td>SmolLM2-1.7B-Instruct</td><td>84.7%</td><td>0.945</td><td>100.0%</td></tr>
+            <tr><td>Qwen3-8B</td><td>92.0%</td><td>0.983</td><td>52.4%</td></tr>
+            <tr class="row-best"><td>Llama-3.1-8B-Instruct</td><td>93.1%</td><td>0.989</td><td>71.4%</td></tr>
+            <tr><td>Gemma-2-9B-it</td><td>93.1%</td><td>0.984</td><td>47.6%</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="section cta-section">
+      <h2>Try it against a real jailbreak attack.</h2>
+      <p class="section-lead">
+        The interactive detector runs locally against your own GPU &mdash; five
+        detectors side by side on one prompt, with published PAIR/GCG attacks one
+        click away.
+      </p>
+      <div class="hero-actions">
+        <a class="btn btn-primary" href="https://github.com/natalimuca/jailbreak-activation-detection#reproduce" target="_blank" rel="noopener">Run the detector</a>
+        <a class="btn btn-ghost" href="https://github.com/natalimuca/jailbreak-activation-detection/blob/master/reports/RESULTS.md" target="_blank" rel="noopener">Read the full results</a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="page-footer">
+    <p>Source: <a href="https://github.com/natalimuca/jailbreak-activation-detection" target="_blank" rel="noopener">jailbreak-activation-detection</a>
+    &middot; every number on this page is read from the repository's own results, nothing here is invented.</p>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
