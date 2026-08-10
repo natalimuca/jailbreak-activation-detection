@@ -20,9 +20,11 @@
     rel="stylesheet"
   />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236ea8fe' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='2,12 7,12 9,4 13,20 15,12 22,12'/%3E%3C/svg%3E" />
-  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="landing.css" />
 </head>
 <body>
+  <div class="cursor-dot" id="cursor-dot" aria-hidden="true"></div>
+
   <header class="topbar">
     <div class="topbar-inner">
       <div class="brand">
@@ -31,7 +33,7 @@
             <polyline points="2,12 7,12 9,4 13,20 15,12 22,12" />
           </svg>
         </span>
-        <span class="brand-name">jailbreak-activation-detection</span>
+        <span class="brand-name">Jailbreak Activation Detection</span>
       </div>
       <nav class="topnav">
         <a href="https://github.com/natalimuca/jailbreak-activation-detection" target="_blank" rel="noopener">Repository</a>
@@ -53,13 +55,21 @@
     </div>
   </header>
 
+  <nav class="section-dots" aria-label="Page sections">
+    <a href="#hero" aria-label="Hero"><span></span></a>
+    <a href="#how-it-works" aria-label="The idea"><span></span></a>
+    <a href="#results" aria-label="Results"><span></span></a>
+    <a href="#cta" aria-label="Run the detector"><span></span></a>
+  </nav>
+
   <main>
-    <section class="hero">
-      <p class="hero-kicker">Defensive security research &middot; MSc thesis project</p>
-      <h1 class="flapboard" id="hero-flap" aria-label="Read the model's mind, not its words"></h1>
+    <section class="hero" id="hero">
+      <p class="hero-badge">6 open-weight models &middot; 190 tests passing</p>
+      <p class="hero-kicker">Defensive security research </p>
+      <h1 class="flapboard" id="hero-flap" aria-label="READ  THE  MIND, NOT  THE  WORDS"></h1>
       <p class="hero-sub">
         A jailbreak detector built on an LLM's internal activations, not its output
-        text &mdash; validated across <strong>6 open-weight models</strong>, with a
+        text, validated across <strong>6 open-weight models</strong>, with a
         70B text-only judge and formal significance testing at every claim.
       </p>
       <div class="hero-actions">
@@ -74,8 +84,8 @@
     </section>
 
     <section class="section" id="how-it-works">
-      <p class="section-kicker">The idea</p>
-      <h2>Surface filters read the words. This reads the state that decides them.</h2>
+      <p class="section-kicker">01 / The idea</p>
+      <h2>Surface filters read the words. This reads <span class="text-highlight">the state</span> that decides them</h2>
       <p class="section-lead">
         Builds on Arditi et al.'s finding that a single direction in residual-stream
         activation space causally controls refusal across open chat models
@@ -83,11 +93,11 @@
         A keyword filter or a perplexity check only ever sees a prompt's wording, so
         disguising a harmful request as fiction or roleplay is enough to slip past
         them. An activation-based detector instead reads whatever internal state the
-        model itself uses to decide &ldquo;this is harmful&rdquo; &mdash; the disguise
+        model itself uses to decide &ldquo;this is harmful&rdquo;, the disguise
         never has to change what the request actually means.
       </p>
       <div class="method-grid">
-        <div class="method-card">
+        <div class="method-card" tabindex="0">
           <span class="method-index">01</span>
           <h3>Dense-direction detector</h3>
           <p>The difference of means between harmful and harmless activations, at the
@@ -95,56 +105,56 @@
           activation onto this direction and thresholding against a value calibrated
           on held-out data.</p>
         </div>
-        <div class="method-card">
+        <div class="method-card" tabindex="0">
           <span class="method-index">02</span>
           <h3>SAE-feature detector</h3>
           <p>Where the dense direction finds one linear axis, this asks which specific
-          sparse, interpretable features &mdash; out of tens of thousands per layer
-          &mdash; are causally responsible for refusal, using each model's own
+          sparse, interpretable features  out of tens of thousands per layer,
+          are causally responsible for refusal, using each model's own
           pretrained sparse autoencoder.</p>
         </div>
-        <div class="method-card">
+        <div class="method-card" tabindex="0">
           <span class="method-index">03</span>
           <h3>LLM-judge baseline</h3>
           <p>A 70B model (Llama-3.3, via Groq) prompted as a text-only classifier
-          &mdash; a genuinely strong opponent, not a keyword-list strawman, to make
+          is a genuinely strong opponent, not a keyword-list strawman, to make
           the &ldquo;activations beat surface text&rdquo; claim mean something.</p>
         </div>
       </div>
     </section>
 
     <section class="section" id="results">
-      <p class="section-kicker">What it found</p>
-      <h2>Six models, real adversarial attacks, and a paired test behind every claim.</h2>
+      <p class="section-kicker align-right">02 / What it found</p>
+      <h2 class="align-right">Six models, real adversarial attacks, and a paired test behind <span class="text-highlight">every claim</span></h2>
 
       <div class="findings-grid">
-        <article class="finding-card">
+        <article class="finding-card" tabindex="0">
           <p class="finding-stat">0.91&ndash;0.99</p>
           <p class="finding-label">AUROC across all 6 models</p>
           <p class="finding-body">Both activation-based detectors crush the surface
-          baselines on clean prompts &mdash; keyword filtering sits at ~0.60,
+          baselines on clean prompts, keyword filtering sits at ~0.60,
           perplexity filtering at ~0.52, essentially chance.</p>
         </article>
-        <article class="finding-card">
+        <article class="finding-card" tabindex="0">
           <p class="finding-stat">p = 0.0041</p>
           <p class="finding-label">Dense-direction vs. a 70B judge</p>
           <p class="finding-body">Tested on 3 models against Llama-3.3-70B reading
           the same prompts as text: activation-based ranking wins every time,
           significantly (DeLong p = 0.0041 / 0.0015 / 0.0053).</p>
         </article>
-        <article class="finding-card">
+        <article class="finding-card" tabindex="0">
           <p class="finding-stat">Q = 44.55</p>
           <p class="finding-label">PAIR-paraphrase robustness spread</p>
           <p class="finding-body">Real published jailbreak attacks (JailbreakBench's
           PAIR and GCG), not synthetic ones. Cochran's Q across all 6 models
           confirms the spread is real, not noise (p &lt; 1e-6).</p>
         </article>
-        <article class="finding-card">
+        <article class="finding-card" tabindex="0">
           <p class="finding-stat">190 tests</p>
           <p class="finding-label">Every number traces to a script</p>
           <p class="finding-body">Logic lives in tested <code>src/</code> modules;
           <code>scripts/</code> are standalone pipeline stages, one per experiment
-          &mdash; no notebook-cell numbers that can't be reproduced.</p>
+          and no notebook-cell numbers that can't be reproduced.</p>
         </article>
       </div>
 
@@ -166,15 +176,16 @@
       </div>
     </section>
 
-    <section class="section cta-section">
-      <h2>Try it against a real jailbreak attack.</h2>
+    <section class="section cta-section" id="cta">
+      <p class="section-kicker">03 / Try it</p>
+      <h2>Try it against <span class="text-highlight">a real jailbreak attack</span></h2>
       <p class="section-lead">
-        The interactive detector runs locally against your own GPU &mdash; five
+        The interactive detector runs locally against your own GPU, five
         detectors side by side on one prompt, with published PAIR/GCG attacks one
         click away.
       </p>
       <div class="hero-actions">
-        <a class="btn btn-primary" href="https://github.com/natalimuca/jailbreak-activation-detection#reproduce" target="_blank" rel="noopener">Run the detector</a>
+        <a id="run-detector" class="btn btn-primary" href="https://github.com/natalimuca/jailbreak-activation-detection#reproduce" target="_blank" rel="noopener">Run the detector</a>
         <a class="btn btn-ghost" href="https://github.com/natalimuca/jailbreak-activation-detection/blob/master/reports/RESULTS.md" target="_blank" rel="noopener">Read the full results</a>
       </div>
     </section>
@@ -185,6 +196,6 @@
     &middot; every number on this page is read from the repository's own results, nothing here is invented.</p>
   </footer>
 
-  <script src="app.js"></script>
+  <script src="landing.js"></script>
 </body>
 </html>

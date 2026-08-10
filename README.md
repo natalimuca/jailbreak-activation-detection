@@ -532,7 +532,7 @@ requests switch targets) and serves all four detectors (keyword, perplexity,
 dense-direction, SAE-feature) for arbitrary prompts, not just the pre-collected
 corpus.
 
-**Interactive detector UI** (`webapp/`, merged into `master`): a plain
+**Interactive detector UI** (`webapp/app/`, merged into `master`): a plain
 HTML/JS/CSS page over the API above, plus a Findings dashboard built from this
 project's own reports/RESULTS.md numbers, verified live in-browser against
 the real GPU. Current with all 6 models. Scoped to detector performance for

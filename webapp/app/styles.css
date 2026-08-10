@@ -1,5 +1,5 @@
 :root {
-  font-size: 21px;
+  font-size: 16.8px;
   --font-ui: "Space Grotesk", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-mono: "Fira Code", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
@@ -245,7 +245,7 @@ a:hover {
 }
 
 .theme-toggle:active {
-  transform: scale(0.92);
+  transform: scale(0.97);
 }
 
 .theme-toggle svg {
@@ -506,6 +506,7 @@ button#analyze-button:disabled {
   font-size: 0.78rem;
   color: var(--color-text-muted);
   min-height: 1.1rem;
+  transition: color var(--transition-fast);
 }
 
 .status-line.error {
@@ -1005,7 +1006,12 @@ button#analyze-button:disabled {
   top: 0;
   height: 100%;
   border-radius: 3px;
-  transition: width 600ms cubic-bezier(0.16, 1, 0.3, 1);
+  transform-origin: left;
+  transition: transform 600ms cubic-bezier(0.16, 1, 0.3, 1);
+
+  @starting-style {
+    transform: scaleX(0);
+  }
 }
 
 .baseline-fill-weak {
@@ -1089,7 +1095,7 @@ button#analyze-button:disabled {
   );
   background-size: 400% 100%;
   border-radius: 4px;
-  animation: shimmer 1.4s ease-in-out infinite;
+  animation: shimmer 1.4s linear infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1174,11 +1180,15 @@ button#analyze-button:disabled {
   margin-bottom: -1px;
   margin-right: 1.5rem;
   cursor: pointer;
-  transition: color var(--transition-fast), border-color var(--transition-fast);
+  transition: color var(--transition-fast), border-color var(--transition-fast), transform 120ms ease-out;
 }
 
 .tab:hover {
   color: var(--color-text);
+}
+
+.tab:active {
+  transform: scale(0.97);
 }
 
 .tab.active {
@@ -1195,6 +1205,15 @@ button#analyze-button:disabled {
      the whole page to scroll sideways. */
   grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr));
   gap: 1rem;
+}
+
+/* Cap at 2 columns so each row pairs charts of similar height (auroc+pair,
+   dense-sae+wrapper) instead of auto-fit packing 3-4 per row and forcing the
+   shorter charts to stretch-pad out to match the tallest one in the row. */
+@media (min-width: 900px) {
+  .findings-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 .chart-figure {
@@ -1258,6 +1277,11 @@ button#analyze-button:disabled {
 
 .bar-group-dim {
   opacity: 0.42;
+  transition: opacity var(--transition-fast);
+
+  @starting-style {
+    opacity: 1;
+  }
 }
 
 .bar-group-note {
@@ -1296,7 +1320,12 @@ button#analyze-button:disabled {
   top: 0;
   height: 100%;
   border-radius: 3px;
-  transition: width 500ms ease-out;
+  transform-origin: left;
+  transition: transform 500ms ease-out;
+
+  @starting-style {
+    transform: scaleX(0);
+  }
 }
 
 .bar-value {
@@ -1328,6 +1357,11 @@ button#analyze-button:disabled {
   border-collapse: collapse;
   margin-top: 0.7rem;
   font-size: 0.8rem;
+  transition: opacity 200ms ease-out;
+
+  @starting-style {
+    opacity: 0;
+  }
 }
 
 .data-table th,
@@ -1402,13 +1436,24 @@ button#analyze-button:disabled {
   border-radius: var(--radius-sm);
   cursor: pointer;
   transition: border-color var(--transition-fast), color var(--transition-fast),
-    background-color var(--transition-fast);
+    background-color var(--transition-fast), transform 120ms ease-out;
 }
 
 .example-chip:hover {
   border-color: var(--color-border-strong);
   background: var(--color-surface-hover);
   color: var(--color-text);
+}
+
+.example-chip:active {
+  transform: scale(0.97);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tab,
+  .example-chip {
+    transition: none;
+  }
 }
 
 .example-chip .chip-method {

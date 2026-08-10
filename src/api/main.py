@@ -14,6 +14,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from src.api.inference_manager import DetectorInferenceManager
@@ -26,7 +27,8 @@ from src.api.schemas import (
     ModelInfo,
 )
 
-WEBAPP_DIR = Path(__file__).resolve().parents[2] / "webapp"
+LANDING_DIR = Path(__file__).resolve().parents[2] / "webapp"
+DETECTOR_DIR = LANDING_DIR / "app"
 # results/ is gitignored, so a fresh clone has no adversarial manifest -- the
 # endpoint reports that as available=false rather than 404ing, matching how
 # the SAE panel reports models without a pretrained SAE suite.
@@ -141,7 +143,18 @@ def analyze(request: AnalyzeRequest, manager: DetectorInferenceManager = Depends
         raise HTTPException(status_code=400, detail=str(e)) from e
 
 
+# StaticFiles(html=True) only auto-serves a file literally named index.html,
+# so with the landing page renamed to landing.html this explicit route covers
+# "/" instead; it's registered before the "/" mount below so Starlette tries
+# it first.
+@app.get("/", include_in_schema=False)
+def landing_page() -> FileResponse:
+    return FileResponse(LANDING_DIR / "landing.html")
+
+
 # Mounted last, after every /api/* route above -- Starlette matches routes in
-# registration order, so this catch-all only ever serves the frontend's
-# static files and never shadows the API.
-app.mount("/", StaticFiles(directory=WEBAPP_DIR, html=True), name="webapp")
+# registration order, so these only ever serve static files and never shadow
+# the API. "/app" (the interactive detector) must be registered before "/"
+# (the landing page) since "/" would otherwise catch "/app/..." requests too.
+app.mount("/app", StaticFiles(directory=DETECTOR_DIR, html=True), name="detector")
+app.mount("/", StaticFiles(directory=LANDING_DIR, html=True), name="landing")
