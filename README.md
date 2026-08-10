@@ -3,6 +3,19 @@
 **Detecting harmful-intent prompts from an LLM's internal activations instead of
 surface-level (keyword or perplexity) filtering, with a rigorous, honestly-hedged
 cross-model comparison across 6 open-weight chat models (1.5B to 9B parameters).**
+The core bet is that a model's residual stream already encodes whether it considers
+a request harmful before it writes a single token of response, so reading that
+internal state should be much harder to fool with a fictional framing or a roleplay
+wrapper than a detector that only ever sees the prompt's surface wording. Two
+independent detectors are built on top of that idea for every model, a dense
+difference-of-means direction and a sparse-autoencoder feature, both calibrated on
+a held-out split and tested not just for classification accuracy but for whether
+they are the actual causal mechanism behind refusal, not merely correlated with
+it. Results are reported honestly rather than smoothed into one clean story: some
+models show a real gap between what best predicts refusal and what actually
+controls it, cross-model direction transfer comes back null on every pair tested
+so far, and one model is diffuse across every detection method tried, with no
+forced narrative imposed on any of it.
 
 ## Technology Stack
 
