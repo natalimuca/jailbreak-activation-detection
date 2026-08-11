@@ -54,6 +54,13 @@ def test_analyze_rejects_empty_prompt(client):
     assert response.status_code == 422
 
 
+def test_landing_page_serves_landing_html(client):
+    response = client.get("/")
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/html")
+    assert "Jailbreak Detection via Internal Activations" in response.text
+
+
 def test_get_models_returns_registry_output(client, monkeypatch):
     fake_models = [{"hf_name": "x/y", "cache_label": "y", "sae_feature_available": True}]
     monkeypatch.setattr("src.api.main.list_models", lambda: fake_models)
