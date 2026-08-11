@@ -1683,6 +1683,23 @@ Results in `results/paraphrase_decay_dense.json` and
 - **Baselines are asserted, not re-verified, to be model-agnostic.** This is
   true by construction (keyword/perplexity scores never touch model
   activations), but wasn't independently re-run per model as a sanity check.
+- **Multiple-comparisons correction is applied in exactly one place in this
+  document** -- the wrapper-swap variance decomposition's maxT/Westfall-Young
+  permutation scheme, cross-checked against Benjamini-Hochberg FDR (see
+  DECISIONS.md) -- **not across the other families of paired tests reported
+  elsewhere.** The per-model DeLong/McNemar pairs in the LLM-judge comparison,
+  the Cochran's Q post-hoc pairwise McNemar tests (parallel/orthogonal
+  component ablations), and the SAE-feature paraphrase-decay Wilcoxon tests
+  all report raw p-values judged individually against alpha=0.05, with no
+  correction and no explicit note on why one wasn't applied. Most headline
+  results are extreme enough (p<0.0001 to p<1e-16) that this wouldn't flip
+  any conclusion, but a few sit close enough to 0.05 that a family-wise
+  correction within their own comparison group could matter: the LLM-judge
+  PAIR comparisons (p=0.031, p=0.039) and the threshold-rule-vs-judge
+  comparison (p=0.0201, p=0.0225). Not corrected retroactively here, since
+  that would mean deciding which tests count as one "family" after the fact
+  rather than pre-registering it -- flagged honestly instead, as the
+  inconsistency it is.
 
 ## Cross-model direction transfer
 
