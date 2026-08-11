@@ -3385,3 +3385,56 @@ rank-1 feature has never been through the wrapper-swap ANOVA at all, so
 jumping straight to its top-15 would skip the sanity check this whole design
 leans on) and this is a detector-reweighting experiment, not a generation-time
 steering intervention -- neither is being tested here, regardless of outcome.
+
+## Closing the pre-registration: the content-weighted detector, outcome (2026-08-12)
+
+**Both verification gates passed before any real result was trusted.**
+`feature_variance_family.py`'s synthetic check (null case clean, planted
+core-effect detected with no false positives among 14 unrelated features)
+and its rank-1 reproduction check (new multi-feature loop reproduces the
+already-published 0.656/0.227 Qwen3-8B and 0.407 Llama eta-squared values,
+and the same significance conclusions) both passed on the first run, for
+both models -- see `reports/RESULTS.md`'s write-up for the full per-feature
+breakdown this unlocked.
+
+**The pre-registered evaluation was run once, as written, and the result is
+reported as found: negative.** Neither weighting variant produced a
+significant PAIR improvement for Qwen3-8B, and both produced a significant
+TEST-accuracy regression (primary p=0.0156, binary p=0.0414), with binary
+also significantly hurting AUROC (p<0.0001). No secondary weighting formula,
+threshold, or feature-subset was tried after seeing this -- that would have
+been exactly the after-the-fact tuning the pre-registration entry was
+written to prevent. The result stands as run.
+
+**A real, verified explanation for Llama's bit-identical binary-variant
+numbers, not an assumed one.** The 5 features the binary rule drops for
+Llama fire on zero of 288 TEST prompts each (checked directly:
+`saes[layer].encode(test_activations)[:, feature_idx]` is exactly 0 for
+every TEST item, for all 5) -- so zeroing their weight is a genuine no-op on
+this split, not a bug worth chasing further. This surfaces a real gap
+between the two channels this experiment reads the same feature through:
+`scripts/wrapper_swap_variance.py`'s ANOVA reads a feature's raw
+pre-activation (`src.sae.feature_probe.feature_value`), unconstrained by the
+SAE's own top-K sparsity competition, while `sae_feature_detector.score`
+only counts a feature that *wins* that competition on a given prompt. A
+feature can carry a real, statistically detectable content/framing signal in
+the controlled factorial and still almost never be selected by the sparsity
+gate on real data -- worth remembering before building another intervention
+on top of ANOVA-style raw-activation statistics without checking whether the
+target features are actually live in the detector's normal operating
+regime.
+
+**Why this is recorded as a completed, negative result rather than iterated
+on.** The likely reason the intervention fails is structural, not a tuning
+problem: Qwen3-8B's top-15 features are its own causally-ranked set,
+independently confirmed elsewhere in this document to each carry real
+class-separating signal on clean prompts -- they are not pure
+framing-detectors that happen to also fire on harmful content, they are
+harmfulness detectors whose *dominant* source of variance, in a controlled
+factorial specifically designed to isolate it, happens to be framing rather
+than content. Suppressing them by that same statistic removes real
+harmfulness signal alongside whatever framing-sensitivity it carries, and
+for this detector the loss outweighs the gain under both weightings tried.
+A different kind of intervention (e.g. combining features non-linearly, or
+steering rather than reweighting) might fare differently, but that is a
+different, unscoped experiment, not a retry of this one.

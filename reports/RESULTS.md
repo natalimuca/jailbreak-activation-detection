@@ -1214,6 +1214,99 @@ surface hypotheses would have had real diminishing returns; this
 qualitative pattern is a genuinely different and more promising direction
 if a future round takes it further.
 
+## From diagnosis to intervention: a content-weighted SAE detector (2026-08-12)
+
+Every result above stops at diagnosis. This section acts on one: Qwen3-8B's
+top-ranked causal feature is dominated by wrapper/framing identity rather
+than the harmful request's content (eta_sq_wrapper=0.656 vs.
+eta_sq_core=0.227, above), which correlates with its weaker PAIR robustness
+than Llama's content-tracking top feature (52.4% vs. 71.4%). Formula and
+evaluation plan pre-registered before this ran, see `reports/DECISIONS.md`'s
+"Pre-registration: a content-weighted SAE detector" entry.
+
+**Step 1: does the wrapper-tracking property hold across the whole top-15,
+not just feature #1?** (`scripts/feature_variance_family.py`, reusing
+`wrapper_swap_variance.py`'s ANOVA/permutation machinery unmodified, with a
+maxT/Westfall-Young family-wise correction across the 15-feature family --
+verified against synthetic planted-effect data and against the already-
+published rank-1 numbers before trusting the extension, both checks passed).
+
+**Yes, more so than feature #1 alone suggested**: 14 of Qwen3-8B's top-15
+features are framing-leaning (eta_sq_wrapper > eta_sq_core), most at
+maxT-corrected p<0.01; only rank-4 (layer 24, feature 4711) is content-
+leaning. This is not one feature's quirk -- it is close to the whole
+detector. Llama-3.1-8B-Instruct, the negative-control model, splits 11
+content-leaning to 4 framing-leaning -- majority content-tracking as
+expected from its rank-1 result, but genuinely mixed, not a clean sweep the
+way Qwen3-8B's is. Full per-feature eta-squared and both raw and
+maxT-adjusted p-values in `results/feature_variance_{Qwen3-8B,
+Llama-3.1-8B-Instruct}.json`.
+
+**Step 2: build the intervention.** Two pre-registered weightings applied to
+`src.detectors.sae_feature_detector.score`'s now-optional `weights` param
+(`weights=None` reproduces the original unweighted sum exactly, unchanged
+for every existing caller): **primary**, a continuous ratio
+`w = eta_core / (eta_core + eta_wrapper)`; **binary**, a robustness check
+that drops (weight 0) any feature with a maxT-significant wrapper effect
+exceeding its core effect. Both recalibrated on VAL with the same
+`max_accuracy_threshold` rule as the vanilla detector, for a fair comparison.
+
+| Qwen3-8B | threshold | TEST accuracy | TEST AUROC | PAIR detect (n=21) |
+|---|---|---|---|---|
+| vanilla (unweighted) | 106.90 | 92.0% | 0.9748 | 52.4% (11/21) |
+| primary (continuous) | 31.11 | 89.6% | 0.9708 | 42.9% (9/21) |
+| binary (drops 14/15) | 8.13 | 88.5% | 0.8996 | 57.1% (12/21) |
+
+| Qwen3-8B vs. vanilla | TEST-accuracy McNemar | TEST-AUROC DeLong | PAIR McNemar |
+|---|---|---|---|
+| primary | **p=0.0156** (0 vs. 7 discordant, all favouring vanilla) | p=0.0915 (n.s.) | p=0.5 (n.s., 2 discordant) |
+| binary | **p=0.0414** (5 vs. 15 discordant, favouring vanilla) | **p<0.0001** (diff=-0.075) | p=1.0 (n.s., 3 discordant) |
+
+**The intervention does not work, and the honest result is a real
+regression, not a null.** Both weighted variants significantly *hurt*
+Qwen3-8B's clean TEST-split performance (primary on accuracy, binary on both
+accuracy and AUROC), while neither produces a significant PAIR improvement
+-- primary's PAIR rate actually drops (52.4%->42.9%, though not
+significantly), and binary's rise (52.4%->57.1%) is within noise (3
+discordant items, p=1.0) and, per below, driven almost entirely by a single
+surviving feature rather than a real signal gain. By this experiment's own
+pre-registered verification gate (no TEST regression before a PAIR result is
+treated as meaningful), neither variant clears the bar for the PAIR number
+to be trusted as an improvement even before considering its own
+significance.
+
+**Llama-3.1-8B-Instruct, the negative control, shows no meaningful change**
+across every metric (primary: TEST accuracy p=1.0, AUROC p=0.2727, PAIR
+p=1.0; binary: identical to vanilla on every metric to 4 decimal places).
+The binary variant's exact match is not a bug -- verified directly, not
+assumed: the 5 features it drops for Llama (layers 21/26/27, ranks 4, 5, 11,
+14, 15) fire on **zero of 288 TEST prompts each**, so zeroing their weight
+changes nothing about the detector's real operational behaviour. This
+surfaces a genuine methodological gap between the two measurement channels
+used here: the wrapper-swap ANOVA reads each feature's *raw pre-activation*
+(`src.sae.feature_probe.feature_value`, unconstrained by the SAE's own
+top-K sparsity competition), while the detector's actual score only counts a
+feature that *wins* that competition on a given prompt. A feature can show a
+real, statistically significant framing- or content-tracking signal in the
+controlled factorial and still almost never be the prompt's top-K winner on
+real TEST/PAIR data -- exactly what happened for these five features, and
+plausibly part of why reweighting by ANOVA statistics transfers only
+partially, and sometimes not at all, to the detector's real behaviour.
+
+**Why the intervention plausibly fails, beyond that gap**: the down-weighted
+(primary) or dropped (binary) features are not *pure* framing-detectors --
+they are Qwen3-8B's own causally-ranked top-15, independently confirmed
+(Section on SAE-feature detector above) to each contribute real
+class-separating signal on clean prompts. Suppressing them removes genuine
+harmfulness signal along with whatever framing-sensitivity they carry, and
+for this detector the harmfulness signal loss outweighs any paraphrase-
+robustness gain, at least under either weighting scheme tried here. This is
+the first diagnosis-to-intervention experiment in this project, and it is a
+real, informative negative result: the mechanistic finding (which features
+track what) is confirmed and extended, but a naive linear reweighting built
+from it does not translate into a better detector. Full per-variant stats in
+`results/content_weighted_eval.json`.
+
 ### Known limitations (baseline detectors and adversarial evaluation)
 
 - **Adversarial set is small** (n=35, spanning only 11 of TEST's JBB-sourced
