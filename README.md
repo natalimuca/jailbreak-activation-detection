@@ -32,7 +32,7 @@ forced narrative imposed on any of it.
 ![Statistics](https://img.shields.io/badge/Statistics-Wilson_%2F_McNemar_%2F_DeLong_%2F_Cochran-2E86C1)
 ![FastAPI](https://img.shields.io/badge/FastAPI-live_inference-009688)
 ![uvicorn](https://img.shields.io/badge/uvicorn-ASGI_server-009688)
-![pytest](https://img.shields.io/badge/pytest-175_passing-0A9EDC)
+![pytest](https://img.shields.io/badge/pytest-191_passing-0A9EDC)
 ![matplotlib](https://img.shields.io/badge/matplotlib-figures-11557C)
 ![seaborn](https://img.shields.io/badge/seaborn-figures-4C72B0)
 
@@ -43,7 +43,7 @@ forced narrative imposed on any of it.
 | Sparse autoencoders | Qwen-Scope, LlamaScope, GemmaScope, EleutherAI's suite (pretrained, per-model) |
 | Statistics | Wilson score intervals, McNemar's exact test, DeLong's test, Cochran's Q, exact/permutation tests |
 | API | FastAPI, uvicorn |
-| Testing | pytest (156 fast tests + 19 real-GPU regression tests) |
+| Testing | pytest (172 fast tests + 19 real-GPU regression tests) |
 | Visualization | matplotlib, seaborn |
 
 Logic lives in tested `src/` modules; `scripts/` are standalone, runnable pipeline
@@ -451,7 +451,7 @@ notebooks/       mechanism.ipynb (within-model causal mechanism), transfer.ipynb
                  (cross-model transfer): real executed figures over saved results
 reports/         DECISIONS.md, RESULTS.md, METHODOLOGY.md, ETHICS.md, figures/
 results/         metrics, figures, activation caches (gitignored)
-tests/           156 fast tests (CI) + 19 real-GPU regression tests
+tests/           172 fast tests (CI) + 19 real-GPU regression tests
 ```
 
 Full rationale for every methodology choice is in [DECISIONS.md](reports/DECISIONS.md);
@@ -464,7 +464,7 @@ results are in [RESULTS.md](reports/RESULTS.md); how each technique works is in
 ```bash
 pip install -e .
 pip install torch --index-url https://download.pytorch.org/whl/cu130
-pytest -m "not model"          # 156 fast tests, no GPU needed
+pytest -m "not model"          # 172 fast tests, no GPU needed
 ```
 
 The pipeline runs as standalone scripts in a fixed order, not one orchestrated
