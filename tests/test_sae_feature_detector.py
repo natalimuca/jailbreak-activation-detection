@@ -4,6 +4,8 @@ import torch
 
 from src.detectors.sae_feature_detector import (
     calibrate,
+    compute_content_weights,
+    compute_content_weights_binary,
     is_flagged,
     load_top_features,
     score,
@@ -46,6 +48,46 @@ def test_score_zeroes_features_dropped_by_topk_sparsity():
     activations_by_layer = {0: torch.tensor([[0.0, 5.0]])}
     s = score(activations_by_layer, {0: sae}, features=[(0, 0)])
     assert s.item() == 0.0  # feature0's pre-act is 0, never survives top-1
+
+
+def test_score_default_weights_reproduce_unweighted_sum():
+    sae0 = _make_sae(k=3)
+    sae1 = _make_sae(k=3)
+    activations_by_layer = {0: torch.tensor([[5.0, 0.0]]), 1: torch.tensor([[0.0, 4.0]])}
+    features = [(0, 0), (1, 1)]
+    unweighted = score(activations_by_layer, {0: sae0, 1: sae1}, features)
+    explicit_ones = score(activations_by_layer, {0: sae0, 1: sae1}, features, weights=[1.0, 1.0])
+    assert torch.allclose(unweighted, explicit_ones)
+
+
+def test_score_applies_per_feature_weights():
+    sae0 = _make_sae(k=3)
+    sae1 = _make_sae(k=3)
+    activations_by_layer = {0: torch.tensor([[5.0, 0.0]]), 1: torch.tensor([[0.0, 4.0]])}
+    s = score(activations_by_layer, {0: sae0, 1: sae1}, features=[(0, 0), (1, 1)], weights=[0.5, 2.0])
+    assert torch.allclose(s, torch.tensor([0.5 * 5.0 + 2.0 * 4.0]))
+
+
+def test_compute_content_weights_ratio():
+    stats = [
+        {"eta_sq_core": 0.4, "eta_sq_wrapper": 0.6},  # content-minority -> 0.4
+        {"eta_sq_core": 0.0, "eta_sq_wrapper": 0.0},  # zero denominator -> 0.0
+        {"eta_sq_core": 0.8, "eta_sq_wrapper": 0.2},  # content-dominant -> 0.8
+    ]
+    weights = compute_content_weights(stats)
+    assert weights == [0.4, 0.0, 0.8]
+
+
+def test_compute_content_weights_binary_drops_significant_framing_features():
+    stats = [
+        # significant wrapper effect, wrapper > core -> dropped
+        {"eta_sq_core": 0.1, "eta_sq_wrapper": 0.6, "wrapper_effect_p_maxT": 0.001},
+        # significant wrapper effect, but core still larger -> kept
+        {"eta_sq_core": 0.6, "eta_sq_wrapper": 0.5, "wrapper_effect_p_maxT": 0.001},
+        # wrapper > core, but not significant -> kept
+        {"eta_sq_core": 0.1, "eta_sq_wrapper": 0.6, "wrapper_effect_p_maxT": 0.5},
+    ]
+    assert compute_content_weights_binary(stats) == [0.0, 1.0, 1.0]
 
 
 def test_calibrate_finds_separating_threshold():
