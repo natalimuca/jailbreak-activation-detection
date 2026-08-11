@@ -556,7 +556,7 @@ test (`src.eval.detector_metrics.delong_auc_test`) is the right tool rather
 than eyeballing the gap. Result: diff = 0.0076, **p = 0.068** -- not
 significant at the conventional 0.05 threshold, though borderline.
 Combined with the adversarial-set McNemar result below (also
-non-significant, p = 0.5), the two detectors are not statistically
+non-significant, p = 1.0), the two detectors are not statistically
 distinguishable on either evaluation this project has run.
 
 ### XSTest-safe subset of TEST (n=37, all harmless -- false-positive check)
