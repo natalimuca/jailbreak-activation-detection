@@ -3318,3 +3318,70 @@ numbers would otherwise find an unexplained discrepancy, and the most useful
 part of the episode is the failure mode itself -- a paired test applied to the
 wrong quantity produces confident, plausible, wrong p-values, and the thing
 that caught it was a marginals check, not the test.
+
+## Pre-registration: a content-weighted SAE detector (2026-08-11)
+
+**The question.** Every experiment on Qwen3-8B's wrapper-framing sensitivity so
+far stops at diagnosis: the wrapper-swap factorial found its rank-1 causal
+feature (layer 25, feature 65291) is dominated by wrapper identity
+(eta_sq_wrapper=0.656, p=0.0001), while Llama's rank-1 feature (layer 27,
+feature 13363) is dominated by core-request content (eta_sq_core=0.407,
+p=0.015) -- and that asymmetry lines up with the known PAIR gap (Llama 71.4%
+vs. Qwen3-8B 52.4%). This is the first attempt in this project to act on that
+finding rather than describe it further: build a re-weighted variant of the
+top-15 SAE-feature detector that down-weights framing-tracking features and
+up-weights content-tracking ones, and test whether it actually improves PAIR
+robustness.
+
+**Why this is written down before the experiment runs.** The weighting formula
+below is fixed now, using only the wrapper-swap ANOVA statistics (which do not
+depend on TEST or PAIR outcomes), specifically so it cannot be chosen after
+seeing which formula flatters the result -- the same discipline this project
+already applies to permutation-test design (see the whole-row-relabeling
+no-op caught by a Plan-agent review before any GPU time was spent, earlier in
+this document).
+
+**Stage 1 (not yet run).** Extend the rank-1-only wrapper-swap ANOVA to all
+top-15 causally-ranked features, for both Qwen3-8B and Llama-3.1-8B-Instruct
+(Llama as a negative control: its rank-1 feature is already content-dominant,
+so the reweighting should plausibly change little there -- if it does, that
+undermines the claim that any Qwen3-8B effect is real and specific rather than
+an artifact of reweighting sums in general). `scripts/feature_variance_family.py`
+reuses `wrapper_swap_variance.py`'s existing grid/ANOVA/permutation machinery
+unmodified. Because this multiplies the family of tests from 1 to 15 per
+model, a maxT/Westfall-Young family-wise correction is applied (adapted from
+`wrapper_feature_search.py`'s existing `maxT_family_test` pattern) --
+otherwise this would repeat, at the feature level, exactly the
+multiple-comparisons gap this document's limitations section elsewhere
+flags at the model level.
+
+**The weighting formula, fixed now.** For each feature i with
+`(eta_core_i, eta_wrapper_i)` from Stage 1:
+
+```
+w_i = eta_core_i / (eta_core_i + eta_wrapper_i)   if the denominator > 0
+w_i = 0.0                                          otherwise
+```
+
+A closed-form ratio with no tunable threshold. A secondary, binary variant is
+also computed for robustness (weight 0 for any feature where
+`wrapper_effect_p_maxT < 0.05 AND eta_wrapper_i > eta_core_i`, weight 1
+otherwise) but is not the primary claim, since it introduces a significance
+cutoff the primary formula avoids.
+
+**The evaluation, fixed now.** Both weighting variants, plus the existing
+unweighted top-15 detector, are calibrated identically (VAL,
+`max_accuracy_threshold`, the project-wide adopted rule) and compared
+pairwise against the vanilla detector on: TEST-split accuracy/AUROC
+(`mcnemar_accuracy`, `delong_auc_test`, both paired on the same 288 items,
+checking for regression) and the 21 real PAIR prompts (`mcnemar_exact`, the
+actual target metric). Any of the three outcomes -- real improvement, no
+detectable change, or a regression -- will be reported as found. No new GPU
+generation is needed for Stage 2/3: both split's activations are already
+cached.
+
+**Scope, fixed now.** gemma-2-9b-it is explicitly out of this pass (its
+rank-1 feature has never been through the wrapper-swap ANOVA at all, so
+jumping straight to its top-15 would skip the sanity check this whole design
+leans on) and this is a detector-reweighting experiment, not a generation-time
+steering intervention -- neither is being tested here, regardless of outcome.
