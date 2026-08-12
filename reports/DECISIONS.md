@@ -3617,3 +3617,44 @@ since its features are already mostly content-leaning).
 CV folds on VAL. gemma-2-9b-it excluded (same reasoning as both prior
 entries). No generation-time intervention -- scoring-time only, same as
 both prior experiments.
+
+## Closing the pre-registration: the non-linear combiner clears both gates, result genuinely inconclusive (2026-08-12)
+
+**Both required gates were checked as written, and both passed, for both
+models.** Qwen3-8B: CV gap = 0.0416 (in-sample 0.9689, mean-CV 0.9273),
+under the 0.05 threshold. Llama: CV gap = 0.0035 (in-sample 0.9585, mean-CV
+0.9549) -- barely any overfitting at all. Neither model's TEST-split
+comparison shows a significant change versus the vanilla detector (Qwen3-8B:
+accuracy p=0.7266, AUROC p=0.1277; Llama: accuracy p=0.5, AUROC p=0.0989) --
+the no-regression bar both prior linear attempts failed to clear is cleared
+here by both models.
+
+**This is the first of three attempts where the PAIR number moves in the
+hoped-for direction with no accompanying TEST cost.** Qwen3-8B's PAIR
+detection rises from 52.4% to 71.4% (11/21 to 15/21, 6 discordant pairs, 5
+favouring the non-linear combiner), the largest PAIR change of any
+experiment run this session. It is **not formally significant** at this
+sample size: McNemar p=0.2188. Llama's PAIR rate moves the other way (81.0%
+to 71.4%, 2 discordant, both favouring vanilla), also not significant
+(p=0.5) -- the negative control does not improve, and if anything drifts
+slightly in the opposite direction, which is the pattern specificity would
+predict, but neither result clears p<0.05, so this is corroborating, not
+confirming.
+
+**Reported as genuinely inconclusive, not as a fix, and not as a third
+failure either.** Two things distinguish this from the two prior negative
+results rather than just "another attempt that also didn't reach
+significance": first, it is the only one of the three that actually cleared
+its own no-regression requirement, meaning the PAIR number is at least
+eligible to be trusted rather than disqualified before being read (per this
+project's standing rule from the content-weighted-detector entry: a PAIR
+change is not treated as meaningful unless TEST shows no cost). Second, the
+direction and magnitude (+19.0pp for the target model, a small move the
+other way for the control) is the qualitative shape a real, specific effect
+would produce, even though n=21 does not have the power to confirm it.
+**What would resolve this**: a larger PAIR-adversarial set (already a
+standing limitation of this project, blocked externally on JailbreakBench
+publishing more attack artifacts, see `reports/RESULTS.md`'s adversarial-set
+limitations) is the direct way to get the statistical power this result is
+missing -- not a different model or another round of hyperparameter choices
+on the same n=21. Results in `results/nonlinear_combiner_eval.json`.

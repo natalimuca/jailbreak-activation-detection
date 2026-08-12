@@ -1362,6 +1362,57 @@ genuinely different (e.g. per-request-aware, or non-linear) mechanism, not
 another variant of either linear approach tried so far. Full validation
 numbers in `results/framing_direction_validation.json`.
 
+### A third fix attempt: a non-linear combiner over the same top-15 features (2026-08-12)
+
+Both linear fixes above (downstream reweighting, upstream direction
+ablation) were additively separable operations, and the direction-ablation
+failure specifically pointed at real core x wrapper interaction terms
+no single linear operation can capture. This tries a model built to
+represent cross-feature interaction directly: `PolynomialFeatures(degree=2,
+interaction_only=True)` feeding a regularized `LogisticRegression` (`C=0.1`)
+over the same top-15 SAE features, fit on VAL only. Design fully
+pre-registered in `reports/DECISIONS.md` ("Pre-registration: a non-linear
+SAE-feature combiner") before any VAL fitting, including a required 5-fold
+cross-validation overfitting gate that had to pass before TEST/PAIR were
+touched at all.
+
+**Both required gates passed, for both models.** The overfitting check
+(in-sample VAL accuracy vs. mean 5-fold CV accuracy, required gap <=5
+percentage points): Qwen3-8B gap = 4.2pp (in-sample 96.9%, CV 92.7%), Llama
+gap = 0.4pp (in-sample 95.8%, CV 95.5%) -- barely any overfitting at all.
+Neither model shows a significant TEST-split change versus the vanilla
+detector (Qwen3-8B: accuracy p=0.7266, AUROC p=0.1277; Llama: accuracy
+p=0.5, AUROC p=0.0989) -- the no-regression requirement neither prior linear
+attempt cleared is cleared here, by both models.
+
+| Qwen3-8B | threshold | TEST accuracy | TEST AUROC | PAIR detect (n=21) |
+|---|---|---|---|---|
+| vanilla | 106.90 | 92.0% | 0.9748 | 52.4% (11/21) |
+| non-linear combiner | 0.463 | 92.7% | 0.9828 | **71.4% (15/21)** |
+
+**This is the first of three attempts where PAIR moves the hoped-for
+direction with no accompanying TEST cost** -- a 19.0-point rise, the
+largest PAIR change of any experiment this session (McNemar: 6 discordant
+pairs, 5 favouring the non-linear combiner, **p=0.2188, not significant at
+n=21**). Llama's own PAIR rate moves the opposite way under the identical
+fixed pipeline (81.0%->71.4%, 2 discordant, both favouring vanilla, p=0.5,
+also not significant) -- the negative control does not improve, which is
+the specificity pattern a real, target-specific effect would produce, but
+neither result crosses p<0.05, so this corroborates rather than confirms.
+
+**Reported as genuinely inconclusive -- neither a fix nor a third failure.**
+What sets this apart from the two negative results above is not "a bigger
+number," it's that this is the only one of the three that actually cleared
+its own pre-registered no-regression bar, which is what makes the PAIR
+number eligible to be read as a real signal at all (per this project's own
+rule from the content-weighted-detector entry: a PAIR change isn't treated
+as meaningful unless TEST shows no cost first). What would actually resolve
+whether this is real: a larger PAIR-adversarial set, which is exactly the
+standing limitation already on record (below) and externally blocked on
+JailbreakBench publishing more attack artifacts -- not a different model
+class or another hyperparameter choice fit to the same 21 items. Full
+numbers in `results/nonlinear_combiner_eval.json`.
+
 ### Known limitations (baseline detectors and adversarial evaluation)
 
 - **Adversarial set is small** (n=35, spanning only 11 of TEST's JBB-sourced
