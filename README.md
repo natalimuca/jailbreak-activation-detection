@@ -156,6 +156,16 @@ Headline findings so far:
   two goal sets for Qwen3-8B (52.4% TEST vs. 29.5% TRAIN), so this
   corroborates the effect's direction and specificity rather than cleanly
   replicating its exact size.
+- **The wrapper-swap diagnostic extended to a third model, gemma-2-9b-it,
+  shows the diagnosis alone doesn't predict the fix.** Its top-15 SAE
+  features are framing-dominated even more uniformly than Qwen3-8B's
+  (**15 of 15**, vs. 14 of 15), which by this project's own decision rule
+  motivated trying the identical pre-registered non-linear combiner. It
+  cleared both required gates (no overfitting, no TEST regression), the
+  same bar Qwen3-8B's version cleared — but PAIR detection moved the wrong
+  way (47.6%→42.9%, not 52.4%→71.4%). Per the pre-registered criterion,
+  it is not wired into the live app. Being *more* framing-dominated than
+  Qwen3-8B did not make gemma a better candidate for this specific fix.
 - **A sixth model, DeepSeek-R1-Distill-Qwen-1.5B, is diffuse across every
   measurement approach used in this project**: a genuinely null
   activation-addition result, the weakest dense-direction detector of all six
@@ -416,6 +426,7 @@ token-attribution finding with real statistical power:
 |---|---|---|---|
 | Qwen3-8B | 0.227 (p=0.0001) | 0.656 (p=0.0001) | 0.117 |
 | Llama-3.1-8B-Instruct | 0.407 (p=0.0148) | 0.029 (n.s.) | 0.564 |
+| gemma-2-9b-it | 0.275 (p=0.0001) | 0.554 (p=0.0001) | 0.171 |
 
 Qwen3-8B's dominant feature is driven by wrapper/framing identity; Llama's by
 the underlying request's content, exactly the asymmetry a qualitative
