@@ -3501,3 +3501,53 @@ One direction per layer, not one averaged across layers. Full projection
 removal only -- no partial/scaled ablation strength sweep. No generation-time
 steering -- this is a scoring-time intervention only, same scope discipline
 as the prior experiment.
+
+## Closing the pre-registration: the framing direction fails its own validation gate (2026-08-12)
+
+**The pre-registered gate was checked as written, and it failed.** For
+Qwen3-8B, the median relative drop in `eta_sq_wrapper` across the 14
+framing-leaning features was **7.9%** (needed >=50%), and only **1 of 14**
+lost significance (needed >=10). Only one feature (layer 24, feature 5393)
+showed the clean, large effect the design hoped every feature would show
+(99.4% drop, p goes from significant to 0.9934); the other 13 moved only
+modestly (0.6% to 38.5%), and one (layer 24, feature 401) moved slightly the
+*wrong* way (-7.0%, ablation marginally increased its wrapper effect).
+Llama's diagnostic-only check (not a gate, but run for comparison) shows the
+same qualitative pattern at a different scale: median drop 30.6%, but still
+zero of 5 features losing significance. Per the pre-registration, Stage 2
+(the actual TEST/PAIR evaluation) does not run for either model -- there is
+nothing to responsibly evaluate on top of a direction that does not do what
+it was built to do, and the design is not adjusted post-hoc to try to pass.
+
+**Why this result is itself informative, not just a stop sign.** The
+pre-registration flagged, as an accepted limitation rather than a blocker,
+that the wrapper-swap ANOVA already found real core x wrapper interaction
+terms for several features -- a single global direction (a main-effect
+diff-of-means collapsing all 10 core requests) might not fully capture an
+effect that depends on which request it is paired with. This validation
+result is consistent with that limitation being the operative one, not
+merely theoretical: if 13 of 14 features respond to framing along
+substantially different directions (or along directions with a large
+per-request-dependent component the global main effect cannot capture),
+a single shared direction would produce exactly this pattern -- a small,
+inconsistent, often-non-significant drop rather than a clean removal. The
+one feature that did respond cleanly (layer 24/5393) is not distinguished by
+rank, layer, or eta-squared magnitude from the others in any way inspected
+here, so this experiment doesn't identify what makes it different (a genuine
+open question, out of scope for this pass).
+
+**Two negative results now on record, from two structurally different
+intervention strategies.** The content-weighted detector (previous entry)
+suppressed whole features downstream and lost real signal doing it. This
+ablated a shared direction upstream and found the direction itself does not
+isolate the phenomenon at the individual-feature level. Together they narrow
+the honest picture of what "fixing" Qwen3-8B's framing-sensitivity would
+actually require: not a simple linear operation on the existing top-15
+feature set, in either direction. A next attempt would need either a
+per-request-aware direction (multiplies the design space, explicitly
+deferred here to avoid exactly the after-the-fact-tuning risk this
+discipline exists to prevent) or a genuinely different mechanism, not a
+variant of either linear intervention tried so far.
+
+Results in `results/framing_directions.pt` and
+`results/framing_direction_validation.json`.

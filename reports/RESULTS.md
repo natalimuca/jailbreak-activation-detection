@@ -1307,6 +1307,61 @@ track what) is confirmed and extended, but a naive linear reweighting built
 from it does not translate into a better detector. Full per-variant stats in
 `results/content_weighted_eval.json`.
 
+### A second, structurally different fix attempt: ablating a framing direction upstream (2026-08-12)
+
+The intervention above suppressed whole features downstream and lost real
+signal doing it. This tries the opposite structure: estimate an explicit
+**framing direction** in the residual stream (mean activation under the 40
+wrapped prompts minus mean under the 10 bare prompts, the same
+difference-of-means recipe the refusal direction itself uses, computed
+per-layer at Qwen3-8B's own top-15 layers) and ablate it upstream, before
+either detector scores a prompt -- removing the framing *component* of the
+activation rather than discarding whole features and their content-signal
+along with it. Full design pre-registered in `reports/DECISIONS.md`
+("Pre-registration: framing-direction ablation") before any of this ran,
+including a required validation gate that had to pass before spending any
+time on the actual TEST/PAIR evaluation.
+
+**The validation gate failed.** The check: recompute each of Qwen3-8B's 14
+framing-leaning features' wrapper-effect ANOVA (same machinery as the
+per-feature family analysis above) on the same 50 wrapper-swap prompts,
+before and after ablating the frozen direction, and require both a >=50%
+median drop in `eta_sq_wrapper` and >=10/14 features losing significance
+outright. **Actual result: 7.9% median drop, 1/14 lost significance.** Only
+one feature (layer 24, feature 5393) responded the way the design hoped
+every feature would (99.4% drop, clearly loses significance); the other 13
+moved only modestly, and one moved slightly the wrong way (layer 24/401,
+-7.0%). Llama's version of the same check (diagnostic only, not a gate)
+shows the identical qualitative shape at a different scale: 30.6% median
+drop, but still 0/5 features losing significance.
+
+**Stage 2 (the TEST/PAIR evaluation) does not run for either model**, per
+the pre-registration -- there is nothing responsible to evaluate on top of a
+direction that demonstrably does not remove what it was built to remove, and
+the design was not adjusted after seeing this to try to force a pass.
+
+**Why this null result is still informative.** The pre-registration
+explicitly flagged, as an accepted first-pass limitation, that the
+wrapper-swap ANOVA had already found real core x wrapper interaction terms
+for several features -- a single global direction cannot capture an effect
+that depends on which specific request it's paired with. This validation
+failure is consistent with that limitation being the real, operative one:
+if most features respond to framing along substantially different
+directions rather than one shared axis, a global main-effect direction
+would produce exactly this pattern (small, inconsistent drops, rarely
+crossing into non-significance) rather than a clean removal. **Two
+structurally different linear interventions on the same top-15 feature set
+have now failed for two different, verified reasons** -- downstream
+reweighting loses real signal; upstream ablation of a shared direction
+doesn't isolate the phenomenon at the individual-feature level. Neither
+result points at a bug; both point at the same underlying fact this project
+has surfaced repeatedly: Qwen3-8B's framing-sensitivity is not a single
+clean linear structure sitting on top of an otherwise-normal detector, and
+fixing it, if possible at all with this feature set, likely needs a
+genuinely different (e.g. per-request-aware, or non-linear) mechanism, not
+another variant of either linear approach tried so far. Full validation
+numbers in `results/framing_direction_validation.json`.
+
 ### Known limitations (baseline detectors and adversarial evaluation)
 
 - **Adversarial set is small** (n=35, spanning only 11 of TEST's JBB-sourced
