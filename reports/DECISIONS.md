@@ -3438,3 +3438,66 @@ for this detector the loss outweighs the gain under both weightings tried.
 A different kind of intervention (e.g. combining features non-linearly, or
 steering rather than reweighting) might fare differently, but that is a
 different, unscoped experiment, not a retry of this one.
+
+## Pre-registration: framing-direction ablation (2026-08-12)
+
+**The question.** The previous experiment (above) tried to fix Qwen3-8B's
+PAIR vulnerability by down-weighting its framing-tracking SAE features
+downstream -- it failed because those features carry real class-separating
+signal beyond their framing-sensitivity, so suppressing them loses genuine
+harmfulness signal too. This tries a structurally different fix: instead of
+discarding whole features downstream, ablate an explicit "framing direction"
+from the residual stream upstream, before either detector scores it --
+removing the framing *component* of the activation itself, not the features
+that happen to correlate with it.
+
+**Design, fixed now.** The framing direction is a difference-of-means vector
+(mean activation across the 40 wrapped prompts minus mean across the 10 bare
+prompts, from the same 50-prompt core×wrapper factorial already used
+throughout this thread), computed independently per layer, at Qwen3-8B's own
+top-15 SAE-feature-detector layers (23, 24, 25) and, for the negative
+control, Llama's own layers (21, 26, 27). `src.direction.compute
+.compute_directions` -- the same function that produces the refusal
+direction itself -- is reused unmodified for this, and ablation reuses the
+same `resid - (resid @ dir_hat) * dir_hat` projection-removal math already
+used for causal necessity testing, applied here to already-cached activation
+tensors rather than live generation.
+
+**Required validation, fixed now, before Stage 2 is trusted for Qwen3-8B.**
+Among the 14/15 features already flagged framing-significant
+(`results/feature_variance_Qwen3-8B.json`), recompute each feature's
+wrapper-effect ANOVA on the same 50 prompts' activations after ablating the
+frozen direction. Pass requires **both**: median relative drop in
+`eta_sq_wrapper` >= 50%, and at least 10 of 14 features losing significance
+outright. If this fails, it is recorded as a negative result about the
+direction-estimation method itself and Stage 2 does not run for Qwen3-8B --
+the layers, prompt set, or formula will not be adjusted post-hoc to force a
+pass.
+
+**The evaluation, fixed now.** Ablated activations are recalibrated on
+ablated VAL (never the vanilla threshold) and compared against the vanilla
+detector on TEST accuracy/AUROC (regression check) and the 21 PAIR prompts
+(the target metric), for Qwen3-8B and Llama, using the SAE-feature detector
+unmodified (`src.detectors.sae_feature_detector.score`/`calibrate`, no code
+changes -- ablation is pure pre-processing on the activation tensor). A
+secondary, explicitly non-primary check repeats the same comparison against
+the dense-direction detector at Qwen3-8B's own layer (23), since it is
+nearly free once the ablated tensors exist.
+
+**A known limitation, accepted rather than engineered around.** The
+wrapper-swap ANOVA found real core×wrapper interaction terms for some
+features, not just additive wrapper main effects -- a single global framing
+direction (a main-effect diff-of-means collapsing all 10 core requests) will
+not fully capture an effect that interacts with which request it is applied
+to. Accepted as a first-pass limitation, the same way the refusal direction
+itself is also a pure main-effect diff-of-means despite refusal plausibly
+interacting with request content too -- a per-core direction would multiply
+the design space and reopen exactly the after-the-fact-tuning risk this
+discipline exists to prevent, with no existing building block for it.
+
+**Scope, fixed now.** gemma-2-9b-it excluded (no rank-1 wrapper-swap
+baseline to sanity-check against, same reasoning as the prior experiment).
+One direction per layer, not one averaged across layers. Full projection
+removal only -- no partial/scaled ablation strength sweep. No generation-time
+steering -- this is a scoring-time intervention only, same scope discipline
+as the prior experiment.
