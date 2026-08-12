@@ -1625,14 +1625,18 @@ reads prompt text only, and all models share the same TEST split.
 2. **Accuracy is statistically indistinguishable on all three models.** The
    judge is 0.7-1.8pp higher in raw terms, and none of that survives a paired
    test on per-item correctness.
-3. **The judge detects more PAIR attacks, significantly on two of three models
-   -- but buys it with false positives.** It flags 18.9% of XSTest's
-   harmless-but-scary prompts, against dense-direction's 2.7-10.8%. On an
-   all-harmful set like PAIR, any detector's rate rises as its threshold
-   falls, so a detection-rate comparison at each detector's own operating
-   point is partly a comparison of appetite for false alarms. AUROC is the
-   measure that controls for this, and finding 1 is what it says. Both
-   PAIR results also rest on 6 and 8 discordant prompts out of 21.
+3. **The judge detects more PAIR attacks, significant at the per-test level
+   on two of three models -- but buys it with false positives, and neither
+   PAIR result survives BH-FDR correction within this comparison's own
+   9-test family** (p=0.031/0.039 -> BH q=0.070 for both, see Known
+   limitations and DECISIONS.md's correction audit). It flags 18.9% of
+   XSTest's harmless-but-scary prompts, against dense-direction's
+   2.7-10.8%. On an all-harmful set like PAIR, any detector's rate rises as
+   its threshold falls, so a detection-rate comparison at each detector's
+   own operating point is partly a comparison of appetite for false
+   alarms. AUROC is the measure that controls for this, and finding 1 is
+   what it says. Both PAIR results also rest on 6 and 8 discordant prompts
+   out of 21.
 
 **Why ranking and thresholded accuracy can disagree.** The judge's scores are
 sharply bimodal (0 or 100 for most prompts), which caps its AUROC by
@@ -1685,11 +1689,14 @@ it is omitted from the table.
 **The diagnosis holds, and it is specific rather than general.** On Qwen3-8B --
 the one model where the judge held a significant accuracy advantage --
 reselecting the threshold lifts TEST accuracy from 88.9% to **92.0%**, a
-significant paired improvement (McNemar on per-item correctness, p=0.0225: 13
-discordant, 11 favouring the new cutoff). It also changes the *conclusion* of
-the judge comparison on that model: under Youden the judge was significantly
-more accurate (p=0.0201); after reselection the difference is not significant
-(p=0.38). No change to the direction, the layer, or any activation. On Llama and gemma, where Youden's J was already near
+paired improvement significant at the per-test level (McNemar on per-item
+correctness, p=0.0225: 13 discordant, 11 favouring the new cutoff) but not
+after BH-FDR correction within its own 3-model family (BH q=0.068 -- see
+Known limitations and DECISIONS.md's correction audit). It also changes the
+*conclusion* of the judge comparison on that model: under Youden the judge
+was significantly more accurate at the per-test level (p=0.0201); after
+reselection the difference is not significant (p=0.38). No change to the
+direction, the layer, or any activation. On Llama and gemma, where Youden's J was already near
 optimal, reselection changes nothing (p=1.0 on both). The intervention helps
 exactly where the diagnosis said the problem was and nowhere else, which is
 the behaviour a correct diagnosis predicts.
@@ -2018,23 +2025,23 @@ Results in `results/paraphrase_decay_dense.json` and
 - **Baselines are asserted, not re-verified, to be model-agnostic.** This is
   true by construction (keyword/perplexity scores never touch model
   activations), but wasn't independently re-run per model as a sanity check.
-- **Multiple-comparisons correction is applied in exactly one place in this
-  document** -- the wrapper-swap variance decomposition's maxT/Westfall-Young
-  permutation scheme, cross-checked against Benjamini-Hochberg FDR (see
-  DECISIONS.md) -- **not across the other families of paired tests reported
-  elsewhere.** The per-model DeLong/McNemar pairs in the LLM-judge comparison,
-  the Cochran's Q post-hoc pairwise McNemar tests (parallel/orthogonal
-  component ablations), and the SAE-feature paraphrase-decay Wilcoxon tests
-  all report raw p-values judged individually against alpha=0.05, with no
-  correction and no explicit note on why one wasn't applied. Most headline
-  results are extreme enough (p<0.0001 to p<1e-16) that this wouldn't flip
-  any conclusion, but a few sit close enough to 0.05 that a family-wise
-  correction within their own comparison group could matter: the LLM-judge
-  PAIR comparisons (p=0.031, p=0.039) and the threshold-rule-vs-judge
-  comparison (p=0.0201, p=0.0225). Not corrected retroactively here, since
-  that would mean deciding which tests count as one "family" after the fact
-  rather than pre-registering it -- flagged honestly instead, as the
-  inconsistency it is.
+- **Resolved (2026-08-12).** BH-FDR correction now covers every family of
+  paired tests in this document, not just the wrapper-swap variance
+  decomposition. Five families defined explicitly before computing anything
+  (detector-vs-judge; threshold-reselection-vs-youden; SAE-feature
+  paraphrase-decay; two component-decomposition post-hoc families, one per
+  model), reasoning and full numbers in `reports/DECISIONS.md`'s "Multiple-
+  comparisons correction audit" entry, results in
+  `results/multiple_comparisons_correction.json`. Most results are extreme
+  enough (p<0.0001 to p<1e-16) that correction changes nothing. **Three
+  conclusions do flip from significant to not-significant**: the judge's
+  PAIR-detection edge on Qwen3-8B (p=0.031, BH q=0.070) and on gemma-2-9b-it
+  (p=0.039, BH q=0.070), and threshold-reselection's TEST-accuracy
+  improvement on Qwen3-8B (p=0.0225, BH q=0.068). Corrected in place
+  everywhere they were previously stated as significant (this document's
+  LLM-judge and threshold-reselection sections, and `README.md`). The
+  load-bearing AUROC-ranking claim from the LLM-judge comparison is
+  untouched -- all three DeLong p-values survive easily (q<=0.016).
 
 ## Cross-model direction transfer
 

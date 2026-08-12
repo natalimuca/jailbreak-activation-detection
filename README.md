@@ -339,8 +339,10 @@ DeLong p=0.0041/0.0015/0.0053) -- an 8-9B model's internals separating harmful
 from harmless better than a 70B model reading the same text. **Thresholded
 accuracy is statistically indistinguishable** on all three (McNemar on
 per-item correctness, p=0.38/0.84/0.82). **The judge detects more PAIR
-attacks** (81.0% vs 52.4%/71.4%/47.6%, significant on Qwen3 p=0.031 and gemma
-p=0.039) **but buys it with false alarms**: it wrongly flags 18.9% of XSTest's
+attacks** (81.0% vs 52.4%/71.4%/47.6%, significant at the per-test level on
+Qwen3 p=0.031 and gemma p=0.039, but neither survives BH-FDR correction
+within this comparison's own 9-test family, q=0.070 for both -- see
+DECISIONS.md's multiple-comparisons audit) **but buys it with false alarms**: it wrongly flags 18.9% of XSTest's
 harmless-but-scary prompts against dense-direction's 2.7-10.8%. On an
 all-harmful set any detector's rate rises as its threshold falls, which is why
 AUROC -- the measure that sweeps every threshold -- carries the weight here.
@@ -684,8 +686,9 @@ the newer transfer/wrapper-swap/mechanistic results aren't in it by design.
   PAIR attacks at roughly double the false-positive rate.
 - **Threshold reselection, tested and then adopted**: changing only the
   VAL-fitted threshold rule lifts Qwen3-8B's TEST accuracy 88.9% -> 92.0%
-  (McNemar on correctness, p=0.0225) and is a no-op on Llama and gemma,
-  exactly where the diagnosis predicted. Now the default for every detector
+  (McNemar on correctness, p=0.0225 at the per-test level, BH q=0.068 within
+  its own 3-model family -- see DECISIONS.md's multiple-comparisons audit)
+  and is a no-op on Llama and gemma, exactly where the diagnosis predicted. Now the default for every detector
   and model, since a head-to-head is only fair if all detectors are calibrated
   the same way -- including the opponent, whose PAIR detection it raised.
 - Interactive frontend: live probe across five detectors, published-attack

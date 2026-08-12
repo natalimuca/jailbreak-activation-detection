@@ -3962,3 +3962,89 @@ distinguish "the effect exists but this sample can't see it" from "there
 is no effect here," the same conclusion reached informally, now backed by
 the correct test rather than raw refusal-rate CIs on mismatched subsets.
 Full numbers in `results/sae_suppression_significance_DeepSeek-R1-Distill-Qwen-1.5B.json`.
+
+## Multiple-comparisons correction audit: 5 families, fixed before computing anything (2026-08-12)
+
+**The gap.** `reports/RESULTS.md`'s "Known limitations (cross-model
+dense-direction comparison)" section already names this honestly:
+BH-FDR correction is applied in exactly one place in this project (the
+wrapper-swap maxT scheme) and nowhere else, even though several other
+families of paired tests exist, some close enough to 0.05 to matter (the
+LLM-judge PAIR comparisons, p=0.031/p=0.039, and what that bullet calls
+"the threshold-rule-vs-judge comparison", p=0.0201/p=0.0225). The project's
+own stated reason it was never corrected retroactively: deciding which
+tests count as one "family" after the fact, rather than pre-registering it,
+is itself a researcher-degree-of-freedom risk. This closes the gap by fixing
+family membership explicitly, in writing, before computing any correction --
+addressing the stated objection rather than ignoring it.
+
+**Sourced from the actual result JSONs, not rounded prose**, wherever one
+exists: `results/threshold_recalibration.json` (exact `vs_judge_mcnemar`/
+`vs_youden_mcnemar` values per model/rule), `results/paraphrase_decay_sae.json`
+(exact Wilcoxon p-values), `results/llama_causal_gap_decomposition.json`
+(all 6 pairwise post-hoc McNemar values per model, not just the subset
+mentioned in prose). DeLong AUROC (0.0041/0.0015/0.0053) and
+PAIR-McNemar-vs-judge (0.031/0.69/0.039) were never persisted to a JSON;
+the "A wrong paired test, caught and corrected" entry above confirms both
+were unaffected by the McNemar bug found there, so used as-is at their
+published precision.
+
+**A real imprecision caught while sourcing values**: the limitations
+bullet's "threshold-rule-vs-judge comparison (p=0.0201, p=0.0225)" bundles
+two different kinds of test. 0.0201 is Qwen3-8B's now-superseded
+youden_j-vs-judge accuracy comparison -- the *same* underlying question as
+the detector-vs-judge family's Qwen entry below (0.3833), just computed at
+a threshold that was later abandoned. 0.0225 is `max_accuracy`-vs-`youden_j`
+-- a rule-vs-rule comparison, no judge involved at all. Pooling 0.0201 with
+either family would double-count the same accuracy-vs-judge question at two
+non-independent calibrations of the same detector; excluded from both.
+
+**Five families, fixed before computing anything** (`scripts/fdr_correction.py`,
+`scipy.stats.false_discovery_control(method="bh")` -- the same library call
+this project already uses for BH-FDR elsewhere, no new implementation, no
+synthetic self-test of `scipy`'s own trusted function planned or needed):
+
+- **A: detector vs. LLM-judge**, each model's adopted threshold (9 tests --
+  3 DeLong AUROC, 3 accuracy McNemar, 3 PAIR McNemar).
+- **B: threshold-reselection vs. youden_j**, TEST accuracy, no judge
+  involved (3 tests).
+- **C: SAE-feature paraphrase-decay Wilcoxon**, top-1-feature delta and
+  full-top-15-score delta, 3 models (6 tests).
+- **D1/D2: component-decomposition post-hoc pairwise McNemar**, kept as two
+  separate families (Llama's 6 pairs, Qwen3-8B's 6 pairs) since each
+  follows its own independent omnibus Cochran's Q -- standard post-hoc
+  practice, a pairwise family only corrects within the set that followed
+  the same omnibus test, not pooled across two unrelated omnibus tests.
+
+`max_f1` rows excluded (already noted in RESULTS.md as numerically
+identical to `max_accuracy`, not independent tests). The 3 dense-vs-SAE-feature
+DeLong/McNemar tests are out of scope -- never named by the limitations
+bullet this closes.
+
+**Result: 3 of 27 tested conclusions flip from significant to
+not-significant under family-wise correction, all in the two families the
+limitations bullet already flagged as borderline** -- everything else
+(DeLong AUROC family, SAE-paraphrase-decay family, both component-decomposition
+families) survives correction unchanged, mostly because those p-values are
+already extreme (p=0.0 to p=0.005) relative to their family size.
+
+| test | raw p | BH q | before | after |
+|---|---|---|---|---|
+| Qwen3-8B PAIR McNemar vs. judge | 0.031 | 0.070 | significant | **not significant** |
+| gemma-2-9b-it PAIR McNemar vs. judge | 0.039 | 0.070 | significant | **not significant** |
+| Qwen3-8B `max_accuracy` vs. `youden_j` | 0.0225 | 0.068 | significant | **not significant** |
+
+**What this changes and what it doesn't.** The load-bearing claim in the
+LLM-judge comparison -- activation-based detection wins threshold-independent
+AUROC ranking on all three models -- is untouched (all three DeLong p-values
+survive easily, q<=0.016). What no longer clears a family-wise bar: "the
+judge detects more PAIR attacks, significantly on two of three models" (now
+neither model is significant after correcting for testing PAIR on 3 models
+alongside 6 other detector-vs-judge comparisons in the same family) and
+"threshold reselection is a significant improvement on Qwen3-8B" (q=0.068,
+just above 0.05). Neither was a headline finding on its own -- both were
+already reported as secondary/diagnostic points alongside the AUROC result
+-- but both `reports/RESULTS.md` and `README.md` stated them as significant
+without a family-wise caveat, so both are corrected in place to say
+"significant at the per-test level, not after BH-FDR within its family."
+Full numbers in `results/multiple_comparisons_correction.json`.
