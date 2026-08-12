@@ -275,6 +275,19 @@ the same items, not two independently-eyeballed confidence intervals:
   n=75**: baseline 96.0% vs. own-ablation 94.7%, McNemar p=1.0. This does not
   confirm the original n=50 reading (92%→88%, thought to be "real but small");
   the honest read is that the original observation was sample noise.
+- **Every model's SAE-feature suppression curve** (McNemar's exact, baseline
+  vs. each top-K condition on the same 50 VAL prompts): **Qwen3-8B**
+  significant from top-5 onward (p=0.0), not yet at top-1 alone (p=1.0).
+  **Llama-3.1-8B** significant at every condition including top-1 (p=0.0
+  throughout). **gemma-2-9b-it** significant from top-10 onward (p≤0.0312)
+  despite its much smaller 14-point total decline. **DeepSeek-R1-Distill-Qwen-1.5B**
+  needed a different, index-paired test (its mandatory reasoning trace
+  truncates a different subset of prompts per condition, so raw
+  by-position pairing would silently misalign them) and comes back with
+  **zero discordant pairs at any condition** on a paired-n of only 4-6 --
+  not a null result, a confirmation that this sample has no power to
+  resolve the question either way, matching its already-documented
+  "inconclusive, not negative" reading.
 
 ### SAE-feature detector: causal validation and cross-model extension
 
