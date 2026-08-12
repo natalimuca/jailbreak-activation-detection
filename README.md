@@ -129,6 +129,19 @@ Headline findings so far:
   interventions on the same feature set have now failed for two different
   reasons — this converges on a real finding: the framing-sensitivity isn't
   a single clean linear structure a simple fix can remove.
+- **A third, non-linear attempt clears both required gates and moves PAIR
+  the most of any of the three, but stays short of significance at this
+  sample size.** A pairwise-interaction logistic regression over the same
+  top-15 features (pre-registered, with a required cross-validation
+  overfitting check) shows no significant TEST-accuracy or AUROC cost
+  (p=0.7266, p=0.1277) — the bar neither linear attempt cleared — and lifts
+  Qwen3-8B's PAIR detection from 52.4% to 71.4%, while the Llama negative
+  control moves the opposite way (81.0%→71.4%) under the identical fixed
+  pipeline. Neither PAIR change reaches p<0.05 at n=21 (p=0.2188 and
+  p=0.5), so this is reported as genuinely inconclusive, not a confirmed
+  fix — the direction and specificity pattern are what a real effect would
+  look like, but resolving it needs a larger adversarial set, not another
+  model choice fit to the same 21 items.
 - **A sixth model, DeepSeek-R1-Distill-Qwen-1.5B, is diffuse across every
   measurement approach used in this project**: a genuinely null
   activation-addition result, the weakest dense-direction detector of all six
