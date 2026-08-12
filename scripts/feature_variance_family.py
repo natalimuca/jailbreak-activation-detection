@@ -68,6 +68,7 @@ RESULTS_DIR = Path(__file__).resolve().parents[1] / "results"
 RANKING_PATH = {
     "Qwen3-8B": RESULTS_DIR / "sae_causal_ranking_Qwen3-8B.json",
     "Llama-3.1-8B-Instruct": RESULTS_DIR / "sae_causal_ranking_Llama-3.1-8B-Instruct.json",
+    "gemma-2-9b-it": RESULTS_DIR / "sae_causal_ranking_gemma-2-9b-it.json",
 }
 TOP_K = 15
 
