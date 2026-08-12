@@ -2,10 +2,11 @@
 result (reports/DECISIONS.md, "Closing the pre-registration: the non-linear
 combiner clears both gates, result genuinely inconclusive") using the
 supplementary TRAIN-goal PAIR set (scripts/build_train_pair_set.py) --
-NOT a new experiment. The pipeline and VAL-derived threshold are refit
-exactly as already pre-registered (same deterministic code path,
-random_state=0, same VAL data) -- nothing here is re-tuned or re-derived
-based on this new data. The official TEST-based n=21 PAIR metric is
+NOT a new experiment. The pipeline and VAL-derived threshold are the exact
+already-fitted, persisted objects (scripts/nonlinear_combiner_eval.py saves
+each model's fitted pipeline to results/nonlinear_combiner_<model>.joblib)
+-- loaded, not refit, so this is provably the same object rather than
+"should be deterministic." The official TEST-based n=21 PAIR metric is
 untouched; this is a separate, clearly-labeled supplementary check reported
 alongside it.
 
@@ -23,10 +24,12 @@ import torch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from src.activations.cache import load_cache
+from src.detectors.nonlinear_combiner_detector import load_pipeline
+from src.detectors.nonlinear_combiner_detector import score as nonlinear_score
 from src.detectors.sae_feature_detector import calibrate, feature_matrix, load_top_features, score
 from src.eval.detector_metrics import classify, mcnemar_exact, max_accuracy_threshold
 from src.sae.registry import SAE_PROVIDERS
-from scripts.nonlinear_combiner_eval import MODELS, activations_by_layer, build_pipeline
+from scripts.nonlinear_combiner_eval import MODELS, activations_by_layer
 
 RESULTS_DIR = Path(__file__).resolve().parents[1] / "results"
 
@@ -55,12 +58,9 @@ def main() -> None:
         val_by_layer = activations_by_layer(cache["activations"], layers, val_idx)
         val_labels = labels[is_val].tolist()
 
-        # Reproduce the already pre-registered fit exactly -- same code,
-        # same data, same random_state=0 -- not a new fit.
-        X_val = feature_matrix(val_by_layer, saes, features).numpy()
-        pipeline = build_pipeline()
-        pipeline.fit(X_val, val_labels)
-        val_scores_nl = pipeline.predict_proba(X_val)[:, 1].tolist()
+        # Load the already-fitted, persisted pipeline -- not a refit.
+        pipeline = load_pipeline(RESULTS_DIR / f"nonlinear_combiner_{cache_label}.joblib")
+        val_scores_nl = nonlinear_score(val_by_layer, saes, features, pipeline).tolist()
         threshold_nl = max_accuracy_threshold(val_scores_nl, val_labels)
         threshold_vanilla = calibrate(val_by_layer, val_labels, saes, features)
 
@@ -69,8 +69,7 @@ def main() -> None:
         tp_by_layer = activations_by_layer(train_pair_cache["activations"], layers, list(range(n_prompts)))
 
         scores_vanilla = score(tp_by_layer, saes, features).tolist()
-        X_tp = feature_matrix(tp_by_layer, saes, features).numpy()
-        scores_nl = pipeline.predict_proba(X_tp)[:, 1].tolist()
+        scores_nl = nonlinear_score(tp_by_layer, saes, features, pipeline).tolist()
 
         preds_vanilla = classify(scores_vanilla, threshold_vanilla)
         preds_nl = classify(scores_nl, threshold_nl)

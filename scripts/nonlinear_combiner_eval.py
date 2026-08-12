@@ -32,7 +32,10 @@ from sklearn.preprocessing import PolynomialFeatures, StandardScaler
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+import joblib
+
 from src.activations.cache import load_cache
+from src.detectors.nonlinear_combiner_detector import score as nonlinear_score
 from src.detectors.sae_feature_detector import calibrate, feature_matrix, load_top_features, score
 from src.eval.detector_metrics import classify, delong_auc_test, detector_stats, mcnemar_accuracy, mcnemar_exact, max_accuracy_threshold
 from src.sae.registry import SAE_PROVIDERS
@@ -134,11 +137,16 @@ def main() -> None:
         pipeline = build_pipeline()
         pipeline.fit(X_val, y_val)
 
-        X_test = feature_matrix(test_by_layer, saes, features).numpy()
-        X_pair = feature_matrix(pair_by_layer, saes, features).numpy()
-        val_scores_nl = pipeline.predict_proba(X_val)[:, 1].tolist()
-        test_scores_nl = pipeline.predict_proba(X_test)[:, 1].tolist()
-        pair_scores_nl = pipeline.predict_proba(X_pair)[:, 1].tolist()
+        # Persisted so the live API (src.api.inference_manager) scores with
+        # this exact fitted object, never a live refit -- see
+        # src/detectors/nonlinear_combiner_detector.py.
+        pipeline_path = RESULTS_DIR / f"nonlinear_combiner_{cache_label}.joblib"
+        joblib.dump(pipeline, pipeline_path)
+        print(f"  saved fitted pipeline to {pipeline_path}")
+
+        val_scores_nl = nonlinear_score(val_by_layer, saes, features, pipeline).tolist()
+        test_scores_nl = nonlinear_score(test_by_layer, saes, features, pipeline).tolist()
+        pair_scores_nl = nonlinear_score(pair_by_layer, saes, features, pipeline).tolist()
         threshold_nl = max_accuracy_threshold(val_scores_nl, val_labels)
 
         vanilla_threshold = calibrate(val_by_layer, val_labels, saes, features)
