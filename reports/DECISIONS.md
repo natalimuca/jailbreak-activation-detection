@@ -3812,3 +3812,47 @@ regress.
 **Scope, fixed now.** No grid search or tuning of `C`, polynomial degree, or
 CV folds on VAL. No generation-time intervention -- scoring-time only, same
 as every prior combiner experiment in this thread.
+
+## Closing the pre-registration: gemma's combiner clears the gate, but PAIR moves the wrong way (2026-08-12)
+
+**The overfit gate passed**: in-sample VAL accuracy 0.9654, mean 5-fold CV
+accuracy 0.9273, gap 0.0381 -- under the 0.05 threshold, comparable to
+Qwen3-8B's own 0.0416 gap. No TEST regression either: accuracy 92.7% ->
+93.4% and AUROC 0.9655 -> 0.9726, both directionally *better*, neither
+significant (McNemar p=0.7744, DeLong p=0.2786) -- criteria (a) and (b) from
+the pre-registration both clear.
+
+**But PAIR detection moves the wrong way: 47.6% -> 42.9%** (McNemar
+p=1.0000, not significant, but the wrong direction). This is the opposite of
+Qwen3-8B's result (52.4% -> 71.4%, the hoped-for direction) despite gemma's
+top-15 being *more* uniformly framing-dominated (15/15 vs. Qwen3-8B's
+14/15) -- if the framing-dominance diagnosis alone predicted intervention
+success, gemma should have been at least as good a candidate as Qwen3-8B,
+plausibly better. It was not.
+
+**Per criterion (c), fixed before this ran: not wired live.** The
+pre-registration explicitly distinguished "PAIR improves, even
+non-significantly" (Qwen3-8B's case, wired live) from "PAIR moves the wrong
+way, even non-significantly" (this case) as materially different outcomes,
+specifically to prevent post-hoc rationalizing a wrong-direction result into
+a ship decision because the other two gates happened to pass. No new code
+touches `src/api/model_registry.py`, `inference_manager.py`, or the webapp;
+`results/nonlinear_combiner_gemma-2-9b-it.joblib` exists on disk from this
+run but has no corresponding decision to expose it live.
+
+**Why this is a genuinely informative negative result, not just "another
+attempt that didn't work".** It decouples two things this project's own
+prior narrative had been treating as if they moved together: *which
+features a detector's top-15 tracks* (framing vs. content, established by
+the wrapper-swap ANOVA) and *whether a cross-feature-interaction model over
+those same features helps paraphrase robustness*. Qwen3-8B's framing-heavy
+top-15 responded to interaction modeling; gemma's even-more-framing-heavy
+top-15 did not, and if anything overfit toward whatever VAL-specific
+interaction pattern hurt PAIR generalization slightly. The mechanistic
+diagnosis (which single-feature statistic a detector's features carry) is
+not, by itself, sufficient to predict whether a specific downstream fix
+built from that diagnosis will transfer -- something the diagnosis alone
+could not have revealed, and which the two-model precedent (Qwen3-8B
+positive, Llama flat) had not yet exposed either, since Llama's
+content-dominated features never motivated trying the combiner on it in the
+first place. Full numbers in `results/nonlinear_combiner_eval.json`.

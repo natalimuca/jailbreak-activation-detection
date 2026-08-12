@@ -1486,7 +1486,44 @@ a bare majority. Full per-feature table in
 **This is a real, motivated reason to try the non-linear combiner on
 gemma-2-9b-it next**, per this project's own pre-committed decision rule
 (framing-dominated, >=8/15, motivates an attempt; content-dominated does
-not). See the pre-registration and its outcome below.
+not). Design fully pre-registered in `reports/DECISIONS.md`'s
+"Pre-registration: a non-linear SAE-feature combiner (gemma-2-9b-it)" entry
+before any VAL fitting -- identical pipeline and hyperparameters to the
+already-published Qwen3-8B/Llama version, no new tuning.
+
+**The overfitting gate passed** (in-sample VAL accuracy 0.9654, mean 5-fold
+CV accuracy 0.9273, gap 0.0381, under the 0.05 threshold) and **TEST showed
+no regression** (accuracy 92.7%->93.4%, AUROC 0.9655->0.9726, both
+directionally better, neither significant: McNemar p=0.7744, DeLong
+p=0.2786) -- the same no-regression bar Qwen3-8B's combiner cleared.
+
+| gemma-2-9b-it | threshold | TEST accuracy | TEST AUROC | PAIR detect |
+|---|---|---|---|---|
+| vanilla | 342.60 | 92.7% | 0.9655 | 47.6% |
+| non-linear combiner | 0.529 | 93.4% | 0.9726 | **42.9%** |
+
+**But PAIR detection moved the wrong way (47.6%->42.9%, McNemar p=1.0,
+not significant but the wrong direction)** -- the opposite of Qwen3-8B's
+result, despite gemma's top-15 being an even cleaner framing-dominated sweep
+(15/15 vs. Qwen3-8B's 14/15). Per the pre-registered criterion fixed before
+this ran (PAIR must improve, even non-significantly, to be wired live; a
+wrong-direction move does not qualify regardless of the other two gates),
+**this combiner is not wired into the live webapp**. The fitted pipeline is
+saved to `results/nonlinear_combiner_gemma-2-9b-it.joblib` but has no
+corresponding decision to expose it.
+
+**The informative part of this negative result**: it separates "which
+features a detector's top-15 tracks" (framing vs. content, the wrapper-swap
+diagnosis) from "whether a cross-feature-interaction model over those
+features improves paraphrase robustness." Being *more* uniformly
+framing-dominated than Qwen3-8B did not make gemma a better candidate for
+this fix -- it made no difference, and if anything the interaction model
+picked up a VAL-specific pattern that mildly hurt PAIR generalization. The
+diagnosis alone does not predict whether a downstream intervention built
+from it will transfer to a new model; that's a genuine limit of the
+diagnose-then-fix approach this project has been using, not evident from
+either prior model's result alone. Full numbers in
+`results/nonlinear_combiner_eval.json`.
 
 ### Known limitations (baseline detectors and adversarial evaluation)
 

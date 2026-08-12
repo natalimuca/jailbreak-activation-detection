@@ -44,6 +44,7 @@ RESULTS_DIR = Path(__file__).resolve().parents[1] / "results"
 MODELS = {
     "Qwen3-8B": "Qwen/Qwen3-8B",
     "Llama-3.1-8B-Instruct": "meta-llama/Llama-3.1-8B-Instruct",
+    "gemma-2-9b-it": "google/gemma-2-9b-it",
 }
 
 # Fixed pre-registration values (reports/DECISIONS.md, "Pre-registration:
