@@ -118,6 +118,17 @@ Headline findings so far:
   to Qwen3-8B rather than an artifact of reweighting in general. Reported as
   a real, verified negative result — the first diagnosis-to-intervention
   experiment in this project, not just another diagnosis.
+- **A second, structurally different fix — ablating an explicit framing
+  direction upstream instead of reweighting features downstream — also
+  fails, for a different, equally verified reason.** A pre-registered
+  validation gate required the ablation to substantially remove the framing
+  signal from Qwen3-8B's 14 framing-leaning features before any real
+  evaluation would run; the actual result was a 7.9% median drop (needed
+  ≥50%) and 1 of 14 features losing significance (needed ≥10), so the
+  evaluation stage never ran, by design. Two structurally different linear
+  interventions on the same feature set have now failed for two different
+  reasons — this converges on a real finding: the framing-sensitivity isn't
+  a single clean linear structure a simple fix can remove.
 - **A sixth model, DeepSeek-R1-Distill-Qwen-1.5B, is diffuse across every
   measurement approach used in this project**: a genuinely null
   activation-addition result, the weakest dense-direction detector of all six
