@@ -150,9 +150,10 @@ async function loadModels() {
     for (const model of models) {
       const option = document.createElement("option");
       option.value = model.hf_name;
-      option.textContent = model.sae_feature_available
-        ? model.cache_label
-        : `${model.cache_label} (no SAE)`;
+      const missing = [];
+      if (!model.sae_feature_available) missing.push("no SAE");
+      if (!model.nonlinear_combiner_available) missing.push("no combiner");
+      option.textContent = missing.length ? `${model.cache_label} (${missing.join(", ")})` : model.cache_label;
       modelSelect.appendChild(option);
     }
     modelSelect.disabled = false;
@@ -540,6 +541,18 @@ function renderSAEFeature(result) {
   return html;
 }
 
+function renderNonlinearCombiner(result) {
+  if (!result.available) {
+    return renderPill("unavailable", "Unavailable") + `<p class="empty-note">${result.reason}</p>`;
+  }
+  return (
+    renderMagnitudeAxis(result.flagged, result.score, result.threshold) +
+    `<p class="empty-note">A pairwise-interaction combiner over the same top-15 SAE features,
+     pre-registered for Qwen3&ndash;8B only. Lifts PAIR-paraphrase detection from 52.4% to 71.4%
+     with no accuracy cost, corroborated (p=0.0072) on an independent 78-prompt set.</p>`
+  );
+}
+
 function renderLLMJudge(result) {
   if (!result.available) {
     return renderPill("unavailable", "Unavailable") + `<p class="empty-note">${result.reason}</p>`;
@@ -559,6 +572,7 @@ const RENDERERS = {
   llm_judge: renderLLMJudge,
   dense_direction: renderDenseDirection,
   sae_feature: renderSAEFeature,
+  nonlinear_combiner: renderNonlinearCombiner,
 };
 
 function renderIdleCards() {
