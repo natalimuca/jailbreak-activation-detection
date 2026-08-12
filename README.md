@@ -32,7 +32,7 @@ forced narrative imposed on any of it.
 ![Statistics](https://img.shields.io/badge/Statistics-Wilson_%2F_McNemar_%2F_DeLong_%2F_Cochran-2E86C1)
 ![FastAPI](https://img.shields.io/badge/FastAPI-live_inference-009688)
 ![uvicorn](https://img.shields.io/badge/uvicorn-ASGI_server-009688)
-![pytest](https://img.shields.io/badge/pytest-191_passing-0A9EDC)
+![pytest](https://img.shields.io/badge/pytest-195_passing-0A9EDC)
 ![matplotlib](https://img.shields.io/badge/matplotlib-figures-11557C)
 ![seaborn](https://img.shields.io/badge/seaborn-figures-4C72B0)
 
@@ -43,7 +43,7 @@ forced narrative imposed on any of it.
 | Sparse autoencoders | Qwen-Scope, LlamaScope, GemmaScope, EleutherAI's suite (pretrained, per-model) |
 | Statistics | Wilson score intervals, McNemar's exact test, DeLong's test, Cochran's Q, exact/permutation tests |
 | API | FastAPI, uvicorn |
-| Testing | pytest (172 fast tests + 19 real-GPU regression tests) |
+| Testing | pytest (176 fast tests + 19 real-GPU regression tests) |
 | Visualization | matplotlib, seaborn |
 
 Logic lives in tested `src/` modules; `scripts/` are standalone, runnable pipeline
@@ -106,6 +106,18 @@ Headline findings so far:
   residual term is a genuine core-by-category interaction (42.4% of variance,
   p<0.0001 by both an F-test and an independent permutation check), not just
   measurement noise.
+- **That mechanistic finding was then tested as an actual intervention, not
+  left as description.** Extending the wrapper-swap ANOVA from Qwen3-8B's
+  single top feature to its full top-15 found the framing-dominance isn't
+  one feature's quirk: **14 of 15 features are framing-leaning**, not just
+  the published one. A pre-registered content-weighted detector built to
+  down-weight those features doesn't work: it fails to improve PAIR
+  robustness and significantly *hurts* clean-prompt accuracy (p=0.0156 to
+  p<0.0001 across two weighting schemes), while a Llama negative control
+  (11/15 content-leaning) shows no such effect, confirming this is specific
+  to Qwen3-8B rather than an artifact of reweighting in general. Reported as
+  a real, verified negative result — the first diagnosis-to-intervention
+  experiment in this project, not just another diagnosis.
 - **A sixth model, DeepSeek-R1-Distill-Qwen-1.5B, is diffuse across every
   measurement approach used in this project**: a genuinely null
   activation-addition result, the weakest dense-direction detector of all six
@@ -451,7 +463,7 @@ notebooks/       mechanism.ipynb (within-model causal mechanism), transfer.ipynb
                  (cross-model transfer): real executed figures over saved results
 reports/         DECISIONS.md, RESULTS.md, METHODOLOGY.md, ETHICS.md, figures/
 results/         metrics, figures, activation caches (gitignored)
-tests/           172 fast tests (CI) + 19 real-GPU regression tests
+tests/           176 fast tests (CI) + 19 real-GPU regression tests
 ```
 
 Full rationale for every methodology choice is in [DECISIONS.md](reports/DECISIONS.md);
@@ -464,7 +476,7 @@ results are in [RESULTS.md](reports/RESULTS.md); how each technique works is in
 ```bash
 pip install -e .
 pip install torch --index-url https://download.pytorch.org/whl/cu130
-pytest -m "not model"          # 172 fast tests, no GPU needed
+pytest -m "not model"          # 176 fast tests, no GPU needed
 ```
 
 The pipeline runs as standalone scripts in a fixed order, not one orchestrated
