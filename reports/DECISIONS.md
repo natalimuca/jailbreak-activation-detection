@@ -3702,3 +3702,47 @@ improves, Llama does not), **not as a clean statistical replication of the
 original TEST-based effect size** -- the unexplained baseline gap means
 that specific number shouldn't be taken at face value. Full numbers in
 `results/train_pair_eval.json`.
+
+## Wrapper-swap variance diagnostic extended to gemma-2-9b-it (2026-08-12)
+
+**The question.** gemma-2-9b-it has the same class of PAIR-paraphrase
+vulnerability as Qwen3-8B (47.6% vs. 52.4% detection) and its own working
+top-15 SAE-feature detector (`results/sae_causal_ranking_gemma-2-9b-it.json`,
+layers 33/34/35, rank-1 = layer 35/feature 52410), but nobody had run the
+core-vs-wrapper ANOVA on it. This is a diagnose-first extension, not a
+pre-registered intervention -- the diagnostic itself was never
+pre-registered for Qwen3-8B or Llama-3.1-8B-Instruct either (see the
+"Wrapper-swap variance decomposition" and "Phase 6 Wave 3" results entries),
+so this entry follows that same precedent rather than inventing new process
+for a measurement step.
+
+**Decision rule, fixed before running anything**: a feature is
+framing-leaning if `eta_sq_wrapper > eta_sq_core` (the same operational
+definition `feature_variance_family.py`'s own summary printout already
+uses). gemma's top-15 would be read as framing-dominated (motivating a
+combiner attempt, Qwen3-8B's pattern) at >=8/15 framing-leaning, or
+content-dominated (no motivated fix, Llama's pattern) otherwise -- a plain
+majority cutoff fixed before seeing the data.
+
+**Method**: reused `scripts/wrapper_swap_variance.py`'s grid measurement,
+ANOVA, and permutation-test machinery unmodified (only its `MODELS`/
+`TOP_FEATURE` dicts gained a gemma entry) for the rank-1 feature, then
+`scripts/feature_variance_family.py`'s maxT/Westfall-Young family correction
+(only its `RANKING_PATH` dict gained a gemma entry) for the full top-15.
+Both scripts' existing verification gates ran for real: `verify_maxT_on_synthetic`
+(null + planted-effect synthetic check) and `verify_rank1_reproduction`
+(gemma's family-loop rank-1 recomputation cross-checked against the
+standalone `wrapper_swap_variance.py` run) both passed.
+
+**Result: gemma's top-15 is framing-dominated more uniformly than
+Qwen3-8B's.** All 15 of 15 features are framing-leaning
+(`eta_sq_wrapper > eta_sq_core`), every one maxT-corrected significant at
+p<=0.0015 -- a cleaner sweep than Qwen3-8B's 14/15 and starkly unlike
+Llama's 11/15 content-leaning split. Per-feature eta-squared ranges
+core=0.201-0.347 vs. wrapper=0.451-0.679 across all 15; full table and both
+raw/maxT-adjusted p-values in `results/feature_variance_gemma-2-9b-it.json`
+and `results/wrapper_swap_variance.json`.
+
+**Decision, per the rule fixed above: 15/15 >= 8/15, framing-dominated ->
+proceed to a non-linear combiner attempt for gemma-2-9b-it**, pre-registered
+separately below before touching any real VAL data.

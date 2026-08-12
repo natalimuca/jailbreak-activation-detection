@@ -1461,6 +1461,33 @@ effect -- stronger than either check alone -- but not a fully clean
 replication given the unexplained baseline gap. Full numbers in
 `results/train_pair_eval.json`.
 
+### Extending the wrapper-swap diagnostic to gemma-2-9b-it (2026-08-12)
+
+gemma-2-9b-it has the same class of PAIR vulnerability as Qwen3-8B (47.6%
+vs. 52.4% detection) and its own working top-15 SAE-feature detector, but
+the wrapper-swap ANOVA above had never been run on it -- there was no prior
+rank-1 result to extend, so this establishes gemma's baseline for the first
+time rather than replicating a published number. Same machinery reused
+unmodified (`scripts/wrapper_swap_variance.py`'s grid/ANOVA/permutation
+code, `scripts/feature_variance_family.py`'s maxT family correction), full
+pre-registered decision rule and method in `reports/DECISIONS.md`'s
+"Wrapper-swap variance diagnostic extended to gemma-2-9b-it" entry.
+
+**All 15 of gemma's top-15 features are framing-leaning**
+(`eta_sq_wrapper > eta_sq_core`), every one maxT-corrected significant at
+p<=0.0015 -- a cleaner sweep than Qwen3-8B's already-framing-dominated
+14/15, and the opposite pattern from Llama's 11/15 content-leaning split.
+Rank-1 (layer 35, feature 52410): eta_core=0.275, eta_wrapper=0.554. Across
+all 15 features, eta_core ranges 0.201-0.347 and eta_wrapper ranges
+0.451-0.679 -- every single feature more wrapper- than core-driven, not just
+a bare majority. Full per-feature table in
+`results/feature_variance_gemma-2-9b-it.json`.
+
+**This is a real, motivated reason to try the non-linear combiner on
+gemma-2-9b-it next**, per this project's own pre-committed decision rule
+(framing-dominated, >=8/15, motivates an attempt; content-dominated does
+not). See the pre-registration and its outcome below.
+
 ### Known limitations (baseline detectors and adversarial evaluation)
 
 - **The official TEST-based adversarial set is small** (n=35, spanning only
