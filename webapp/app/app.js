@@ -707,18 +707,6 @@ const WRAPPER_SWAP_VARIANCE = [
   },
 ];
 
-// Qwen3-8B PAIR detection rate across three fix attempts, tested against
-// the same 21-prompt adversarial set -- reports/RESULTS.md's "From
-// diagnosis to intervention" and follow-up sections, not recomputed here.
-// value: null means the attempt never reached evaluation (failed its own
-// pre-registered validation gate first).
-const INTERVENTION_ATTEMPTS = [
-  { label: "Vanilla", value: 0.524, color: "var(--chart-blue)", note: "baseline" },
-  { label: "Content-weighted", value: 0.429, color: "var(--color-flagged)", note: "failed — TEST accuracy dropped, p=0.0156" },
-  { label: "Framing-direction ablation", value: null, color: "var(--color-text-dim)", note: "failed its own validation gate before evaluation ran (7.9% drop vs. 50% required)" },
-  { label: "Non-linear combiner", value: 0.714, color: "var(--color-clear)", note: "no TEST cost; corroborated on a second n=78 set, p=0.0072" },
-];
-
 function currentModelLabel() {
   return modelSelect.value.split("/").pop();
 }
@@ -864,22 +852,6 @@ function renderFindings() {
       d.wrapper.toFixed(3),
       `${d.corePValue}, ${d.wrapperPValue}`,
     ])
-  );
-
-  const GATE_FAILED_SENTINEL = 0.001;
-  const interventionEl = document.getElementById("chart-intervention");
-  interventionEl.innerHTML = `<div class="bar-chart">${renderBars(
-    INTERVENTION_ATTEMPTS.map((d) => ({ label: d.label, value: d.value ?? GATE_FAILED_SENTINEL })),
-    {
-      formatValue: (v) => (v === GATE_FAILED_SENTINEL ? "gate failed" : `${(v * 100).toFixed(1)}%`),
-      domain: 1.0,
-      colorFor: (d) => INTERVENTION_ATTEMPTS.find((x) => x.label === d.label).color,
-    }
-  )}</div>`;
-  appendTableView(
-    interventionEl,
-    ["Attempt", "PAIR detection", "Outcome"],
-    INTERVENTION_ATTEMPTS.map((d) => [d.label, d.value === null ? "n/a — gate failed" : `${(d.value * 100).toFixed(1)}%`, d.note])
   );
 }
 
