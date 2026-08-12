@@ -43,6 +43,12 @@ encoding that order; this table replaces it.
 | 35 | `transfer_direction_deepseek.py` | Cross-model direction transfer, second pair (Qwen2.5-1.5B <-> DeepSeek-R1-Distill-Qwen-1.5B) |
 | 36 | `wrapper_swap_replication.py` | Replicated wrapper-swap factorial: decomposes the core x wrapper interaction term |
 | 37 | `recalibrate.py` | Threshold-rule reselection on VAL, tested against Youden-J on TEST |
+| 38 | `feature_variance_family.py` | Extends the wrapper-swap ANOVA from the rank-1 feature to all top-15, with a maxT family-wise correction |
+| 39 | `content_weighted_eval.py` | Evaluates a content-weighted SAE-feature detector (downweight framing-tracking features) -- failed, hurt TEST accuracy |
+| 40 | `framing_direction.py` | Computes and validates a framing direction for upstream ablation -- failed its own validation gate |
+| 41 | `nonlinear_combiner_eval.py` | Pairwise-interaction logistic regression over the top-15 features -- clears both gates, PAIR gain not yet significant at n=21 |
+| 42 | `build_train_pair_set.py` | Builds a supplementary PAIR set from TRAIN-goal JailbreakBench artifacts (disjoint from the official TEST-based set) |
+| 43 | `train_pair_eval.py` | Re-tests the non-linear combiner against the larger TRAIN-goal PAIR set -- reaches significance (p=0.0072) |
 
 Full rationale for every methodology choice is in
 [DECISIONS.md](../reports/DECISIONS.md); results are in
