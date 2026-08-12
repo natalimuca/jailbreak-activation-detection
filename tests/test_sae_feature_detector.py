@@ -6,6 +6,7 @@ from src.detectors.sae_feature_detector import (
     calibrate,
     compute_content_weights,
     compute_content_weights_binary,
+    feature_matrix,
     is_flagged,
     load_top_features,
     score,
@@ -28,6 +29,32 @@ def test_score_sums_selected_feature_activations_no_truncation():
     activations_by_layer = {0: torch.tensor([[5.0, 0.0], [0.0, 3.0]])}
     s = score(activations_by_layer, {0: sae}, features=[(0, 0)])
     assert torch.allclose(s, torch.tensor([5.0, 0.0]))
+
+
+def test_feature_matrix_returns_raw_per_feature_columns():
+    sae0 = _make_sae(k=3)
+    sae1 = _make_sae(k=3)
+    activations_by_layer = {
+        0: torch.tensor([[5.0, 0.0], [1.0, 2.0]]),
+        1: torch.tensor([[0.0, 4.0], [3.0, 0.0]]),
+    }
+    m = feature_matrix(activations_by_layer, {0: sae0, 1: sae1}, features=[(0, 0), (1, 1)])
+    assert m.shape == (2, 2)
+    assert torch.allclose(m, torch.tensor([[5.0, 4.0], [1.0, 0.0]]))
+
+
+def test_score_equals_weighted_sum_of_feature_matrix():
+    sae0 = _make_sae(k=3)
+    sae1 = _make_sae(k=3)
+    activations_by_layer = {
+        0: torch.tensor([[5.0, 0.0], [1.0, 2.0]]),
+        1: torch.tensor([[0.0, 4.0], [3.0, 0.0]]),
+    }
+    features = [(0, 0), (1, 1)]
+    weights = [0.5, 2.0]
+    m = feature_matrix(activations_by_layer, {0: sae0, 1: sae1}, features)
+    s = score(activations_by_layer, {0: sae0, 1: sae1}, features, weights=weights)
+    assert torch.allclose(s, (m * torch.tensor(weights)).sum(dim=1))
 
 
 def test_score_sums_across_multiple_features_and_layers():

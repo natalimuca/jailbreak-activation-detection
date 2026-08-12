@@ -37,6 +37,27 @@ def load_top_features(k: int = 15, path: Path = RANKING_RESULTS_PATH) -> list[tu
     return [(r["layer"], r["feature"]) for r in ranked[:k]]
 
 
+def feature_matrix(
+    activations_by_layer: dict[int, torch.Tensor],
+    saes: dict[int, AnySAE],
+    features: list[tuple[int, int]],
+) -> torch.Tensor:
+    """activations_by_layer: {layer: (n_prompts, d_model)} residual-stream
+    activations. saes: {layer: TopKSAE}. features: (layer, feature_idx)
+    pairs. Returns (n_prompts, len(features)): each selected feature's own
+    encoded activation as a column, same order as `features` -- the raw
+    per-feature matrix `score` sums (optionally weighted) into one scalar.
+    Exposed separately so a non-linear combiner can consume the same
+    per-feature values without re-deriving the SAE-encode loop (see
+    reports/DECISIONS.md's "Pre-registration: a non-linear SAE-feature
+    combiner")."""
+    cols = []
+    for layer, feature_idx in features:
+        encoded = saes[layer].encode(activations_by_layer[layer])  # (n_prompts, d_sae)
+        cols.append(encoded[:, feature_idx])
+    return torch.stack(cols, dim=1)
+
+
 def score(
     activations_by_layer: dict[int, torch.Tensor],
     saes: dict[int, AnySAE],
@@ -51,13 +72,9 @@ def score(
     Returns (n_prompts,) score -- weighted sum of each selected feature's
     encoded activation (post-TopK, so zero if that feature didn't survive
     this prompt's top-K sparsity cutoff)."""
-    weights = weights if weights is not None else [1.0] * len(features)
-    n_prompts = next(iter(activations_by_layer.values())).shape[0]
-    total = torch.zeros(n_prompts)
-    for (layer, feature_idx), weight in zip(features, weights):
-        encoded = saes[layer].encode(activations_by_layer[layer])  # (n_prompts, d_sae)
-        total = total + weight * encoded[:, feature_idx].to(total.dtype)
-    return total
+    matrix = feature_matrix(activations_by_layer, saes, features)  # (n_prompts, k)
+    weight_t = torch.tensor(weights if weights is not None else [1.0] * len(features), dtype=matrix.dtype)
+    return (matrix * weight_t).sum(dim=1)
 
 
 def calibrate(
