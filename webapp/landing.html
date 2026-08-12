@@ -64,7 +64,7 @@
 
   <main>
     <section class="hero" id="hero">
-      <p class="hero-badge">6 open-weight models &middot; 190 tests passing</p>
+      <p class="hero-badge">6 open-weight models &middot; 195 tests passing</p>
       <p class="hero-kicker">Defensive security research </p>
       <h1 class="flapboard" id="hero-flap" aria-label="READ  THE  MIND, NOT  THE  WORDS"></h1>
       <p class="hero-sub">
@@ -79,7 +79,7 @@
       <dl class="hero-stats">
         <div><dt>Models validated</dt><dd>6</dd></div>
         <div><dt>Best TEST AUROC</dt><dd>0.989</dd></div>
-        <div><dt>Tests passing</dt><dd>190</dd></div>
+        <div><dt>Tests passing</dt><dd>195</dd></div>
       </dl>
     </section>
 
@@ -150,11 +150,20 @@
           confirms the spread is real, not noise (p &lt; 1e-6).</p>
         </article>
         <article class="finding-card" tabindex="0">
-          <p class="finding-stat">190 tests</p>
+          <p class="finding-stat">195 tests</p>
           <p class="finding-label">Every number traces to a script</p>
           <p class="finding-body">Logic lives in tested <code>src/</code> modules;
           <code>scripts/</code> are standalone pipeline stages, one per experiment
           and no notebook-cell numbers that can't be reproduced.</p>
+        </article>
+        <article class="finding-card" tabindex="0">
+          <p class="finding-stat">52.4% &rarr; 71.4%</p>
+          <p class="finding-label">A mechanistic fix, tested and confirmed</p>
+          <p class="finding-body">Two linear fixes for Qwen3&ndash;8B's paraphrase
+          weakness failed &mdash; one hurt clean accuracy, one never passed its own
+          validation check. A non-linear combiner over the same features didn't,
+          and the gain replicates (p&nbsp;=&nbsp;0.0072) on an independent
+          78-prompt set.</p>
         </article>
       </div>
 
