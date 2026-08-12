@@ -3746,3 +3746,69 @@ and `results/wrapper_swap_variance.json`.
 **Decision, per the rule fixed above: 15/15 >= 8/15, framing-dominated ->
 proceed to a non-linear combiner attempt for gemma-2-9b-it**, pre-registered
 separately below before touching any real VAL data.
+
+## Pre-registration: a non-linear SAE-feature combiner (gemma-2-9b-it) (2026-08-12)
+
+**The question.** The diagnostic above found gemma-2-9b-it's top-15 SAE
+features framing-dominated even more uniformly than Qwen3-8B's (15/15 vs.
+14/15). Per this project's own precedent (Qwen3-8B's non-linear combiner
+was the only one of three fix attempts that both cleared its no-regression
+gate and moved PAIR in the hoped-for direction), this is a real, motivated
+reason to try the identical combiner on gemma rather than a fresh design
+exercise.
+
+**Model choice and pipeline, fixed now, identical to the Qwen3-8B/Llama
+pre-registration -- no new tuning, no bake-off**:
+
+```
+Pipeline([
+    ("scale1", StandardScaler()),
+    ("poly", PolynomialFeatures(degree=2, interaction_only=True, include_bias=False)),
+    ("scale2", StandardScaler()),
+    ("clf", LogisticRegression(penalty="l2", C=0.1, solver="lbfgs", max_iter=2000, random_state=0)),
+])
+```
+
+gemma-specific fixed numbers (verified before this entry was written, not
+assumed): `n_val=289` (identical to Qwen3-8B/Llama's VAL split size), 15 raw
+top-causally-ranked SAE features -> 120 after pairwise interactions
+(identical expansion), layers 33/34/35, rank-1 = layer 35/feature 52410.
+`C=0.1` is the same a-priori choice as before, for the same reason
+(~289/120 ~ 2.4 samples per expanded feature, far below usual heuristics,
+independent of anything seen in any run). All fitting/scaling on VAL only;
+TEST/PAIR transform-only, never refit.
+
+**Required overfitting gate, fixed now, before TEST/PAIR are touched**:
+identical rule to the original pre-registration -- stratified 5-fold CV
+within VAL vs. in-sample VAL accuracy, both computed by refitting the
+identical pipeline; **fail if `in_sample_accuracy - mean_cv_accuracy >
+0.05`**. On failure: stop, report as a negative result, do not touch
+TEST/PAIR, do not adjust `C` post-hoc.
+
+**The evaluation, fixed now.** If the gate passes: calibrate a threshold via
+`max_accuracy_threshold` on VAL `predict_proba`, then compare against
+gemma's vanilla unweighted top-15 detector on TEST accuracy/AUROC
+(`mcnemar_accuracy`, `delong_auc_test` -- regression check) and gemma's own
+PAIR-adversarial set (`mcnemar_exact` -- the target metric).
+
+**No new negative-control run.** Llama-3.1-8B-Instruct's already-published
+non-improvement under this identical pipeline (81.0%->71.4%, p=0.5, moving
+the *opposite* direction from Qwen3-8B's improvement) already established
+the specificity pattern this design predicts for a content-dominated model;
+rerunning it here would duplicate already-built infrastructure for no new
+information. gemma's result is compared against that published number
+narratively, not via a fresh paired statistical test against a rerun.
+
+**Decision criterion for wiring live into the webapp, fixed now, matching
+the bar Qwen3-8B's combiner actually cleared**: wire in if and only if (a)
+the overfit gate passes, (b) TEST shows no significant regression on
+accuracy or AUROC, and (c) PAIR detection improves (directionally, whether
+or not McNemar reaches p<0.05 -- Qwen3-8B's own live-wired result was
+itself not significant at p=0.2188). If PAIR instead moves the *wrong*
+direction, even non-significantly, that is a materially different outcome
+from Qwen3-8B's case and will not be wired live even if TEST doesn't
+regress.
+
+**Scope, fixed now.** No grid search or tuning of `C`, polynomial degree, or
+CV folds on VAL. No generation-time intervention -- scoring-time only, same
+as every prior combiner experiment in this thread.
