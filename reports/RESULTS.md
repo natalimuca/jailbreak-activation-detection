@@ -415,15 +415,30 @@ resolved:
 - **Llama-3.1-8B**: the single top feature alone drops refusal 98% -> 10%
   -- nearly the entire effect from one feature.
 - **Qwen3-8B**: effect distributed across the set; top-1 alone does
-  essentially nothing (84% vs. 82% baseline), bottoms out at top-15 (18%).
+  essentially nothing (84% vs. 82% baseline), bottoms out at top-15 (24%,
+  the deterministic greedy-decoding result -- see DECISIONS.md's
+  2026-08-12 correction of an earlier stale 18% figure). **Confirmed
+  statistically significant from top-5 onward** (McNemar p=0.0 at
+  top5/10/15/20, p=1.0 at top1, matching the earlier CI-overlap argument
+  exactly), all discordant pairs favoring suppression.
+- **Llama-3.1-8B**: **confirmed statistically significant at every
+  condition including top-1** (McNemar p=0.0 throughout), consistent with
+  one feature alone already dropping refusal from 98% to 10%.
 - **gemma-2-9b-it**: a real, monotonic decline (96% -> 82%) but far more
-  modest -- 14 points total vs. Llama's 88 and Qwen3's 66. **Confirmed
+  modest -- 14 points total vs. Llama's 88 and Qwen3's 58. **Confirmed
   statistically significant from top-10 onward** via a paired McNemar's
   exact test on the same 50 prompts (baseline vs. top-15: 7/50 discordant,
-  all favoring suppression, p=0.0156 -- `scripts/gemma_suppression_significance.py`,
-  full table in DECISIONS.md): a genuine
+  all favoring suppression, p=0.0156): a genuine
   causal effect, not noise, even though it's the smallest of the three
   models.
+
+All three models' suppression curves are now formally tested via paired
+McNemar's exact tests (`scripts/suppression_significance.py`, reusing
+already-saved completions, no new GPU compute), not just argued from
+Wilson-CI overlap or an unambiguous floor -- closes a gap left open when
+this was first done for gemma alone. Full tables in
+`results/sae_suppression_significance_{Qwen3-8B,Llama-3.1-8B-Instruct,gemma-2-9b-it}.json`
+and DECISIONS.md.
 
 ### Known limitations (SAE-feature detector)
 

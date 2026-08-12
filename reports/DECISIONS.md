@@ -1369,6 +1369,21 @@ data -- see the Phase 4 "comparing independent CIs on paired predictions"
 lesson) -- worth doing if this comparison is written up as a headline
 result rather than a descriptive observation.
 
+**Correction, 2026-08-12**: the "top-15 (18%)" / "Qwen3's 66-point drop"
+figures two paragraphs up were already stale when this entry was written --
+they're the pre-fix, stochastic-decoding numbers from the 2026-07-10
+"Tightening the results" table, not the deterministic (`do_sample=False`)
+greedy-decoding re-run from 2026-07-11 that explicitly superseded them
+(baseline 82%, top-15 **24%**, not 18%). Caught while formally
+significance-testing this curve (see "Formal significance for Qwen3-8B's
+and Llama-3.1-8B's suppression curves too" below), which reproduced 12/50
+(24%) directly from the saved completions. Correct comparison: Llama's
+88-point drop (98%->10%) vs. Qwen3's **58-point** drop (82%->24%), not 66.
+Left the original text above as-is rather than silently edited, per this
+project's own standing practice; `reports/RESULTS.md`'s copy of this same
+figure is fixed in place since that document is the live-maintained report,
+not a dated historical entry.
+
 ## Phase 6 Wave 3: SAE-feature detector extension to Llama-3.1-8B-Instruct and gemma-2-9b-it (2026-07-22)
 
 The last piece needed to complete the 3-model SAE-feature comparison:
@@ -3856,3 +3871,53 @@ could not have revealed, and which the two-model precedent (Qwen3-8B
 positive, Llama flat) had not yet exposed either, since Llama's
 content-dominated features never motivated trying the combiner on it in the
 first place. Full numbers in `results/nonlinear_combiner_eval.json`.
+
+## Formal significance for Qwen3-8B's and Llama-3.1-8B's suppression curves too (2026-08-12)
+
+**The gap.** The "Closing a Wave 2 gap" entry above ran a formal paired
+McNemar test for gemma-2-9b-it's suppression curve because, unlike the
+other two models, it had never been tested that way -- Qwen3-8B's
+significance claim rested on non-overlapping Wilson CIs and Llama-3.1-8B's
+on an unambiguous 0% floor. Both of those are the same kind of informal
+proxy this project's own adversarial-evaluation entry (2026-07-11) already
+flagged as weaker than a proper paired test for paired predictions
+("comparing two separate Wilson CIs for overlap ... can miss or wrongly
+suggest a real paired difference"). Never actually closed for these two
+models, so closed now rather than left as an accepted gap.
+
+**Method**: generalized `scripts/gemma_suppression_significance.py` into
+`scripts/suppression_significance.py` (renamed, looped over a `MODELS` list
+instead of one hardcoded model -- no other logic changed) and ran it for
+all three. No new GPU compute: reclassifies each model's already-saved
+`results/sae_suppression_validation_<model>.json` completions with
+`is_refusal` and runs `mcnemar_exact` against baseline, per condition, same
+as gemma's original closure.
+
+**gemma-2-9b-it's numbers reproduced exactly** (41/50 baseline, p=0.0312/
+0.0156/0.0156 at top10/15/20) -- confirms the script generalization didn't
+change anything for the model it was already verified against.
+
+| condition | Qwen3-8B refusal | Qwen3-8B p | Llama-3.1-8B refusal | Llama-3.1-8B p |
+|---|---|---|---|---|
+| baseline | 41/50 | -- | 49/50 | -- |
+| top1 | 42/50 | 1.0 | 5/50 | **0.0** |
+| top5 | 21/50 | **0.0** | 2/50 | **0.0** |
+| top10 | 16/50 | **0.0** | 1/50 | **0.0** |
+| top15 | 12/50 | **0.0** | 0/50 | **0.0** |
+| top20 | 13/50 | **0.0** | 1/50 | **0.0** |
+
+**Both confirm exactly what the informal arguments already claimed, now on
+solid footing.** Qwen3-8B: not significant at top1 alone (matches "top1
+barely moves refusal" from the original write-up), significant from top5
+onward (matches "baseline distinguishable from top5 onward" in the
+2026-07-11 deterministic re-run entry) -- every discordant pair at top5+
+favors suppression reducing refusal (baseline-only counts, zero
+condition-only), consistent with a real monotonic effect. Llama-3.1-8B:
+significant at every single condition including top1 -- unsurprising given
+one feature alone already drops refusal from 98% to 10%, but now formally
+confirmed rather than argued from the 0% floor alone. No reversals, no
+surprises -- this closes the gap the gemma entry explicitly left open
+("worth doing if this comparison is written up as a headline result rather
+than a descriptive observation") without changing any conclusion already
+published. Full numbers in `results/sae_suppression_significance_Qwen3-8B.json`
+and `results/sae_suppression_significance_Llama-3.1-8B-Instruct.json`.
