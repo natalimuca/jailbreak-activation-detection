@@ -3551,3 +3551,69 @@ variant of either linear intervention tried so far.
 
 Results in `results/framing_directions.pt` and
 `results/framing_direction_validation.json`.
+
+## Pre-registration: a non-linear SAE-feature combiner (2026-08-12)
+
+**The question.** Both linear fixes above failed as additively separable
+operations: one scalar weight per feature, or one subtracted direction,
+applied uniformly. The direction-ablation failure specifically pointed at
+real core x wrapper *interaction* terms no single global linear operation
+can capture. This tries a model that can represent "feature A's meaning
+depends on feature B's state" directly -- genuine cross-feature interaction,
+not a per-feature adjustment -- over the same top-15 features already used
+throughout this thread.
+
+**Model choice, fixed now.** `PolynomialFeatures(degree=2,
+interaction_only=True, include_bias=False)` feeding a standard
+`LogisticRegression` -- the minimal model that adds cross-feature
+interaction capacity while staying a convex GLM with a deterministic
+optimum and directly inspectable coefficients, consistent with this
+project's existing preference for exact, interpretable methods over
+black-box ML. A gradient-boosted-tree alternative was considered and
+rejected as primary: several interacting hyperparameters would need fixing
+a priori with no tuning available, and it offers no real interpretability
+advantage over inspecting which interaction coefficients end up large. This
+is the one pre-registered model class -- no bake-off between families.
+
+**Pipeline and hyperparameters, fixed now** (n_val=289, 15 raw features ->
+120 after pairwise interactions):
+
+```
+Pipeline([
+    ("scale1", StandardScaler()),
+    ("poly", PolynomialFeatures(degree=2, interaction_only=True, include_bias=False)),
+    ("scale2", StandardScaler()),
+    ("clf", LogisticRegression(penalty="l2", C=0.1, solver="lbfgs", max_iter=2000, random_state=0)),
+])
+```
+
+`C=0.1` (10x stronger regularization than sklearn's `C=1.0` default) is
+fixed a priori: ~289/120 ~ 2.4 samples per expanded feature is far below
+usual "10 events per parameter" heuristics, independent of anything seen in
+this run. All fitting/scaling happens on VAL only; TEST/PAIR are
+transform-only, never refit -- same split discipline `calibrate()` already
+follows elsewhere in this codebase.
+
+**Required overfitting gate, fixed now, before TEST/PAIR are touched.**
+Stratified 5-fold CV within VAL, refitting the identical pipeline per fold,
+compared against in-sample accuracy (the same pipeline fit on the full VAL
+set, scored on that same set). **Pass/fail rule**: if `in_sample_accuracy -
+mean_cv_accuracy > 0.05` (5 percentage points -- roughly 2x the ~2.9pp
+binomial standard error at n=289), the model is judged to have overfit VAL;
+stop, report as a negative result, do not calibrate or evaluate on
+TEST/PAIR, and do not adjust `C` post-hoc to force a pass -- same discipline
+as both prior gates in this thread.
+
+**The evaluation, fixed now.** If the gate passes: calibrate a threshold via
+`max_accuracy_threshold` on the fitted pipeline's `predict_proba` (VAL),
+then compare against the vanilla unweighted top-15 detector on TEST
+accuracy/AUROC (`mcnemar_accuracy`, `delong_auc_test` -- regression check)
+and the 21 PAIR prompts (`mcnemar_exact` -- the target metric), for Qwen3-8B
+and, as a negative control, Llama-3.1-8B-Instruct (same fixed pipeline
+applied to its own top-15 features, expected to show no PAIR improvement
+since its features are already mostly content-leaning).
+
+**Scope, fixed now.** No grid search or tuning of `C`, polynomial degree, or
+CV folds on VAL. gemma-2-9b-it excluded (same reasoning as both prior
+entries). No generation-time intervention -- scoring-time only, same as
+both prior experiments.
