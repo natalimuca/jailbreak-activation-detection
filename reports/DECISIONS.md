@@ -3921,3 +3921,44 @@ surprises -- this closes the gap the gemma entry explicitly left open
 than a descriptive observation") without changing any conclusion already
 published. Full numbers in `results/sae_suppression_significance_Qwen3-8B.json`
 and `results/sae_suppression_significance_Llama-3.1-8B-Instruct.json`.
+
+## DeepSeek-R1-Distill-Qwen-1.5B's suppression curve needs a different, index-paired test (2026-08-12)
+
+**Why the other three models' method doesn't directly apply.** DeepSeek's
+suppression validation (`reasoning_model: true` in its own JSON) already
+has a documented "inconclusive, not negative" reading in RESULTS.md: N=15
+per condition with heavy, condition-varying truncation (33-60%) because a
+real fraction of completions never get past the mandatory `<think>` block
+in the fixed 2048-token budget. The raw 15 completions per condition are
+**not** already-matched pairs the way the other three models' clean N=50
+sets are -- calling `is_refusal` on all 15 raw completions directly (this
+script's path for the other three) would silently score truncated
+non-answers as "not a refusal" and misalign which actual prompt is being
+compared at each position across conditions, since a different subset
+truncates each time.
+
+**Method**: `src.direction.refusal_classifier.resolve_completions_by_index`
+already exists for exactly this (its own docstring: "each condition
+truncates a DIFFERENT subset of prompts... callers should intersect the
+returned dicts' keys across every condition being compared before scoring,
+not assume every index survived everywhere") -- reused, not reinvented.
+`scripts/suppression_significance.py` now branches on the JSON's own
+`reasoning_model` flag: for DeepSeek, each condition's McNemar comparison
+against baseline uses only the prompt indices that resolved to a real
+answer in *both* baseline and that condition, intersected per comparison
+(not a single global intersection across all conditions, since each
+condition truncates differently).
+
+**Result: zero discordant pairs at every single condition** (top1 through
+top20), p=1.0 throughout. Paired-N after intersection is small at every
+condition (4-6 prompts, down from the nominal 15) and the baseline itself
+is already at floor within that paired subset (0/6 baseline refusals for
+the top15 comparison's 6-prompt intersection). **This is not a null
+result -- there were zero prompts where baseline and the suppression
+condition disagreed, on either side, at any threshold.** Confirms, with
+actual paired-test rigor rather than an assumption, the "inconclusive, not
+negative" reading already published: this data genuinely cannot
+distinguish "the effect exists but this sample can't see it" from "there
+is no effect here," the same conclusion reached informally, now backed by
+the correct test rather than raw refusal-rate CIs on mismatched subsets.
+Full numbers in `results/sae_suppression_significance_DeepSeek-R1-Distill-Qwen-1.5B.json`.

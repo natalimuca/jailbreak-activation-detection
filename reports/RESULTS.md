@@ -2609,6 +2609,20 @@ need a larger N (impractical at this model's per-generation cost without
 a way to speed up the reasoning-inclusive budget) to actually resolve
 either way.
 
+**Formally confirmed, not just eyeballed (2026-08-12)**: unlike the other
+three models, a naive McNemar test on the raw completions isn't valid here
+-- each condition truncates a different subset of the 15 prompts, so
+`resolve_completions_by_index` plus an explicit per-comparison intersection
+of resolved prompt indices (`scripts/suppression_significance.py`) is
+needed to get genuinely matched pairs before testing. Result: **zero
+discordant pairs at every condition** (top1 through top20, p=1.0
+throughout), on a paired-N of only 4-6 prompts per condition after
+intersection. This isn't a null finding -- it's confirmation that this
+sample has no statistical power to say anything either way, exactly the
+"inconclusive, not negative" reading above, now on solid footing rather
+than an informal CI read. Full numbers in
+`results/sae_suppression_significance_DeepSeek-R1-Distill-Qwen-1.5B.json`.
+
 **A genuinely new finding surfaced while sanity-checking this run**: this
 model's long-form answers have a real, substantial tendency to open
 coherently and then collapse into verbatim sentence-repetition once they
