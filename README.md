@@ -140,8 +140,22 @@ Headline findings so far:
   pipeline. Neither PAIR change reaches p<0.05 at n=21 (p=0.2188 and
   p=0.5), so this is reported as genuinely inconclusive, not a confirmed
   fix — the direction and specificity pattern are what a real effect would
-  look like, but resolving it needs a larger adversarial set, not another
-  model choice fit to the same 21 items.
+  look like, but resolving it needs a larger adversarial set.
+- **That larger set turned out to be available after all.** The
+  "externally blocked on JailbreakBench" reasoning above doesn't hold up:
+  checked directly, JailbreakBench already has PAIR artifacts for 60 of
+  this project's 73 corpus JBB goals, not just the ~11 that land in TEST —
+  41 more sit in TRAIN, unused for anything but deriving the refusal
+  direction, never a detection threshold. Reusing the exact same
+  pre-registered non-linear pipeline (no refitting) against this n=78
+  TRAIN-goal supplement, Qwen3-8B's PAIR comparison now **reaches
+  significance** (29.5%→46.2%, p=0.0072) while Llama's stays flat
+  (84.6%→83.3%, p=1.0) — the same qualitative pattern as the original
+  check, replicating on an independent goal set. One honest catch: the
+  vanilla detector's baseline PAIR rate differs substantially between the
+  two goal sets for Qwen3-8B (52.4% TEST vs. 29.5% TRAIN), so this
+  corroborates the effect's direction and specificity rather than cleanly
+  replicating its exact size.
 - **A sixth model, DeepSeek-R1-Distill-Qwen-1.5B, is diffuse across every
   measurement approach used in this project**: a genuinely null
   activation-addition result, the weakest dense-direction detector of all six
