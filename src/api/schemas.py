@@ -14,6 +14,7 @@ class ModelInfo(BaseModel):
     hf_name: str
     cache_label: str
     sae_feature_available: bool
+    nonlinear_combiner_available: bool
 
 
 class AnalyzeRequest(BaseModel):
@@ -68,6 +69,14 @@ class SAEFeatureResult(BaseModel):
     top_features: list[SAEFeatureContribution] | None = None
 
 
+class NonlinearCombinerResult(BaseModel):
+    available: bool
+    reason: str | None = None
+    flagged: bool | None = None
+    score: float | None = None
+    threshold: float | None = None
+
+
 class ExamplePrompt(BaseModel):
     id: int
     method: str
@@ -102,3 +111,4 @@ class AnalyzeResponse(BaseModel):
     llm_judge: LLMJudgeResult | None = None
     dense_direction: DenseDirectionResult | None = None
     sae_feature: SAEFeatureResult | None = None
+    nonlinear_combiner: NonlinearCombinerResult | None = None

@@ -39,11 +39,14 @@ from src.baselines.perplexity_filter import compute_perplexity, load_perplexity_
 from src.baselines.perplexity_filter import is_flagged as perplexity_is_flagged
 from src.detectors.dense_direction_detector import is_flagged as dense_is_flagged
 from src.detectors.dense_direction_detector import project as dense_project
+from src.detectors.nonlinear_combiner_detector import is_flagged as nonlinear_is_flagged
+from src.detectors.nonlinear_combiner_detector import load_pipeline as load_nonlinear_pipeline
+from src.detectors.nonlinear_combiner_detector import score as nonlinear_score
 from src.detectors.sae_feature_detector import is_flagged as sae_is_flagged
 from src.detectors.sae_feature_detector import score as sae_score
 from src.sae.registry import SAE_PROVIDERS
 
-ALL_DETECTORS = ("keyword", "perplexity", "llm_judge", "dense_direction", "sae_feature")
+ALL_DETECTORS = ("keyword", "perplexity", "llm_judge", "dense_direction", "sae_feature", "nonlinear_combiner")
 
 
 class DetectorInferenceManager:
@@ -54,6 +57,7 @@ class DetectorInferenceManager:
         self._ppl_model = None
         self._ppl_tokenizer = None
         self._sae_cache: dict[tuple[str, int], object] = {}
+        self._nonlinear_cache: dict[str, object] = {}
 
     # -- GPU residency -----------------------------------------------------
 
@@ -97,6 +101,13 @@ class DetectorInferenceManager:
             load_sae_fn = SAE_PROVIDERS[hf_name][0]
             self._sae_cache[key] = load_sae_fn(layer)
         return self._sae_cache[key]
+
+    def _get_nonlinear_pipeline(self, cache_label: str, pipeline_path):
+        # Unlike _sae_cache (multi-GB weights, pruned on model swap), fitted
+        # sklearn pipelines are tiny -- kept for the manager's whole lifetime.
+        if cache_label not in self._nonlinear_cache:
+            self._nonlinear_cache[cache_label] = load_nonlinear_pipeline(pipeline_path)
+        return self._nonlinear_cache[cache_label]
 
     # -- Single-prompt activation extraction --------------------------------
 
@@ -193,6 +204,23 @@ class DetectorInferenceManager:
             "top_features": contributions[:5],
         }
 
+    def _score_nonlinear_combiner(self, hf_name: str, layer_acts: dict[int, torch.Tensor], config: ModelConfig) -> dict:
+        nc_cfg = config.nonlinear_combiner
+        if nc_cfg is None:
+            return {"available": False, "reason": f"no pre-registered non-linear combiner for {config.cache_label}"}
+
+        saes = {layer: self._get_sae(hf_name, layer) for layer in nc_cfg.layers}
+        acts_by_layer = {layer: layer_acts[layer] for layer in nc_cfg.layers}
+        pipeline = self._get_nonlinear_pipeline(config.cache_label, nc_cfg.pipeline_path)
+        total = nonlinear_score(acts_by_layer, saes, nc_cfg.features, pipeline).item()
+
+        return {
+            "available": True,
+            "flagged": nonlinear_is_flagged(total, nc_cfg.threshold),
+            "score": total,
+            "threshold": nc_cfg.threshold,
+        }
+
     # -- Public entry point --------------------------------------------------
 
     def analyze(self, prompt: str, hf_name: str, detectors: list[str] | None = None) -> dict:
@@ -213,6 +241,8 @@ class DetectorInferenceManager:
 
             needs_target = "dense_direction" in detectors or (
                 "sae_feature" in detectors and config.sae_feature is not None
+            ) or (
+                "nonlinear_combiner" in detectors and config.nonlinear_combiner is not None
             )
             layer_acts: dict[int, torch.Tensor] = {}
             if needs_target:
@@ -222,6 +252,8 @@ class DetectorInferenceManager:
                     layers_needed.add(config.dense_direction_layer)
                 if "sae_feature" in detectors and config.sae_feature is not None:
                     layers_needed.update(config.sae_feature.layers)
+                if "nonlinear_combiner" in detectors and config.nonlinear_combiner is not None:
+                    layers_needed.update(config.nonlinear_combiner.layers)
                 layer_acts = self._extract_layers(prompt, sorted(layers_needed))
 
             if "dense_direction" in detectors:
@@ -229,6 +261,9 @@ class DetectorInferenceManager:
 
             if "sae_feature" in detectors:
                 result["sae_feature"] = self._score_sae_feature(hf_name, layer_acts, config)
+
+            if "nonlinear_combiner" in detectors:
+                result["nonlinear_combiner"] = self._score_nonlinear_combiner(hf_name, layer_acts, config)
 
             if "perplexity" in detectors:
                 self._ensure_perplexity_resident()

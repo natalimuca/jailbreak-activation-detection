@@ -112,3 +112,33 @@ def test_list_models_reports_sae_availability_per_model(tmp_path):
     assert sae_flags["google/gemma-2-9b-it"] is True
     assert sae_flags["Qwen/Qwen2.5-1.5B-Instruct"] is False
     assert sae_flags["HuggingFaceTB/SmolLM2-1.7B-Instruct"] is False
+
+
+def test_list_models_reports_nonlinear_combiner_availability_only_where_persisted(tmp_path):
+    """Driven by file existence, not a hardcoded model name -- writing the
+    pipeline+eval artifacts for exactly one model should make only that
+    model's flag True, mirroring the SAE-availability test above."""
+    import joblib
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.pipeline import Pipeline
+
+    for hf_name, cache_label in MODELS.items():
+        _write_model_artifacts(tmp_path, cache_label, with_sae=hf_name == "Qwen/Qwen3-8B")
+
+    pipeline = Pipeline([("clf", LogisticRegression())])
+    pipeline.fit([[0.0, 0.0], [1.0, 1.0]], [0, 1])
+    joblib.dump(pipeline, tmp_path / "nonlinear_combiner_Qwen3-8B.joblib")
+    eval_data = {
+        "Qwen3-8B": {
+            "features": [[5, 0], [6, 1]],
+            "nonlinear": {"threshold": 0.5},
+        }
+    }
+    (tmp_path / "nonlinear_combiner_eval.json").write_text(json.dumps(eval_data))
+
+    models = list_models(results_dir=tmp_path)
+
+    flags = {m["hf_name"]: m["nonlinear_combiner_available"] for m in models}
+    assert flags["Qwen/Qwen3-8B"] is True
+    assert flags["meta-llama/Llama-3.1-8B-Instruct"] is False
+    assert flags["Qwen/Qwen2.5-1.5B-Instruct"] is False

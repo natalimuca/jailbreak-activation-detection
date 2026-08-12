@@ -62,7 +62,7 @@ def test_landing_page_serves_landing_html(client):
 
 
 def test_get_models_returns_registry_output(client, monkeypatch):
-    fake_models = [{"hf_name": "x/y", "cache_label": "y", "sae_feature_available": True}]
+    fake_models = [{"hf_name": "x/y", "cache_label": "y", "sae_feature_available": True, "nonlinear_combiner_available": False}]
     monkeypatch.setattr("src.api.main.list_models", lambda: fake_models)
 
     response = client.get("/api/models")

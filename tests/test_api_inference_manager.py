@@ -16,10 +16,15 @@ import pytest
 import torch
 
 from src.api import inference_manager as im
-from src.api.model_registry import ModelConfig, SAEFeatureConfig
+from src.api.model_registry import ModelConfig, NonlinearCombinerConfig, SAEFeatureConfig
 
 
-def _make_config(hf_name: str = "fake/model-A", cache_label: str = "model-A", sae: SAEFeatureConfig | None = None) -> ModelConfig:
+def _make_config(
+    hf_name: str = "fake/model-A",
+    cache_label: str = "model-A",
+    sae: SAEFeatureConfig | None = None,
+    nonlinear: NonlinearCombinerConfig | None = None,
+) -> ModelConfig:
     return ModelConfig(
         hf_name=hf_name,
         cache_label=cache_label,
@@ -30,6 +35,7 @@ def _make_config(hf_name: str = "fake/model-A", cache_label: str = "model-A", sa
         keyword_threshold=1.0,
         perplexity_threshold=20.0,
         sae_feature=sae,
+        nonlinear_combiner=nonlinear,
     )
 
 
@@ -146,6 +152,58 @@ def test_sae_feature_scores_and_ranks_contributions_descending(monkeypatch):
     assert sae["flagged"] is True  # 3.0 >= threshold 2.5
     assert sae["top_features"][0] == {"layer": 6, "feature": 1, "contribution": pytest.approx(2.0)}
     assert sae["top_features"][1] == {"layer": 5, "feature": 0, "contribution": pytest.approx(1.0)}
+
+
+def test_nonlinear_combiner_unavailable_reports_reason_without_loading_anything(monkeypatch):
+    manager = im.DetectorInferenceManager()
+    monkeypatch.setattr(im, "load_model_config", lambda hf_name: _make_config(nonlinear=None))
+
+    def _fail(*a, **k):
+        raise AssertionError("no model should load when the combiner is unavailable for this model")
+
+    monkeypatch.setattr(im, "load_model", _fail)
+
+    result = manager.analyze("p", "fake/model-A", detectors=["nonlinear_combiner"])
+
+    assert result["nonlinear_combiner"] == {
+        "available": False,
+        "reason": "no pre-registered non-linear combiner for model-A",
+    }
+
+
+def test_nonlinear_combiner_scores_via_loaded_pipeline(monkeypatch, tmp_path):
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.pipeline import Pipeline
+
+    pipeline = Pipeline([("clf", LogisticRegression())])
+    pipeline.fit([[0.0, 0.0], [5.0, 5.0]], [0, 1])
+    pipeline_path = tmp_path / "combiner.joblib"
+    import joblib
+
+    joblib.dump(pipeline, pipeline_path)
+
+    nc_cfg = NonlinearCombinerConfig(layers=[5, 6], features=[(5, 0), (6, 1)], threshold=0.5, pipeline_path=pipeline_path)
+    manager = im.DetectorInferenceManager()
+    monkeypatch.setattr(im, "load_model_config", lambda hf_name: _make_config(nonlinear=nc_cfg))
+    monkeypatch.setattr(im, "load_model", lambda hf_name, load_in_4bit: _FakeTargetModel())
+    layer_acts = {5: torch.tensor([[5.0, 0.0]]), 6: torch.tensor([[0.0, 5.0]])}
+    monkeypatch.setattr(im.DetectorInferenceManager, "_extract_layers", lambda self, prompt, layers: layer_acts)
+
+    class _FakeSAE:
+        @staticmethod
+        def encode(acts):
+            return acts  # identity: feature i reads dimension i directly
+
+    monkeypatch.setitem(im.SAE_PROVIDERS, "fake/model-A", (lambda layer: _FakeSAE(), [5, 6], None))
+
+    result = manager.analyze("p", "fake/model-A", detectors=["nonlinear_combiner"])
+
+    nc = result["nonlinear_combiner"]
+    expected_score = pipeline.predict_proba([[5.0, 5.0]])[0, 1]
+    assert nc["available"] is True
+    assert nc["score"] == pytest.approx(expected_score)
+    assert nc["threshold"] == 0.5
+    assert nc["flagged"] == (expected_score >= 0.5)
 
 
 def test_unknown_detector_raises_value_error(monkeypatch):

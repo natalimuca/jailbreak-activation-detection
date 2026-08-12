@@ -54,6 +54,14 @@ class SAEFeatureConfig:
 
 
 @dataclass
+class NonlinearCombinerConfig:
+    layers: list[int]
+    features: list[tuple[int, int]]
+    threshold: float
+    pipeline_path: Path
+
+
+@dataclass
 class ModelConfig:
     hf_name: str
     cache_label: str
@@ -67,6 +75,7 @@ class ModelConfig:
     # Optional and last: only models calibrated after the judge baseline was
     # added carry this, and it must not become a required positional arg.
     llm_judge_threshold: float | None = None
+    nonlinear_combiner: NonlinearCombinerConfig | None = None
 
 
 def _load_thresholds(cache_label: str, results_dir: Path) -> dict:
@@ -114,6 +123,29 @@ def _load_sae_feature_config(hf_name: str, cache_label: str, thresholds_payload:
     )
 
 
+def _load_nonlinear_combiner_config(cache_label: str, results_dir: Path) -> NonlinearCombinerConfig | None:
+    """Driven by whether a fitted pipeline was actually persisted for this
+    model (scripts/nonlinear_combiner_eval.py), not a hardcoded
+    "Qwen3-8B only" check -- same "let data availability decide, don't
+    fabricate a fallback" pattern as `_load_sae_feature_config`."""
+    pipeline_path = results_dir / f"nonlinear_combiner_{cache_label}.joblib"
+    eval_path = results_dir / "nonlinear_combiner_eval.json"
+    if not pipeline_path.exists() or not eval_path.exists():
+        return None
+    with open(eval_path) as fh:
+        eval_data = json.load(fh)
+    model_data = eval_data.get(cache_label)
+    if not model_data or "nonlinear" not in model_data:
+        return None
+    features = [tuple(f) for f in model_data["features"]]
+    return NonlinearCombinerConfig(
+        layers=sorted({layer for layer, _ in features}),
+        features=features,
+        threshold=model_data["nonlinear"]["threshold"],
+        pipeline_path=pipeline_path,
+    )
+
+
 def load_model_config(hf_name: str, results_dir: Path = RESULTS_DIR) -> ModelConfig:
     if hf_name not in MODELS:
         raise KeyError(f"Unknown model {hf_name!r}. Known models: {list(MODELS)}")
@@ -147,6 +179,7 @@ def load_model_config(hf_name: str, results_dir: Path = RESULTS_DIR) -> ModelCon
         perplexity_threshold=thresholds_payload["thresholds"]["perplexity"],
         llm_judge_threshold=thresholds_payload["thresholds"].get("llm_judge"),
         sae_feature=_load_sae_feature_config(hf_name, cache_label, thresholds_payload, results_dir),
+        nonlinear_combiner=_load_nonlinear_combiner_config(cache_label, results_dir),
     )
 
 
@@ -163,6 +196,7 @@ def list_models(results_dir: Path = RESULTS_DIR) -> list[dict]:
                 "hf_name": hf_name,
                 "cache_label": cache_label,
                 "sae_feature_available": config.sae_feature is not None,
+                "nonlinear_combiner_available": config.nonlinear_combiner is not None,
             }
         )
     return out
