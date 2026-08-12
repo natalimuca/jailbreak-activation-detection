@@ -1407,22 +1407,77 @@ its own pre-registered no-regression bar, which is what makes the PAIR
 number eligible to be read as a real signal at all (per this project's own
 rule from the content-weighted-detector entry: a PAIR change isn't treated
 as meaningful unless TEST shows no cost first). What would actually resolve
-whether this is real: a larger PAIR-adversarial set, which is exactly the
-standing limitation already on record (below) and externally blocked on
-JailbreakBench publishing more attack artifacts -- not a different model
-class or another hyperparameter choice fit to the same 21 items. Full
-numbers in `results/nonlinear_combiner_eval.json`.
+whether this is real: a larger PAIR-adversarial set -- which turned out to
+be more available than this document previously claimed (see below and the
+corrected Known limitations entry). Full numbers in
+`results/nonlinear_combiner_eval.json`.
+
+### A supplementary, larger PAIR check: TRAIN-goal artifacts (2026-08-12)
+
+The "blocked on JailbreakBench" framing above (and this document's own prior
+Known-limitations entry) turned out to be imprecise, checked directly:
+JailbreakBench already has successful PAIR artifacts for **60 of this
+project's 73 total corpus JBB harmful goals** (89 distinct goals exist in
+JailbreakBench overall), not just the ~10-11 that land in TEST. The real
+constraint was never external data availability, it's that the adversarial
+set is (correctly) built only from TEST-split goals. 41 of the 60 matchable
+goals sit in TRAIN and were never used for anything but deriving the
+refusal direction / SAE causal ranking -- never a detection threshold --
+so PAIR-paraphrased versions of them carry none of the calibration-leakage
+risk VAL-goal artifacts would (`scripts/build_train_pair_set.py`).
+
+**This is a supplementary check on the already-pre-registered non-linear
+combiner, not a new experiment**: the identical pipeline and VAL-derived
+threshold are reused exactly as already fit (same deterministic code, same
+VAL data, nothing re-tuned or re-derived against this new set). The
+official TEST-based n=21 PAIR metric is untouched; this is reported
+alongside it.
+
+| Model | n (goals) | vanilla PAIR rate | non-linear PAIR rate | McNemar |
+|---|---|---|---|---|
+| Qwen3-8B | 78 (41) | 29.5% | 46.2% | **p=0.0072** (17 vs. 4 discordant) |
+| Llama-3.1-8B-Instruct | 78 (41) | 84.6% | 83.3% | p=1.0 (0 vs. 1 discordant) |
+
+**A real inconsistency, reported rather than smoothed over**: Qwen3-8B's
+vanilla PAIR rate on this TRAIN-goal set (29.5%) is far below its known
+TEST-based rate (52.4%) -- a 22.9-point gap. Llama's is close (84.6% vs.
+81.0%, a 3.6-point gap, unremarkable). This means the two goal sets are not
+simply interchangeable for Qwen3-8B, likely genuine goal-level heterogeneity
+in paraphrase difficulty rather than anything wrong with either set (the
+TRAIN-goal set skews harder for this model specifically). Because of this,
+the p=0.0072 result should not be read as a clean replication of the
+TEST-based effect size (52.4%->71.4%) at a bigger sample -- it's evidence
+from a differently-calibrated baseline.
+
+**What it is good evidence for**: the *direction* of the effect. On both
+independent goal sets -- the original n=21 TEST-based set and this n=78
+TRAIN-based set, with substantially different baseline difficulty -- the
+non-linear combiner improves Qwen3-8B's PAIR detection and leaves Llama's
+essentially unchanged (81.0%->71.4%, not significant, on the original set;
+84.6%->83.3%, not significant, here). Two independent samples, different
+absolute rates, same qualitative shape, and the larger one now reaches
+significance. This is corroborating evidence for a real, model-specific
+effect -- stronger than either check alone -- but not a fully clean
+replication given the unexplained baseline gap. Full numbers in
+`results/train_pair_eval.json`.
 
 ### Known limitations (baseline detectors and adversarial evaluation)
 
-- **Adversarial set is small** (n=35, spanning only 11 of TEST's JBB-sourced
-  goals) -- large enough to show all four detectors degrade under PAIR
-  paraphrase, not large enough to statistically distinguish dense-direction
-  from SAE-feature on that degradation in every model (significant for
-  gemma-2-9b-it, not for Qwen3-8B/Llama-3.1-8B -- see the cross-model
-  table above). A larger set (more JBB goals landing in TEST, or matching
-  against AdvBench/HarmBench-sourced artifacts if JailbreakBench publishes
-  them) would sharpen this.
+- **The official TEST-based adversarial set is small** (n=35, spanning only
+  11 of TEST's JBB-sourced goals) -- large enough to show all four detectors
+  degrade under PAIR paraphrase, not large enough to statistically
+  distinguish dense-direction from SAE-feature on that degradation in every
+  model (significant for gemma-2-9b-it, not for Qwen3-8B/Llama-3.1-8B -- see
+  the cross-model table above). **Corrected (2026-08-12): this is not
+  externally blocked the way earlier versions of this document stated.**
+  JailbreakBench already has successful PAIR artifacts for 60 of this
+  project's 73 total corpus JBB harmful goals; the real constraint is that
+  the official set is deliberately built only from TEST-split goals (~11 of
+  them), not that more artifacts don't exist. A supplementary n=78 check
+  built from TRAIN-split goals now exists (`scripts/build_train_pair_set.py`,
+  see the non-linear-combiner section above) -- kept separate from this
+  official metric since its baseline detection rate differs from TEST's for
+  Qwen3-8B, not folded in as if the two were interchangeable.
 - **Keyword lexicon coverage is corpus-dependent.** Its poor GCG/PAIR
   numbers partly reflect that this project's TEST-split JBB goals lean
   toward categories (defamation, harassment, extortion) the curated lexicon
@@ -1511,9 +1566,11 @@ thresholded accuracy ties.
 1. **The perplexity filter's split is textbook**: 100% on GCG, **0%** on PAIR.
    The judge and both activation detectors catch 92.9-100% of GCG, so GCG does
    not discriminate between them; PAIR is where the spread lives.
-2. **Adversarial n is the binding constraint.** Every PAIR conclusion here,
-   positive or null, rests on 21 prompts. That set cannot be enlarged until
-   JailbreakBench publishes more artifacts (see Known limitations).
+2. **Adversarial n is the binding constraint for the official metric.**
+   Every PAIR conclusion in this table rests on the same 21 TEST-based
+   prompts, deliberately kept that way (see Known limitations for why a
+   TRAIN-goal supplement exists separately rather than being folded in
+   here).
 
 **What this does and does not settle.** The central claim survives and is
 replicated three times on the measure that does not depend on threshold

@@ -3658,3 +3658,47 @@ publishing more attack artifacts, see `reports/RESULTS.md`'s adversarial-set
 limitations) is the direct way to get the statistical power this result is
 missing -- not a different model or another round of hyperparameter choices
 on the same n=21. Results in `results/nonlinear_combiner_eval.json`.
+
+## Correcting the record: the "blocked on JailbreakBench" claim was imprecise (2026-08-12)
+
+**The claim, repeated in this document (this entry included, just above,
+and the 2026-07-24 "Adversarial n is the binding constraint" entry) and in
+`reports/RESULTS.md`, was that the PAIR-adversarial set could not be
+enlarged until JailbreakBench published more attack artifacts.** Checked
+directly rather than continuing to assume it: JailbreakBench already has
+successful PAIR artifacts for **60 of this project's 73 total corpus JBB
+harmful goals** (89 distinct goals exist in JailbreakBench overall) -- 41 in
+TRAIN, 9 in VAL, ~10-11 in TEST. The real, binding constraint was never
+external data availability, it was that the adversarial set is (correctly)
+built only from TEST-split goals. This document's older entries are left as
+they are rather than silently edited -- they accurately record what was
+believed at the time -- this entry is the correction, following this
+project's own standing practice of recording corrections rather than
+quietly amending history.
+
+**What this unlocks**: `scripts/build_train_pair_set.py` builds a
+supplementary PAIR set from the 41 TRAIN-goal matches (78 prompts across
+41 goals, more than double the official n=21). TRAIN was only ever used to
+derive the refusal direction / SAE causal ranking, never a detection
+threshold, so this carries none of the calibration-leakage risk a VAL-goal
+set would (VAL was deliberately excluded from this for that reason, a
+choice made before running anything, not after). `scripts/train_pair_eval.py`
+reuses the non-linear combiner's exact pipeline and VAL-derived threshold
+(no refitting, no new researcher degrees of freedom) to test the same
+already-pre-registered model against this larger set.
+
+**Result**: Qwen3-8B's vanilla-vs-non-linear PAIR comparison reaches
+significance on this larger set (29.5% -> 46.2%, McNemar p=0.0072, 17 vs. 4
+discordant of 78). Llama's negative control stays flat (84.6% -> 83.3%,
+p=1.0). But the vanilla detector's baseline PAIR rate on this TRAIN-goal set
+(29.5%) is far below its known TEST-based rate (52.4%) for Qwen3-8B
+specifically -- a 22.9-point gap not present for Llama (84.6% vs. 81.0%,
+unremarkable). The two goal sets are not interchangeable for this model,
+most plausibly genuine goal-level heterogeneity in paraphrase difficulty
+rather than a flaw in either set. **Read as corroborating evidence for the
+effect's direction and specificity** (same qualitative pattern replicates
+across two independent goal sets with different baselines: Qwen3-8B
+improves, Llama does not), **not as a clean statistical replication of the
+original TEST-based effect size** -- the unexplained baseline gap means
+that specific number shouldn't be taken at face value. Full numbers in
+`results/train_pair_eval.json`.
