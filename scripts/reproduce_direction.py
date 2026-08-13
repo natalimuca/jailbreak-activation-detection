@@ -49,6 +49,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--n-val", type=int, default=30)
     p.add_argument("--max-new-tokens", type=int, default=40)
     p.add_argument("--reasoning-model", action="store_true")
+    p.add_argument("--4bit", dest="load_in_4bit", action="store_true", help="Load model in 4-bit (bitsandbytes) -- needed for 7-9B models on a 6GB GPU.")
     return p.parse_args()
 
 
@@ -58,8 +59,8 @@ def main() -> None:
     model_slug = model_name.split("/")[-1]
     results_path = RESULTS_DIR / f"phase1_reproduction_{model_slug}.json"
 
-    print(f"Loading model: {model_name}")
-    model = load_model(model_name)
+    print(f"Loading model: {model_name}" + (" (4-bit)" if args.load_in_4bit else ""))
+    model = load_model(model_name, load_in_4bit=args.load_in_4bit)
 
     print("Loading harmful/harmless prompt split")
     split = load_harmful_harmless_split(n_train=args.n_train, n_calib=args.n_calib, n_val=args.n_val)
