@@ -4047,6 +4047,7 @@ already reported as secondary/diagnostic points alongside the AUROC result
 -- but both `reports/RESULTS.md` and `README.md` stated them as significant
 without a family-wise caveat, so both are corrected in place to say
 "significant at the per-test level, not after BH-FDR within its family."
+Full numbers in `results/multiple_comparisons_correction.json`.
 
 ## Pre-registration: DeepSeek-R1-Distill-Llama-8B vs. Llama-3.1-8B-Instruct -- is diffuseness distillation-general or base-specific? (2026-08-13)
 
@@ -4132,4 +4133,43 @@ detector. Staged execution (SAE verification, then dense-direction, then
 SAE-feature if warranted, then write-up), each stage's result reviewed
 before the next runs, matching this project's own established pattern for
 large model-onboarding efforts.
-Full numbers in `results/multiple_comparisons_correction.json`.
+
+## Closing Step 2: the qresearch SAE checkpoint fails its verification gate (2026-08-13)
+
+**Method**: `scripts/verify_qresearch_sae.py` extracted real last-token
+layer-19 (and, once the first pass failed badly, layers 17-21) residual-
+stream activations for 10 real harmful prompts (`CORE_REQUESTS`, reused
+from `wrapper_swap_variance.py`) from `DeepSeek-R1-Distill-Llama-8B` (4-bit),
+then measured reconstruction quality (fraction of variance explained,
+`decode(encode(x))` vs. `x`) across a k-sweep (32-512, bracketing the
+model card's reported L0=93), a layer sweep (17-21, checking for an
+off-by-one indexing mismatch), and both raw and unit-RMS-normalized
+activations (checking for a preprocessing/scale mismatch this checkpoint's
+dead training repo can't confirm or rule out) -- 24 configurations total.
+
+**Result: every single configuration fails badly.** FVE is strongly
+negative everywhere tested (best: k=64/layer=19/raw, FVE=-2.27; worst:
+no-sparsity upper bound, FVE=-64192.97) -- meaning the SAE's reconstruction
+is worse than just predicting the mean activation, not merely imprecise.
+MSE barely moves across the entire 16x k range (0.0247-0.0262 at layer 19),
+which is itself diagnostic: a genuinely well-fit top-k SAE should show
+reconstruction *improving* as k increases toward the trained sparsity
+level and then plateauing, not staying flat across two orders of magnitude
+change in k. Neither the layer sweep nor unit-RMS normalization found any
+configuration remotely close to the FVE>=0.5 pass bar set in the
+pre-registration above. Full numbers in
+`results/qresearch_sae_verification.json`.
+
+**Per the pre-registration's own stated fallback: this SAE is reported as
+unusable, not forced into service.** The checkpoint's shapes matched this
+project's `TopKSAE` convention exactly, which made it look immediately
+usable -- a reminder that matching shapes is necessary but not sufficient
+evidence a checkpoint is correct, the same lesson (in a more severe form)
+as LlamaScope/GemmaScope's real-JumpReLU-despite-paper-framing discovery.
+Without the training code (dead repo) there is no way to recover whatever
+preprocessing, layer convention, or scale this checkpoint actually expects.
+**Step 4 (SAE-feature pipeline) is skipped for this model.** Step 3
+(dense-direction pipeline) does not depend on this checkpoint and proceeds
+regardless -- this comparison still answers its core question (classifier
+strength, PAIR robustness, causal necessity/sufficiency) via the
+dense-direction half alone.
