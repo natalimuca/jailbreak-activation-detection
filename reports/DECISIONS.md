@@ -4047,4 +4047,89 @@ already reported as secondary/diagnostic points alongside the AUROC result
 -- but both `reports/RESULTS.md` and `README.md` stated them as significant
 without a family-wise caveat, so both are corrected in place to say
 "significant at the per-test level, not after BH-FDR within its family."
+
+## Pre-registration: DeepSeek-R1-Distill-Llama-8B vs. Llama-3.1-8B-Instruct -- is diffuseness distillation-general or base-specific? (2026-08-13)
+
+**The question.** DeepSeek-R1-Distill-Qwen-1.5B is diffuse across every
+measurement this project has run: weakest dense-direction classifier of
+all six models (84.7% TEST accuracy, AUROC 0.911), worst PAIR robustness
+(9.5%, a dramatic new low), a genuine activation-addition null (0% refusal
+at every alpha 0.25-4.0), and an SAE-feature detector that barely fires
+(4.4% VAL recall). The Roadmap has named comparing this against another
+distilled model as deliberately-not-pursued future work. This closes that
+gap, done to full parity rather than as a minimal probe (user's explicit
+call): the same dense-direction *and* SAE-feature treatment every other
+model in this project gets, not a reduced version.
+
+**Model and rationale, fixed now.** `deepseek-ai/DeepSeek-R1-Distill-Llama-8B`
+-- distilled from the same base architecture and parameter class as
+`Llama-3.1-8B-Instruct`, already the most thoroughly characterized model in
+this project: best passive classifier of all six (93.1% TEST accuracy,
+AUROC 0.989), yet one of the weakest causal mechanisms until the
+component-decomposition work resolved it (the small feature-aligned
+component alone drops refusal 92%->38%, p=0.0, while the large orthogonal
+remainder does nothing at all, 92%->92%); SAE-feature causal effect
+concentrated almost entirely in one feature (98%->10% from the top feature
+alone); dense-direction PAIR robustness 71.4%, SAE-feature PAIR 81.0%. This
+is the natural architecture/size-matched control DeepSeek-1.5B's own
+comparison group (Qwen2.5-1.5B-Instruct, a different and much smaller base)
+never had.
+
+**The hypothesis, stated before running anything, both directions
+informative.** If DeepSeek-1.5B's diffuseness is a property of R1-style
+reasoning distillation itself, DeepSeek-R1-Distill-Llama-8B should look
+diffuse too -- despite being 8B and Llama-based, it should show a weaker
+classifier, weaker PAIR robustness, and a weak-or-null causal effect (both
+necessity and sufficiency), unlike Llama-3.1-8B-Instruct's strong,
+concentrated profile. If it is instead a property of DeepSeek-1.5B's small
+base model or its specific training run, DeepSeek-R1-Distill-Llama-8B
+should look more like Llama-3.1-8B-Instruct -- a strong classifier and a
+concentrated (if not necessarily identical) causal mechanism. Either
+outcome is reportable; there is no failure mode for this comparison, only
+an answer.
+
+**A pretrained third-party SAE was found and verified to exist for this
+exact model**, `qresearch/DeepSeek-R1-Distill-Llama-8B-SAE-l19` (layer 19,
+reported final L0 of 93 during training) -- checked directly by downloading
+and inspecting the 2.1GB checkpoint rather than assumed from the model
+card: a plain state dict, `encoder.weight (65536,4096)`,
+`encoder.bias (65536,)`, `decoder.weight (4096,65536)`,
+`decoder.bias (4096,)`, matching this project's existing `TopKSAE` class
+shape convention exactly (no transpose needed, unlike EleutherAI's
+checkpoint). **A real, unresolved risk flagged rather than assumed away**:
+this project already caught LlamaScope's and GemmaScope's actually-released
+checkpoints being JumpReLU despite their paper describing "TopK SAEs" (see
+`src/sae/jumprelu_sae.py`'s docstring) -- the same failure mode is possible
+here. This checkpoint stores no separate threshold tensor (a real JumpReLU
+checkpoint needs one), which is evidence against JumpReLU and consistent
+with hard top-k, but the GitHub repo the model card cites as its training
+code is dead (confirmed via the GitHub API, 404, org does not resolve), so
+there is no ground truth to verify against the way every other SAE provider
+in this project was. **Required gate before any causal-ranking work**:
+empirically check reconstruction quality at k=93 on real layer-19
+activations; if poor, sweep nearby k values; if poor at every reasonable k,
+stop and report the SAE as unusable rather than force it into service --
+the dense-direction half of this comparison does not depend on it and
+proceeds regardless.
+
+**Metrics, fixed now, all compared directly against Llama-3.1-8B-Instruct's
+already-published numbers (no rerun needed):** dense-direction TEST
+accuracy/AUROC, PAIR detection rate, causal necessity (ablation) and
+sufficiency (activation addition) at full N=50/6-condition, and if the SAE
+gate passes: SAE-feature causal ranking, N=50/6-condition suppression
+validation, and SAE-feature detector TEST accuracy/AUROC/PAIR. Reasoning-
+trace methodology reused unmodified from DeepSeek-1.5B's onboarding
+(`extract_answer`, `resolve_completions`/`resolve_completions_by_index`,
+`--reasoning-model`/`--max-new-tokens` flags, 2048-token budget). No
+reduced sample sizes taken just to save time -- if the real per-generation
+cost makes N=50 impractical, that gets reported as a finding (same
+pre-flight cost-check discipline as DeepSeek-1.5B's own onboarding), not
+silently cut without saying so.
+
+**Scope, fixed now.** No SAE-feature work if Step 2's reconstruction gate
+fails. No webapp wiring -- this model has no role in the live interactive
+detector. Staged execution (SAE verification, then dense-direction, then
+SAE-feature if warranted, then write-up), each stage's result reviewed
+before the next runs, matching this project's own established pattern for
+large model-onboarding efforts.
 Full numbers in `results/multiple_comparisons_correction.json`.
