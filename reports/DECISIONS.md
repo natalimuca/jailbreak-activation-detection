@@ -4173,3 +4173,66 @@ preprocessing, layer convention, or scale this checkpoint actually expects.
 regardless -- this comparison still answers its core question (classifier
 strength, PAIR robustness, causal necessity/sufficiency) via the
 dense-direction half alone.
+
+## Step 3 progress and a paused stopping point: real per-generation cost measured, causal validation deferred (2026-08-13)
+
+**Classifier half complete, and it's a striking result.** Full-corpus
+activation extraction (1922 prompts, `results/activations/DeepSeek-R1-Distill-Llama-8B.pt`,
+correct 1345/289/288 train/val/test split matching every other model) and
+`scripts/extend_deepseek_llama.py` (mirrors `extend_deepseek.py`, adds
+4-bit loading since this is an 8B model) both ran clean.
+**DeepSeek-R1-Distill-Llama-8B is not diffuse -- it is one of the
+strongest models in the project**: layer 13, TEST accuracy 94.1%
+[90.7%,96.3%] (best of all seven models now tracked), AUROC 0.988, PAIR
+detection **95.2%** (n=21) -- higher than undistilled
+Llama-3.1-8B-Instruct's own 71.4%. This is real, direct evidence toward the
+pre-registration's second branch: DeepSeek-1.5B's diffuseness looks
+base-model/scale-specific, not a general property of R1-style distillation.
+Full numbers merged into `results/dense_direction_cross_model.json`.
+
+**Causal necessity/sufficiency validation (ablation + addition) is real
+GPU cost that was measured, not assumed, before committing to it -- and
+the measurement changed the plan.** `calibrate_alpha.py`/
+`reproduce_direction.py` never supported 4-bit loading before (only ever
+run on small models); added a `--4bit` flag to both, matching
+`extract_activations.py`'s existing pattern. First real attempt (`--4bit
+--reasoning-model --max-new-tokens 2048`, default n-calib=12) ran 3h47m
+without completing -- initially looked like a possible hang, investigated
+rather than assumed: a cheap diagnostic probe (`scripts/probe_deepseek_llama_gen.py`,
+small N, no intervention vs. with intervention, bounded budget) found
+steady-state generation runs at a normal ~4.2 tok/s (one-time ~14min
+first-call compilation warmup explains part of the delay, not all of it --
+the rest is explained by `calibrate_alpha.py` only printing once per
+completed alpha row, i.e. after all 12 prompts finish, not per-prompt, so
+the apparent "hang" was actually several complete ~8min generations
+happening silently). At this measured rate, the full pre-registered scope
+(7 alphas x n-calib=12, then N=50 x 4 condition-batches) is **~38 hours**
+(~11h calibration + ~27h causal validation) -- genuinely multi-day, not
+a single-session cost.
+
+**A capped-token-budget mitigation was considered and rejected**: 3 of 4
+probe prompts had not reached `</think>` even at a 512-token budget,
+suggesting this model needs most of its 2048-token budget to converge,
+similar to DeepSeek-1.5B. Capping tokens lower risks high truncation
+(prompts excluded via `resolve_completions`, not wrongly scored) without
+actually saving meaningful time, and risks needing a redo at full budget
+anyway -- rejected in favor of reducing N at the full budget instead,
+matching DeepSeek-1.5B's own established precedent for hitting this exact
+wall (original N=50 estimate ~13h, reduced to N=15, reasoning documented
+rather than silently cut).
+
+**Paused here, by the user's explicit choice, pending the thesis's
+acceptance status** -- not abandoned, not silently incomplete. What is
+solid and usable regardless of whether this resumes: the dense-direction
+classifier result above (a real, informative finding on its own), the SAE
+verification failure (Step 2, closed), and the throughput/cost data in this
+entry (so a future resumption does not need to re-discover the ~4.2 tok/s
+rate or re-run the diagnostic probe). **What remains, if resumed**: pick a
+concrete reduced N for causal validation (the honest range measured is
+roughly 7 hours at an aggressively small, possibly underpowered N, up to
+~18-20 hours at an N genuinely comparable to precedent -- no combination of
+"real N" and "a few hours" exists at this model's measured throughput,
+stated plainly rather than papered over), run `calibrate_alpha.py` then
+`reproduce_direction.py` with that N, and only then decide on the SAE
+question -- which is already closed regardless (Step 2 failed its gate, so
+no SAE-feature work is planned either way).

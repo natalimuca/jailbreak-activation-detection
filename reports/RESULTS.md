@@ -1540,6 +1540,50 @@ diagnose-then-fix approach this project has been using, not evident from
 either prior model's result alone. Full numbers in
 `results/nonlinear_combiner_eval.json`.
 
+### A seventh model, DeepSeek-R1-Distill-Llama-8B: is diffuseness distillation-general? (2026-08-13, in progress)
+
+DeepSeek-R1-Distill-Qwen-1.5B is diffuse across every measurement in this
+project. Is that a property of R1-style reasoning distillation itself, or
+of its small 1.5B/Qwen2.5 base? `DeepSeek-R1-Distill-Llama-8B` -- distilled
+from the same base architecture and size class as the already-thoroughly-
+characterized `Llama-3.1-8B-Instruct` -- is the natural architecture/size-
+matched control. Full pre-registration and progress log in
+`reports/DECISIONS.md`.
+
+**The dense-direction classifier half is complete, and it's a striking
+result: this model is not diffuse.** Layer 13, TEST accuracy **94.1%**
+[90.7%,96.3%] (best of all seven models now tracked), AUROC 0.988, and
+PAIR-paraphrase detection **95.2%** (n=21) -- higher than undistilled
+Llama-3.1-8B-Instruct's own 71.4%. Real, direct evidence that
+DeepSeek-1.5B's diffuseness is base-model/scale-specific, not a general
+property of R1-style distillation -- though a strong classifier alone
+doesn't settle it (Llama-3.1-8B is this project's own cautionary tale:
+best classifier, yet a weak causal mechanism until component decomposition
+found where it actually lived), so this is reported as directionally
+informative, not conclusive, pending the causal half.
+
+**A pretrained third-party SAE for this model
+(`qresearch/DeepSeek-R1-Distill-Llama-8B-SAE-l19`) failed its verification
+gate** -- 24 tested configurations (5 layers x raw/normalized, plus a k
+sweep) all gave strongly negative reconstruction quality, and the
+checkpoint's training code is no longer available to debug against. No
+SAE-feature work is planned for this model.
+
+**Causal necessity/sufficiency validation (ablation + addition) is paused,
+not abandoned**, by explicit user choice pending the thesis's acceptance
+status. Real per-generation cost was measured first rather than assumed:
+steady-state ~4.2 tok/s at this model's calibrated 2048-token reasoning
+budget puts the full pre-registered N (7-alpha calibration + N=50
+4-condition validation) at roughly 38 hours of GPU time -- genuinely
+multi-day. A capped-token-budget shortcut was considered and rejected
+(most probe completions hadn't reached `</think>` even at 512 tokens, so
+capping risked high truncation without real time savings); reducing N at
+the full budget, matching DeepSeek-1.5B's own precedent for hitting this
+same wall, is the fallback if this resumes -- honest range is ~7 hours at
+an aggressively small N to ~18-20 hours at an N genuinely comparable to
+precedent. Full cost data in `reports/DECISIONS.md` so a resumption
+doesn't need to re-measure it.
+
 ### Known limitations (baseline detectors and adversarial evaluation)
 
 - **The official TEST-based adversarial set is small** (n=35, spanning only
